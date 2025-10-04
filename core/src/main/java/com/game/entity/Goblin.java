@@ -1,15 +1,15 @@
 package com.game.entity;
 
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector2;
+import com.game.main.GameWorld;
 
 public class Goblin implements Entity {
 
 
-    @Override
-    public Sprite getSprite() {
-        return null;
+    public Goblin(GameWorld world, int i, int i1, Texture goblinSpriteSheet) {
     }
 
     @Override
@@ -30,15 +30,5 @@ public class Goblin implements Entity {
     @Override
     public void setPosition(float x, float y) {
 
-    }
-
-    @Override
-    public float getX() {
-        return 0;
-    }
-
-    @Override
-    public float getY() {
-        return 0;
     }
 }

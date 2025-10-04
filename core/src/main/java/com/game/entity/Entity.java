@@ -12,12 +12,8 @@ public interface Entity {
     int health = 50;
     int maxHealth = 50;
 
-    Sprite getSprite();
-
     void update(float delta);
     void render(SpriteBatch batch);
     Vector2 getPosition();
     void setPosition(float x, float y);
-    float getX();
-    float getY();
 }

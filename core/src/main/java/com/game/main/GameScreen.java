@@ -10,7 +10,6 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.game.entity.Goblin;
 import com.game.entity.Player;
-import com.game.main.GameWorld;
 
 /**
  * Main game screen that manages the game loop
@@ -38,8 +37,8 @@ public class GameScreen implements Screen {
         batch = new SpriteBatch();
 
         // Load textures
-        playerSpriteSheet = new Texture(Gdx.files.internal("player_spritesheet.png"));
-        goblinSpriteSheet = new Texture(Gdx.files.internal("goblin_spritesheet.png"));
+        playerSpriteSheet = new Texture(Gdx.files.internal("Characters/16x32 Walk Cycle-Sheet.png"));
+        goblinSpriteSheet = new Texture(Gdx.files.internal("Characters/16x32 Run Cycle-Sheet.png"));
 
         // Create world (20x15 tiles with 32px tile size = 640x480 world)
         world = new GameWorld(20, 15);
