@@ -1,16 +1,23 @@
 package com.game.entity;
 
 import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.Vector2;
 
 public interface Entity {
 
-    int posX = 0;
-    int posY = 0;
+    float posX = 0;
+    float posY = 0;
 
     int health = 50;
     int maxHealth = 50;
 
     Sprite getSprite();
 
-
+    void update(float delta);
+    void render(SpriteBatch batch);
+    Vector2 getPosition();
+    void setPosition(float x, float y);
+    float getX();
+    float getY();
 }
