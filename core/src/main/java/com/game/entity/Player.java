@@ -31,7 +31,7 @@ public class Player implements Entity {
         sizeX = 16;
         sizeY = 16;
 
-        String spriteClass = "GladiatorBlue";
+        String spriteClass = "Princess";
 
         String walkPath = String.format("Actor/Characters/%s/SeparateAnim/Walk.png", spriteClass);
         String idlePath = String.format("Actor/Characters/%s/SeparateAnim/Idle.png", spriteClass);

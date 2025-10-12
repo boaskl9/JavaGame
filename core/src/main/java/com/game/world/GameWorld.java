@@ -84,4 +84,8 @@ public class GameWorld {
     public void setCollisionSystem(CollisionSystem collisionSystem) {
         this.collisionSystem = collisionSystem;
     }
+
+    public List<Entity> getEntities() {
+        return entities;
+    }
 }

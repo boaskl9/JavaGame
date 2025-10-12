@@ -13,6 +13,10 @@ public class LevelLoader {
     private TiledMap map;
     private OrthogonalTiledMapRenderer mapRenderer;
 
+    public OrthogonalTiledMapRenderer getMapRenderer() {
+        return mapRenderer;
+    }
+
     float[] playerSpawn;
 
     public void loadLevel(String levelPath) {

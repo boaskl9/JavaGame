@@ -1,10 +1,12 @@
 package com.game.main;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Polygon;
@@ -18,35 +20,46 @@ import com.game.world.GameWorld;
  * Main game screen that manages the game loop
  */
 public class GameScreen implements Screen {
-    private static final int VIEWPORT_WIDTH = 400;
-    private static final int VIEWPORT_HEIGHT = 300;
+    private static final int VIEWPORT_WIDTH = 350;
+    private static final int VIEWPORT_HEIGHT = 200;
 
     private SpriteBatch batch;
+
+    // Debug
+    private BitmapFont debugFont;
+    private boolean debugMode = false;
     private ShapeRenderer shapeRenderer;
+
     private OrthographicCamera camera;
+    private OrthographicCamera uiCamera;     // UI camera (fixed to screen)
     private Viewport viewport;
 
     private GameWorld world;
     private LevelLoader levelLoader;
     private Player player;
 
-    private Texture goblinSpriteSheet;
-
     public GameScreen() {
         // Create camera and viewport
         camera = new OrthographicCamera();
+        uiCamera = new OrthographicCamera();
+        uiCamera.setToOrtho(false, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+
         viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
         camera.position.set(VIEWPORT_WIDTH / 2f, VIEWPORT_HEIGHT / 2f, 0);
+
 
         batch = new SpriteBatch();
         shapeRenderer = new ShapeRenderer();
 
-        // Load textures
-        goblinSpriteSheet = new Texture(Gdx.files.internal("Characters/16x32 Walk Cycle-Sheet.png"));
+        // Create debug font
+
+        debugFont = new BitmapFont();
+        debugFont.setColor(1, 1, 0, 1); // Yellow text
+        debugFont.getData().setScale(0.5f); // Make it bigger
 
         // Load the level
         levelLoader = new LevelLoader();
-        levelLoader.loadLevel("Maps/StartArea.tmx");
+        levelLoader.loadLevel("Maps/prototype.tmx");
 
 
         // Get world dimensions from the loaded map
@@ -76,6 +89,13 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
+
+        // Check for debug toggle
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
+            debugMode = !debugMode;
+            System.out.println("Debug mode: " + debugMode);
+        }
+
         // Clear screen
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
@@ -86,19 +106,24 @@ public class GameScreen implements Screen {
         // Update camera to follow player with bounds
         updateCamera();
 
+        LevelRenderer.render(batch, levelLoader.getMapRenderer(), world.getEntities(), camera, 2);
+
         // Render the tiled map
-        levelLoader.render(camera);
+        //levelLoader.render(camera);
 
         // Render game entities on top of the map
-        batch.setProjectionMatrix(camera.combined);
-        batch.begin();
-        world.render(batch);
-        // Call it in render():
-        batch.end();
-        renderCollisionDebug(); // Add this line
+        //batch.setProjectionMatrix(camera.combined);
+        //batch.begin();
+        //world.render(batch);
+        //batch.end();
+
+        // Render debug collision shapes
+        if (debugMode) {
+            renderCollisionDebug();
+            renderDebugStats();
+        }
     }
 
-    // In GameScreen, add to render() method after batch.end():
     private void renderCollisionDebug() {
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -113,6 +138,36 @@ public class GameScreen implements Screen {
         }
 
         shapeRenderer.end();
+    }
+
+    private void renderDebugStats() {
+        if (!debugMode) return;
+
+        // Use UI camera (fixed to screen, not world)
+        batch.setProjectionMatrix(uiCamera.combined);
+        batch.begin();
+
+        // Get performance stats
+        int fps = Gdx.graphics.getFramesPerSecond();
+        long memUsed = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1048576;
+        long memTotal = Runtime.getRuntime().totalMemory() / 1048576;
+
+        // Get player position
+        float playerX = player.getPosition().x;
+        float playerY = player.getPosition().y;
+
+        // Render debug text (top-left corner)
+        float x = 10;
+        float y = VIEWPORT_HEIGHT - 10;
+        float lineHeight = 9;
+
+        debugFont.draw(batch, "FPS: " + fps, x, y);
+        debugFont.draw(batch, "Memory: " + memUsed + "/" + memTotal + " MB", x, y - lineHeight);
+        debugFont.draw(batch, "Player Pos: (" + (int)playerX + ", " + (int)playerY + ")", x, y - lineHeight * 2);
+        //debugFont.draw(batch, "Entities: " + world.getEntityCount(), x, y - lineHeight * 3);
+        debugFont.draw(batch, "Press F3 to toggle debug", x, y - lineHeight * 4);
+
+        batch.end();
     }
 
 
@@ -141,6 +196,7 @@ public class GameScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, false);
+        uiCamera.setToOrtho(false, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
     }
 
     @Override
@@ -167,7 +223,7 @@ public class GameScreen implements Screen {
     public void dispose() {
         batch.dispose();
         shapeRenderer.dispose();
-        goblinSpriteSheet.dispose();
         levelLoader.dispose();
+        debugFont.dispose();
     }
 }
