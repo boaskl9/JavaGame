@@ -1,10 +1,9 @@
 package com.game.entity;
 
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector2;
-import com.game.main.GameWorld;
+import com.game.world.GameWorld;
 
 public class Goblin implements Entity {
 
