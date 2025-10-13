@@ -14,7 +14,7 @@ public class Main extends Game {
         // This is called when the application is created
         // Set the initial screen to the game screen
         // Using GameScreenNew with refactored decoupled architecture
-        setScreen(new GameScreenNew());
+        setScreen(new GameScreen());
     }
 
     @Override

@@ -7,7 +7,6 @@ import java.util.Map;
 
 /**
  * Generic game object with component-based architecture.
- * Completely standalone - can be used in any project.
  */
 public class GameObject {
     private Map<Class<? extends Component>, Component> components;

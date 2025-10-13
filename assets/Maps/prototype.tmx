@@ -212,6 +212,7 @@
  </layer>
  <layer id="5" name="features" width="80" height="60">
   <properties>
+   <property name="foregroundRender" type="bool" value="true"/>
    <property name="id" type="int" value="5"/>
    <property name="layer" type="int" value="3"/>
   </properties>

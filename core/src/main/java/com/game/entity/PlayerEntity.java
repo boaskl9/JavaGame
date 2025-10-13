@@ -15,12 +15,13 @@ import com.game.systems.entity.Transform;
 
 /**
  * Player entity built using the new component-based architecture.
- * This class is now just glue code that assembles components.
+ * Extends Entity to get health and living entity features.
  */
-public class PlayerEntity extends GameObject {
+public class PlayerEntity extends com.game.systems.entity.Entity {
     private static final float WALK_SPEED = 80f;
     private static final float RUN_SPEED = 160f;
     private static final int SIZE = 16;
+    private static final int DEFAULT_MAX_HEALTH = 100;
 
     private WorldManager world;
     private int lastDirectionAngle = 180; // Down
@@ -29,10 +30,11 @@ public class PlayerEntity extends GameObject {
     private Transform transform;
     private VelocityComponent velocity;
     private AnimationComponent animation;
-    private ColliderComponent collider;
+    private ColliderComponent environmentCollider;  // For walls, trees (feet only)
+    private ColliderComponent combatCollider;       // For enemies, projectiles (full body)
 
     public PlayerEntity(WorldManager world, float x, float y) {
-        super();
+        super(DEFAULT_MAX_HEALTH);
         this.world = world;
 
         // Add components
@@ -45,8 +47,13 @@ public class PlayerEntity extends GameObject {
         animation = new AnimationComponent();
         addComponent(animation);
 
-        collider = new ColliderComponent(SIZE - 4, SIZE - 4, 2, 2);
-        addComponent(collider);
+        environmentCollider = new ColliderComponent(SIZE * 0.5f, SIZE * 0.25f, SIZE * 0.25f, 0);
+        addComponent(environmentCollider);
+
+        // Combat collider - full body hitbox for enemy attacks
+        // This would be used when enemies attack the player
+        combatCollider = new ColliderComponent(SIZE - 4, SIZE - 4, 2, 2);
+        // Note: Don't add to components yet - we'll add it later when we implement combat
 
         RenderComponent render = new RenderComponent(SIZE, SIZE);
         addComponent(render);
@@ -155,12 +162,29 @@ public class PlayerEntity extends GameObject {
     }
 
     private boolean isPositionWalkable(float x, float y) {
-        float hitboxWidth = collider.getWidth();
-        float hitboxHeight = collider.getHeight();
-        float offsetX = collider.getOffsetX();
-        float offsetY = collider.getOffsetY();
+        // Use the environment collider (feet) for wall/terrain collision
+        float hitboxWidth = environmentCollider.getWidth();
+        float hitboxHeight = environmentCollider.getHeight();
+        float offsetX = environmentCollider.getOffsetX();
+        float offsetY = environmentCollider.getOffsetY();
 
         return world.isPositionWalkable(x + offsetX, y + offsetY, hitboxWidth, hitboxHeight);
+    }
+
+    /**
+     * Get the combat hitbox for enemy attacks.
+     * This is the full body hitbox.
+     */
+    public ColliderComponent getCombatCollider() {
+        return combatCollider;
+    }
+
+    /**
+     * Get the environment collider (feet).
+     * This is used for walls and terrain.
+     */
+    public ColliderComponent getEnvironmentCollider() {
+        return environmentCollider;
     }
 
     public void setWorld(WorldManager world) {

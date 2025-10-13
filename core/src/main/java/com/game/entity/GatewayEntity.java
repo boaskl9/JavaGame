@@ -1,19 +1,19 @@
 package com.game.entity;
 
 import com.game.components.ColliderComponent;
-import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
+import com.game.world.WorldObject;
 
 /**
- * Gateway entity using component-based architecture.
- * No longer depends on the old Entity interface.
+ * Gateway world object - used for level transitions.
+ * Extends WorldObject since it's not a living entity, just an environmental trigger.
  */
-public class GatewayEntity extends GameObject {
-    private String targetLevel;
-    private String targetSpawn;
+public class GatewayEntity extends WorldObject {
+    private final String targetLevel;
+    private final String targetSpawn;
 
     public GatewayEntity(float x, float y, float width, float height, String targetLevel, String targetSpawn) {
-        super();
+        super("gateway");
         this.targetLevel = targetLevel;
         this.targetSpawn = targetSpawn;
 

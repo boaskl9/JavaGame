@@ -16,9 +16,11 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.game.components.ColliderComponent;
+import com.game.components.RenderComponent;
 import com.game.entity.GatewayEntity;
 import com.game.entity.PlayerEntity;
 import com.game.integration.WorldManager;
+import com.game.rendering.YSortRenderer;
 import com.game.systems.collision.SpatialQuery;
 import com.game.systems.collision.TiledMapCollisionLoader;
 import com.game.systems.entity.GameObject;
@@ -30,7 +32,7 @@ import com.game.systems.level.TiledMapParser;
  * Refactored GameScreen using the new decoupled architecture.
  * All systems are now independent and reusable.
  */
-public class GameScreenNew implements Screen {
+public class GameScreen implements Screen {
     private static final int VIEWPORT_WIDTH = 350;
     private static final int VIEWPORT_HEIGHT = 200;
 
@@ -47,10 +49,11 @@ public class GameScreenNew implements Screen {
     private PlayerEntity player;
     private TiledMap currentMap;
     private OrthogonalTiledMapRenderer mapRenderer;
+    private YSortRenderer ySortRenderer;
 
     private GatewayEntity pendingGateway = null;
 
-    public GameScreenNew() {
+    public GameScreen() {
         // Create cameras
         camera = new OrthographicCamera();
         uiCamera = new OrthographicCamera();
@@ -81,6 +84,9 @@ public class GameScreenNew implements Screen {
         // Check for debug toggle
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
             debugMode = !debugMode;
+            if (ySortRenderer != null) {
+                ySortRenderer.setDebugMode(debugMode);
+            }
             System.out.println("Debug mode: " + debugMode);
         }
 
@@ -97,15 +103,20 @@ public class GameScreenNew implements Screen {
         // Update camera
         updateCamera();
 
-        // Render map
+        // Render map with Y-sorting
         mapRenderer.setView(camera);
-        mapRenderer.render();
-
-        // Render entities
         batch.setProjectionMatrix(camera.combined);
-        batch.begin();
-        world.render(batch);
-        batch.end();
+
+        if (ySortRenderer != null) {
+            // Y-sorted rendering (entities sorted with feature layers)
+            ySortRenderer.render(batch, world.getGameObjects(), this::renderEntity);
+        } else {
+            // Fallback: render map then entities (no Y-sorting)
+            mapRenderer.render();
+            batch.begin();
+            world.render(batch);
+            batch.end();
+        }
 
         // Render debug
         if (debugMode) {
@@ -131,6 +142,7 @@ public class GameScreenNew implements Screen {
         // Load Tiled map
         currentMap = new TmxMapLoader().load(levelPath);
         mapRenderer = new OrthogonalTiledMapRenderer(currentMap);
+        ySortRenderer = new YSortRenderer(mapRenderer, currentMap);
 
         // Parse level data
         LevelData levelData = TiledMapParser.parse(currentMap);
@@ -245,8 +257,9 @@ public class GameScreenNew implements Screen {
     private void renderCollisionDebug() {
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        shapeRenderer.setColor(1, 0, 0, 1);
 
+        // Render world collision (red)
+        shapeRenderer.setColor(1, 0, 0, 1);
         for (Rectangle rect : world.getCollisionSystem().getRectangles()) {
             shapeRenderer.rect(rect.x, rect.y, rect.width, rect.height);
         }
@@ -255,7 +268,36 @@ public class GameScreenNew implements Screen {
             shapeRenderer.polygon(poly.getTransformedVertices());
         }
 
+        // Render player colliders
+        if (player != null) {
+            // Environment collider (green) - feet
+            shapeRenderer.setColor(0, 1, 0, 1);
+            ColliderComponent envCollider = player.getEnvironmentCollider();
+            if (envCollider != null) {
+                Rectangle envBounds = envCollider.getBounds(player);
+                shapeRenderer.rect(envBounds.x, envBounds.y, envBounds.width, envBounds.height);
+            }
+
+            // Combat collider (yellow) - full body
+            shapeRenderer.setColor(1, 1, 0, 1);
+            ColliderComponent combatCollider = player.getCombatCollider();
+            if (combatCollider != null) {
+                Rectangle combatBounds = combatCollider.getBounds(player);
+                shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
+            }
+        }
+
         shapeRenderer.end();
+    }
+
+    /**
+     * Render a single entity. Called by Y-sort renderer.
+     */
+    private void renderEntity(SpriteBatch batch, GameObject gameObject) {
+        RenderComponent renderComp = gameObject.getComponent(RenderComponent.class);
+        if (renderComp != null) {
+            renderComp.render(batch, gameObject);
+        }
     }
 
     private void renderDebugStats() {
