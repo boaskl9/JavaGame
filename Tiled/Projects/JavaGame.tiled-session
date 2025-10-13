@@ -26,19 +26,16 @@
             "scale": 2,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 640,
-                "y": 480.25
+                "x": 527.25,
+                "y": 169
             }
         },
         "D:/JavaGame/assets/Maps/StartArea.tmx": {
-            "expandedObjectLayers": [
-                4
-            ],
             "scale": 1.5,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 650.6666666666666,
-                "y": 480.33333333333326
+                "x": 150.33333333333334,
+                "y": 258.66666666666663
             }
         },
         "D:/JavaGame/assets/Maps/glade.tmx": {
@@ -48,8 +45,8 @@
             "scale": 3,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 144,
-                "y": 144.16666666666666
+                "x": 183.83333333333334,
+                "y": 160.33333333333331
             }
         },
         "D:/JavaGame/assets/Maps/house1.tmx": {
@@ -59,19 +56,19 @@
             "scale": 8,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 160,
-                "y": 120.0625
+                "x": 177.0625,
+                "y": 239.375
             }
         },
         "D:/JavaGame/assets/Maps/prototype.tmx": {
             "expandedObjectLayers": [
                 6
             ],
-            "scale": 1.5,
-            "selectedLayer": 0,
+            "scale": 8,
+            "selectedLayer": 4,
             "viewCenter": {
-                "x": 303,
-                "y": 239.33333333333337
+                "x": -1.0625,
+                "y": 160.125
             }
         },
         "D:/Tiled/Projects/TilesetDesert.tsx": {
