@@ -64,11 +64,11 @@
             "expandedObjectLayers": [
                 6
             ],
-            "scale": 8,
+            "scale": 4,
             "selectedLayer": 4,
             "viewCenter": {
-                "x": -1.0625,
-                "y": 160.125
+                "x": 55.875,
+                "y": 113.75
             }
         },
         "D:/Tiled/Projects/TilesetDesert.tsx": {

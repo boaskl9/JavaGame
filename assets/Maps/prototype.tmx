@@ -280,13 +280,13 @@
  </layer>
  <objectgroup id="6" name="Entities">
   <object id="1" name="player_spawn" x="247.521" y="65.5833"/>
-  <object id="2" name="gateway" x="151.333" y="56">
+  <object id="2" name="gateway" x="152" y="56">
    <properties>
     <property name="targetLevel" value="Maps/house1.tmx"/>
     <property name="targetSpawn" value="spawn_point1"/>
    </properties>
   </object>
-  <object id="3" name="spawn_house1_exit" x="151.333" y="76.6667"/>
+  <object id="3" name="spawn_house1_exit" x="152" y="77"/>
   <object id="4" name="gateway" x="3.55271e-15" y="116" width="2" height="23.8182">
    <properties>
     <property name="targetLevel" value="Maps/glade.tmx"/>
