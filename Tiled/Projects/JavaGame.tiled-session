@@ -26,8 +26,8 @@
             "scale": 2,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 527.25,
-                "y": 169
+                "x": 640,
+                "y": 480.25
             }
         },
         "D:/JavaGame/assets/Maps/StartArea.tmx": {
@@ -37,8 +37,8 @@
             "scale": 1.5,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": -1.3333333333333428,
-                "y": 195.99999999999997
+                "x": 650.6666666666666,
+                "y": 480.33333333333326
             }
         },
         "D:/JavaGame/assets/Maps/glade.tmx": {
@@ -48,8 +48,8 @@
             "scale": 3,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 183.83333333333331,
-                "y": 160.33333333333331
+                "x": 144,
+                "y": 144.16666666666666
             }
         },
         "D:/JavaGame/assets/Maps/house1.tmx": {
@@ -59,8 +59,8 @@
             "scale": 8,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 177,
-                "y": 239.375
+                "x": 160,
+                "y": 120.0625
             }
         },
         "D:/JavaGame/assets/Maps/prototype.tmx": {
