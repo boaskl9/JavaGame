@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.game.entity.Entity;
+import com.game.entity.Gateway;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,24 @@ public class GameWorld {
     }
 
     /**
+     * Check if a position overlaps with any gateway and return it
+     */
+    public Gateway getGatewayAtPosition(float worldX, float worldY, float width, float height) {
+        Rectangle playerRect = new Rectangle(worldX, worldY, width, height);
+
+        for (Entity entity : entities) {
+            if (entity instanceof Gateway) {
+                Gateway gateway = (Gateway) entity;
+                if (gateway.overlaps(playerRect)) {
+                    return gateway;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Check if a rectangle collides with anything
      */
     public boolean isRectangleWalkable(Rectangle rect) {
@@ -56,12 +75,6 @@ public class GameWorld {
     public void update(float delta) {
         for (Entity entity : entities) {
             entity.update(delta);
-        }
-    }
-
-    public void render(SpriteBatch batch) {
-        for (Entity entity : entities) {
-            entity.render(batch);
         }
     }
 

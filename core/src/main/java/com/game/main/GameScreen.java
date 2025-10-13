@@ -13,8 +13,12 @@ import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.game.entity.Entity;
+import com.game.entity.Gateway;
 import com.game.entity.Player;
 import com.game.world.GameWorld;
+
+import java.util.List;
 
 /**
  * Main game screen that manages the game loop
@@ -38,6 +42,8 @@ public class GameScreen implements Screen {
     private LevelLoader levelLoader;
     private Player player;
 
+    private Gateway pendingGateway = null; // Gateway to transition to on next frame
+
     public GameScreen() {
         // Create camera and viewport
         camera = new OrthographicCamera();
@@ -57,38 +63,17 @@ public class GameScreen implements Screen {
         debugFont.setColor(1, 1, 0, 1); // Yellow text
         debugFont.getData().setScale(0.5f); // Make it bigger
 
-        // Load the level
-        levelLoader = new LevelLoader();
-        levelLoader.loadLevel("Maps/prototype.tmx");
-
-
-        // Get world dimensions from the loaded map
-        int mapWidth = levelLoader.getMapWidth();
-        int mapHeight = levelLoader.getMapHeight();
-
-        // Create world based on map size
-        world = new GameWorld(mapWidth, mapHeight);
-
-        levelLoader.loadCollisionData(world);
-
-        // Populate world collision data from the map
-        //levelLoader.populateWorldCollision(world);
-
-        // Get player spawn position from map (or use default)
-        float[] playerSpawn = levelLoader.getPlayerSpawnPosition();
-        int spawnGridX = (int)(playerSpawn[0] / world.getTileSize());
-        int spawnGridY = (int)(playerSpawn[1] / world.getTileSize());
-
-        // Create player at spawn position
-        player = new Player(world, spawnGridX, spawnGridY);
-        world.addEntity(player);
-
-        // Spawn entities from map
-        //levelLoader.spawnEntities(world, goblinSpriteSheet);
+        // Load the initial level
+        loadLevel("Maps/prototype.tmx", null);
     }
 
     @Override
     public void render(float delta) {
+        // Handle pending gateway transition
+        if (pendingGateway != null) {
+            loadLevel(pendingGateway.getTargetLevel(), pendingGateway.getSpawnPointName());
+            pendingGateway = null;
+        }
 
         // Check for debug toggle
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
@@ -103,19 +88,13 @@ public class GameScreen implements Screen {
         // Update
         world.update(delta);
 
+        // Check for gateway collisions
+        checkGatewayCollisions();
+
         // Update camera to follow player with bounds
         updateCamera();
 
         LevelRenderer.render(batch, levelLoader.getMapRenderer(), world.getEntities(), camera, 2);
-
-        // Render the tiled map
-        //levelLoader.render(camera);
-
-        // Render game entities on top of the map
-        //batch.setProjectionMatrix(camera.combined);
-        //batch.begin();
-        //world.render(batch);
-        //batch.end();
 
         // Render debug collision shapes
         if (debugMode) {
@@ -171,6 +150,69 @@ public class GameScreen implements Screen {
     }
 
 
+
+    /**
+     * Load a level and place the player at the specified spawn point
+     */
+    private void loadLevel(String levelPath, String spawnPointName) {
+        System.out.println("Loading level: " + levelPath + " at spawn: " + spawnPointName);
+
+        // Dispose previous level loader if it exists
+        if (levelLoader != null) {
+            levelLoader.dispose();
+        }
+
+        // Load the level
+        levelLoader = new LevelLoader();
+        List<Entity> entityList = levelLoader.loadLevel(levelPath);
+
+        // Get world dimensions from the loaded map
+        int mapWidth = levelLoader.getMapWidth();
+        int mapHeight = levelLoader.getMapHeight();
+
+        // Create new world based on map size
+        world = new GameWorld(mapWidth, mapHeight);
+        levelLoader.loadCollisionData(world);
+
+        // Get player spawn position from map (or use default)
+        float[] playerSpawn = levelLoader.getSpawnPosition(spawnPointName);
+        int spawnGridX = (int)(playerSpawn[0] / world.getTileSize());
+        int spawnGridY = (int)(playerSpawn[1] / world.getTileSize());
+
+        // Create player at spawn position (or reuse existing player)
+        if (player == null) {
+            player = new Player(world, spawnGridX, spawnGridY);
+        } else {
+            // Update player's world reference to the new world
+            player.setWorld(world);
+            player.setPosition(spawnGridX * world.getTileSize(), spawnGridY * world.getTileSize());
+        }
+
+        world.addEntity(player);
+
+        // Add gateway entities to the world
+        for (Entity entity : entityList) {
+            world.addEntity(entity);
+        }
+    }
+
+    /**
+     * Check if the player is colliding with any gateway
+     */
+    private void checkGatewayCollisions() {
+        if (player == null) return;
+
+        float playerX = player.getPosition().x;
+        float playerY = player.getPosition().y;
+        int tileSize = world.getTileSize();
+
+        Gateway gateway = world.getGatewayAtPosition(playerX, playerY, tileSize, tileSize);
+
+        if (gateway != null) {
+            // Set the pending gateway for next frame
+            pendingGateway = gateway;
+        }
+    }
 
     private void updateCamera() {
         // Get player center position

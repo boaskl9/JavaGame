@@ -31,7 +31,7 @@ public class Player implements Entity {
         sizeX = 16;
         sizeY = 16;
 
-        String spriteClass = "Princess";
+        String spriteClass = "Villager5";
 
         String walkPath = String.format("Actor/Characters/%s/SeparateAnim/Walk.png", spriteClass);
         String idlePath = String.format("Actor/Characters/%s/SeparateAnim/Idle.png", spriteClass);
@@ -117,6 +117,8 @@ public class Player implements Entity {
         return world.isPositionWalkable(worldX + 2, worldY + 2, hitboxWidth, hitboxHeight);
     }
 
+
+
     @Override
     public void render(SpriteBatch batch) {
         TextureRegion currentFrame = animController.getCurrentFrame();
@@ -146,5 +148,12 @@ public class Player implements Entity {
 
     public AnimationController getAnimController() {
         return animController;
+    }
+
+    /**
+     * Update the world reference (needed when transitioning between levels)
+     */
+    public void setWorld(GameWorld world) {
+        this.world = world;
     }
 }

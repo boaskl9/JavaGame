@@ -23,6 +23,9 @@ public class CollisionSystem {
      * Load all collision shapes from the tiled map
      */
     public void loadCollisionShapes(TiledMap map) {
+        // Clear any existing collision data first
+        clear();
+
         for(int i = 0; i < map.getLayers().getCount(); i++) {
             if (!(map.getLayers().get(i) instanceof TiledMapTileLayer)) {
                 continue;
