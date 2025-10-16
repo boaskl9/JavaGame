@@ -192,6 +192,13 @@ public class GameScreen implements Screen {
             }
         }
 
+        // Open test window
+        if (inputManager.isJustPressed(InputAction.OPEN_TEST_WINDOW)) {
+            if (uiManager != null) {
+                uiManager.toggleTestWindow();
+            }
+        }
+
         // Debug: Spawn wood item
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_ITEM)) {
             spawnDebugItem("wood");

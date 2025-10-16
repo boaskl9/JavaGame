@@ -9,22 +9,6 @@
             "scaleInDock": 1,
             "scaleInEditor": 1
         },
-        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/Rules/autotiles_rules.tmx": {
-            "scale": 3,
-            "selectedLayer": 1,
-            "viewCenter": {
-                "x": 287.3333333333333,
-                "y": 144.16666666666669
-            }
-        },
-        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx": {
-            "scale": 3,
-            "selectedLayer": 0,
-            "viewCenter": {
-                "x": 547,
-                "y": 133.49999999999997
-            }
-        },
         "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx": {
             "scale": 4,
             "selectedLayer": 1,
@@ -45,8 +29,8 @@
             "scale": 1.5,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 150.33333333333334,
-                "y": 258.66666666666663
+                "x": 650.6666666666666,
+                "y": 480.33333333333326
             }
         },
         "D:/JavaGame/assets/Maps/glade.tmx": {
@@ -56,8 +40,8 @@
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 183.83333333333334,
-                "y": 160.33333333333331
+                "x": 144,
+                "y": 144.16666666666666
             }
         },
         "D:/JavaGame/assets/Maps/house1.tmx": {
@@ -65,7 +49,7 @@
                 4
             ],
             "scale": 3,
-            "selectedLayer": 3,
+            "selectedLayer": 2,
             "viewCenter": {
                 "x": 154.16666666666663,
                 "y": 112.66666666666669
@@ -93,7 +77,7 @@
         },
         "TilesetDesert.tsx": {
             "scaleInDock": 1.5,
-            "scaleInEditor": 8
+            "scaleInEditor": 3
         },
         "TilesetElement.tsx": {
             "scaleInDock": 2,
@@ -103,10 +87,6 @@
             "dynamicWrapping": false,
             "scaleInDock": 4,
             "scaleInEditor": 2
-        },
-        "TilesetNature.tsx": {
-            "scaleInDock": 1,
-            "scaleInEditor": 1
         }
     },
     "openFiles": [

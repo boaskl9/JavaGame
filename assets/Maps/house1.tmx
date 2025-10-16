@@ -23,6 +23,9 @@
 </data>
  </layer>
  <layer id="2" name="features" width="20" height="15">
+  <properties>
+   <property name="foregroundRender" type="bool" value="true"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,625,626,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,641,642,0,0,
@@ -42,6 +45,9 @@
 </data>
  </layer>
  <layer id="3" name="features2" width="20" height="15">
+  <properties>
+   <property name="foregroundRender" type="bool" value="true"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,755,0,0,0,0,0,0,
