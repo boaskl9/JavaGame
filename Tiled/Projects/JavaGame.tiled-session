@@ -1,13 +1,8 @@
 {
-    "Map/SizeTest": {
-        "height": 4300,
-        "width": 2
-    },
-    "activeFile": "TilesetElement.tsx",
+    "activeFile": "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
     "expandedProjectPaths": [
         "."
     ],
-    "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
         "Backgrounds.tsx": {
             "dynamicWrapping": true,
@@ -15,11 +10,11 @@
             "scaleInEditor": 1
         },
         "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/Rules/autotiles_rules.tmx": {
-            "scale": 4,
-            "selectedLayer": 0,
+            "scale": 3,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 60.25,
-                "y": 64.625
+                "x": 287.3333333333333,
+                "y": 144.16666666666669
             }
         },
         "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx": {
@@ -114,42 +109,27 @@
             "scaleInEditor": 1
         }
     },
-    "last.exportedFilePath": "D:/JavaGame/assets/Maps",
-    "last.externalTilesetPath": "D:/JavaGame/Tiled/Projects",
-    "last.imagePath": "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Backgrounds/Tilesets",
-    "map.height": 18,
-    "map.lastUsedExportFilter": "All Files (*)",
-    "map.lastUsedFormat": "tmx",
-    "map.tileHeight": 16,
-    "map.tileWidth": 16,
-    "map.width": 18,
     "openFiles": [
         "TilesetElement.tsx",
         "TilesetDesert.tsx",
         "TilesetFloor.tsx",
         "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
-        "TilesetNature.tsx"
+        "TilesetNature.tsx",
+        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/Rules/autotiles_rules.tmx"
     ],
     "project": "JavaGame.tiled-project",
-    "property.type": "bool",
     "recentFiles": [
+        "TilesetElement.tsx",
+        "TilesetDesert.tsx",
+        "TilesetFloor.tsx",
+        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "TilesetNature.tsx",
         "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
-        "TilesetFloor.tsx",
-        "TilesetDesert.tsx",
-        "TilesetElement.tsx",
         "D:/JavaGame/assets/Maps/StartArea.tmx",
         "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "D:/JavaGame/assets/Maps/glade.tmx",
         "D:/JavaGame/assets/Maps/house1.tmx",
         "D:/JavaGame/assets/Maps/prototype.tmx",
-        "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx",
-        "Backgrounds.tsx"
-    ],
-    "tileset.lastUsedFormat": "tsx",
-    "tileset.tileSize": {
-        "height": 16,
-        "width": 16
-    },
-    "tileset.type": 0
+        "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx"
+    ]
 }

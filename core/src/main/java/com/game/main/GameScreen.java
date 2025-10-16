@@ -13,20 +13,30 @@ import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.game.components.ColliderComponent;
 import com.game.components.RenderComponent;
 import com.game.entity.GatewayEntity;
+import com.game.entity.ItemPickupEntity;
 import com.game.entity.PlayerEntity;
+import com.game.integration.WorldItemManager;
 import com.game.integration.WorldManager;
 import com.game.rendering.YSortRenderer;
 import com.game.systems.collision.SpatialQuery;
 import com.game.systems.collision.TiledMapCollisionLoader;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
+import com.game.systems.input.InputAction;
+import com.game.systems.input.InputManager;
+import com.game.systems.item.ItemFactory;
+import com.game.systems.item.ItemStack;
+import com.game.systems.item.TestItems;
 import com.game.systems.level.LevelData;
 import com.game.systems.level.TiledMapParser;
+import com.game.systems.ui.UIManagerNew;
 
 /**
  * Refactored GameScreen using the new decoupled architecture.
@@ -46,10 +56,13 @@ public class GameScreen implements Screen {
     private Viewport viewport;
 
     private WorldManager world;
+    private WorldItemManager worldItemManager;
     private PlayerEntity player;
     private TiledMap currentMap;
     private OrthogonalTiledMapRenderer mapRenderer;
     private YSortRenderer ySortRenderer;
+    private UIManagerNew uiManager;
+    private InputManager inputManager;
 
     private GatewayEntity pendingGateway = null;
 
@@ -69,6 +82,14 @@ public class GameScreen implements Screen {
         debugFont.setColor(1, 1, 0, 1);
         debugFont.getData().setScale(0.5f);
 
+        // Initialize systems
+        worldItemManager = new WorldItemManager();
+        inputManager = new InputManager();
+
+        // Register test items
+        TestItems.registerTestItems();
+        TestItems.loadTextures(worldItemManager);
+
         // Load initial level
         loadLevel("Maps/prototype.tmx", null);
     }
@@ -81,8 +102,14 @@ public class GameScreen implements Screen {
             pendingGateway = null;
         }
 
+        // Update input
+        inputManager.update();
+
+        // Handle input actions
+        handleInputActions();
+
         // Check for debug toggle
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
+        if (inputManager.isJustPressed(InputAction.DEBUG_TOGGLE)) {
             debugMode = !debugMode;
             if (ySortRenderer != null) {
                 ySortRenderer.setDebugMode(debugMode);
@@ -97,8 +124,22 @@ public class GameScreen implements Screen {
         // Update world
         world.update(delta);
 
+        // Update world items
+        worldItemManager.update(delta);
+
+        // Update item magnetism (register nearby items)
+        updateItemMagnetism();
+
+        // Check for item pickup collisions
+        checkItemPickups();
+
         // Check for gateway collisions
         checkGatewayCollisions();
+
+        // Update UI
+        if (uiManager != null) {
+            uiManager.update(delta);
+        }
 
         // Update camera
         updateCamera();
@@ -118,10 +159,128 @@ public class GameScreen implements Screen {
             batch.end();
         }
 
+        // Render world items
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        worldItemManager.render(batch);
+        batch.end();
+
+        // Render UI
+        if (uiManager != null) {
+            uiManager.render();
+        }
+
         // Render debug
         if (debugMode) {
             renderCollisionDebug();
             renderDebugStats();
+        }
+    }
+
+    /**
+     * Handles input actions from InputManager.
+     */
+    private void handleInputActions() {
+        // Open inventory
+        if (inputManager.isJustPressed(InputAction.OPEN_INVENTORY)) {
+            if (uiManager != null) {
+                uiManager.toggleInventory();
+
+                // If inventory is closed, restore input to stage (for HUD)
+                // If open, input processor stays on stage (for dragging)
+                // Stage always handles input when UI exists
+            }
+        }
+
+        // Debug: Spawn wood item
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_ITEM)) {
+            spawnDebugItem("wood");
+        }
+
+        // Debug: Spawn bag item
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_BAG)) {
+            spawnDebugItem("bag");
+        }
+    }
+
+    /**
+     * Debug function: Spawns an item at mouse position.
+     * @param itemId The item ID to spawn
+     */
+    private void spawnDebugItem(String itemId) {
+        // Get mouse position in world coordinates
+        Vector3 mousePos = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+        camera.unproject(mousePos);
+
+        // Create item
+        ItemStack itemStack = ItemFactory.create(itemId, 1);
+        if (itemStack != null) {
+            worldItemManager.spawnItem(itemStack, mousePos.x, mousePos.y);
+            System.out.println("Spawned " + itemId + " at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
+        }
+    }
+
+    /**
+     * Updates item magnetism - registers nearby items with player's magnet component.
+     */
+    private void updateItemMagnetism() {
+        if (player == null) return;
+
+        Vector2 playerPos = player.getTransform().getPosition();
+        float magnetRadius = player.getItemMagnet().getMagnetRadius();
+
+        // Get nearby items
+        for (ItemPickupEntity item : worldItemManager.getItemsNear(playerPos, magnetRadius)) {
+            player.getItemMagnet().registerItem(item);
+        }
+    }
+
+    /**
+     * Checks for item pickup collisions with player.
+     */
+    private void checkItemPickups() {
+        if (player == null) return;
+
+        Transform playerTransform = player.getTransform();
+        ColliderComponent playerCollider = player.getEnvironmentCollider();
+
+        if (playerCollider == null) return;
+
+        Rectangle playerBounds = playerCollider.getBounds(player);
+
+        boolean inventoryChanged = false;
+
+        // Check all items
+        for (ItemPickupEntity item : worldItemManager.getAllItems()) {
+            if (!item.canPickup() || !item.isActive()) continue;
+
+            Transform itemTransform = item.getComponent(Transform.class);
+            if (itemTransform == null) continue;
+
+            // Simple distance check (could use collider for more precision)
+            float distance = playerTransform.getPosition().dst(itemTransform.getPosition());
+            if (distance < 16f) { // Pickup radius
+                // Try to add to inventory
+                ItemStack itemStack = item.getItemStack();
+                ItemStack remaining = player.getInventory().addItem(itemStack);
+
+                if (remaining == null) {
+                    // All picked up
+                    item.onPickup();
+                    worldItemManager.removeItem(item);
+                    System.out.println("Picked up: " + itemStack.toString());
+                    inventoryChanged = true;
+                } else if (remaining.getQuantity() < itemStack.getQuantity()) {
+                    // Partial pickup
+                    item.getItemStack().setQuantity(remaining.getQuantity());
+                    inventoryChanged = true;
+                }
+            }
+        }
+
+        // Notify UI if inventory changed
+        if (inventoryChanged && uiManager != null) {
+            uiManager.notifyInventoryChanged();
         }
     }
 
@@ -191,6 +350,16 @@ public class GameScreen implements Screen {
             player.getTransform().setPosition(spawnX, spawnY);
         }
         world.addGameObject(player);
+
+        // Initialize UI manager
+        if (uiManager == null) {
+            uiManager = new UIManagerNew(player.getInventory(), worldItemManager);
+            uiManager.setItemDropCallback(itemStack -> {
+                // Drop item at player position
+                Vector2 playerPos = player.getTransform().getPosition();
+                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y);
+            });
+        }
 
         // Create gateway entities
         for (LevelData.LevelObject obj : levelData.getObjectsByType("gateway")) {
@@ -329,6 +498,9 @@ public class GameScreen implements Screen {
     public void resize(int width, int height) {
         viewport.update(width, height, false);
         uiCamera.setToOrtho(false, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+        if (uiManager != null) {
+            uiManager.resize(width, height);
+        }
     }
 
     @Override
@@ -350,5 +522,6 @@ public class GameScreen implements Screen {
         debugFont.dispose();
         if (mapRenderer != null) mapRenderer.dispose();
         if (currentMap != null) currentMap.dispose();
+        if (uiManager != null) uiManager.dispose();
     }
 }
