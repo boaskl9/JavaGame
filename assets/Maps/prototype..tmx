@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="80" height="60" tilewidth="16" tileheight="16" infinite="0" nextlayerid="7" nextobjectid="6">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="80" height="60" tilewidth="16" tileheight="16" infinite="0" nextlayerid="7" nextobjectid="7">
  <tileset firstgid="1" source="../../Tiled/Projects/TilesetFloor.tsx"/>
  <tileset firstgid="573" source="../../Tiled/Projects/TilesetDesert.tsx"/>
  <tileset firstgid="813" source="../../Tiled/Projects/TilesetElement.tsx"/>
@@ -209,6 +209,7 @@
  </layer>
  <layer id="5" name="features" width="80" height="60">
   <properties>
+   <property name="foregroundRender" type="bool" value="true"/>
    <property name="id" type="int" value="5"/>
    <property name="layer" type="int" value="3"/>
   </properties>
@@ -277,19 +278,19 @@
  </layer>
  <objectgroup id="6" name="Entities">
   <object id="1" name="player_spawn" x="247.521" y="65.5833"/>
-  <object id="2" name="gateway" x="151.333" y="56">
+  <object id="2" name="gateway" x="152" y="56">
    <properties>
     <property name="targetLevel" value="Maps/house1.tmx"/>
     <property name="targetSpawn" value="spawn_point1"/>
    </properties>
   </object>
-  <object id="3" name="spawn_house1_exit" x="151.333" y="76.6667"/>
-  <object id="4" name="gateway" x="3.55271e-15" y="116" width="6.54545" height="23.8182">
+  <object id="3" name="spawn_house1_exit" x="152" y="77"/>
+  <object id="4" name="gateway" x="3.55271e-15" y="116" width="2" height="23.8182">
    <properties>
     <property name="targetLevel" value="Maps/glade.tmx"/>
     <property name="targetSpawn" value="spawn_point1"/>
    </properties>
   </object>
-  <object id="5" name="spawn_west" x="2.72727" y="122.182" width="11.4545" height="12.3636"/>
+  <object id="6" name="spawn_west" x="22" y="127"/>
  </objectgroup>
 </map>

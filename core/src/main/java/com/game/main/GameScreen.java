@@ -5,47 +5,56 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.maps.tiled.TiledMap;
+import com.badlogic.gdx.maps.tiled.TmxMapLoader;
+import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
-import com.game.entity.Entity;
-import com.game.entity.Gateway;
-import com.game.entity.Player;
-import com.game.world.GameWorld;
-
-import java.util.List;
+import com.game.components.ColliderComponent;
+import com.game.components.RenderComponent;
+import com.game.entity.GatewayEntity;
+import com.game.entity.PlayerEntity;
+import com.game.integration.WorldManager;
+import com.game.rendering.YSortRenderer;
+import com.game.systems.collision.SpatialQuery;
+import com.game.systems.collision.TiledMapCollisionLoader;
+import com.game.systems.entity.GameObject;
+import com.game.systems.entity.Transform;
+import com.game.systems.level.LevelData;
+import com.game.systems.level.TiledMapParser;
 
 /**
- * Main game screen that manages the game loop
+ * Refactored GameScreen using the new decoupled architecture.
+ * All systems are now independent and reusable.
  */
 public class GameScreen implements Screen {
     private static final int VIEWPORT_WIDTH = 350;
     private static final int VIEWPORT_HEIGHT = 200;
 
     private SpriteBatch batch;
-
-    // Debug
     private BitmapFont debugFont;
     private boolean debugMode = false;
     private ShapeRenderer shapeRenderer;
 
     private OrthographicCamera camera;
-    private OrthographicCamera uiCamera;     // UI camera (fixed to screen)
+    private OrthographicCamera uiCamera;
     private Viewport viewport;
 
-    private GameWorld world;
-    private LevelLoader levelLoader;
-    private Player player;
+    private WorldManager world;
+    private PlayerEntity player;
+    private TiledMap currentMap;
+    private OrthogonalTiledMapRenderer mapRenderer;
+    private YSortRenderer ySortRenderer;
 
-    private Gateway pendingGateway = null; // Gateway to transition to on next frame
+    private GatewayEntity pendingGateway = null;
 
     public GameScreen() {
-        // Create camera and viewport
+        // Create cameras
         camera = new OrthographicCamera();
         uiCamera = new OrthographicCamera();
         uiCamera.setToOrtho(false, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
@@ -53,17 +62,14 @@ public class GameScreen implements Screen {
         viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
         camera.position.set(VIEWPORT_WIDTH / 2f, VIEWPORT_HEIGHT / 2f, 0);
 
-
         batch = new SpriteBatch();
         shapeRenderer = new ShapeRenderer();
 
-        // Create debug font
-
         debugFont = new BitmapFont();
-        debugFont.setColor(1, 1, 0, 1); // Yellow text
-        debugFont.getData().setScale(0.5f); // Make it bigger
+        debugFont.setColor(1, 1, 0, 1);
+        debugFont.getData().setScale(0.5f);
 
-        // Load the initial level
+        // Load initial level
         loadLevel("Maps/prototype.tmx", null);
     }
 
@@ -71,13 +77,16 @@ public class GameScreen implements Screen {
     public void render(float delta) {
         // Handle pending gateway transition
         if (pendingGateway != null) {
-            loadLevel(pendingGateway.getTargetLevel(), pendingGateway.getSpawnPointName());
+            loadLevel(pendingGateway.getTargetLevel(), pendingGateway.getTargetSpawn());
             pendingGateway = null;
         }
 
         // Check for debug toggle
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
             debugMode = !debugMode;
+            if (ySortRenderer != null) {
+                ySortRenderer.setDebugMode(debugMode);
+            }
             System.out.println("Debug mode: " + debugMode);
         }
 
@@ -85,57 +94,224 @@ public class GameScreen implements Screen {
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Update
+        // Update world
         world.update(delta);
 
         // Check for gateway collisions
         checkGatewayCollisions();
 
-        // Update camera to follow player with bounds
+        // Update camera
         updateCamera();
 
-        LevelRenderer.render(batch, levelLoader.getMapRenderer(), world.getEntities(), camera, 2);
+        // Render map with Y-sorting
+        mapRenderer.setView(camera);
+        batch.setProjectionMatrix(camera.combined);
 
-        // Render debug collision shapes
+        if (ySortRenderer != null) {
+            // Y-sorted rendering (entities sorted with feature layers)
+            ySortRenderer.render(batch, world.getGameObjects(), this::renderEntity);
+        } else {
+            // Fallback: render map then entities (no Y-sorting)
+            mapRenderer.render();
+            batch.begin();
+            world.render(batch);
+            batch.end();
+        }
+
+        // Render debug
         if (debugMode) {
             renderCollisionDebug();
             renderDebugStats();
         }
     }
 
+    /**
+     * Load a level using the new decoupled systems.
+     */
+    private void loadLevel(String levelPath, String spawnPointName) {
+        System.out.println("Loading level: " + levelPath + " at spawn: " + spawnPointName);
+
+        // Dispose previous resources
+        if (mapRenderer != null) {
+            mapRenderer.dispose();
+        }
+        if (currentMap != null) {
+            currentMap.dispose();
+        }
+
+        // Load Tiled map
+        currentMap = new TmxMapLoader().load(levelPath);
+        mapRenderer = new OrthogonalTiledMapRenderer(currentMap);
+        ySortRenderer = new YSortRenderer(mapRenderer, currentMap);
+
+        // Parse level data
+        LevelData levelData = TiledMapParser.parse(currentMap);
+
+        // Create world manager
+        world = new WorldManager(levelData.getWidth(), levelData.getHeight());
+
+        // Load collision system
+        SpatialQuery collisionSystem = new SpatialQuery();
+        TiledMapCollisionLoader.loadFromTiledMap(currentMap, collisionSystem);
+        world.setCollisionSystem(collisionSystem);
+        System.out.println("Loaded " + collisionSystem.getShapeCount() + " collision shapes");
+
+        // Get spawn position - with proper fallback logic
+        LevelData.SpawnPoint spawn;
+        if (spawnPointName != null) {
+            // Try to get the named spawn point
+            spawn = levelData.getSpawnPoint(spawnPointName);
+            if (spawn == null) {
+                // If named spawn doesn't exist, fall back to default player_spawn
+                System.out.println("Warning: Spawn point '" + spawnPointName + "' not found, using player_spawn");
+                spawn = levelData.getDefaultSpawnPoint();
+            }
+        } else {
+            // No spawn name specified, use default
+            spawn = levelData.getDefaultSpawnPoint();
+        }
+
+        float spawnX = spawn != null ? spawn.getX() : 50;
+        float spawnY = spawn != null ? spawn.getY() : 750;
+
+        // OLD SYSTEM: Convert to grid and back to match old behavior
+        // This ensures spawn positions match the old LevelLoader exactly
+        int spawnGridX = (int)(spawnX / world.getTileSize());
+        int spawnGridY = (int)(spawnY / world.getTileSize());
+        spawnX = spawnGridX * world.getTileSize();
+        spawnY = spawnGridY * world.getTileSize();
+
+        System.out.println("Spawning player at: (" + spawnX + ", " + spawnY + ") - Grid: (" + spawnGridX + ", " + spawnGridY + ")");
+
+        // Create or update player
+        if (player == null) {
+            player = new PlayerEntity(world, spawnX, spawnY);
+        } else {
+            player.setWorld(world);
+            player.getTransform().setPosition(spawnX, spawnY);
+        }
+        world.addGameObject(player);
+
+        // Create gateway entities
+        for (LevelData.LevelObject obj : levelData.getObjectsByType("gateway")) {
+            String targetLevel = obj.getPropertyString("targetLevel", null);
+            String targetSpawn = obj.getPropertyString("targetSpawn", null);
+
+            if (targetLevel != null) {
+                GatewayEntity gateway = new GatewayEntity(
+                    obj.getX(), obj.getY(),
+                    obj.getWidth(), obj.getHeight(),
+                    targetLevel, targetSpawn
+                );
+                world.addGameObject(gateway);
+                System.out.println("Loaded gateway to: " + targetLevel + " at spawn: " + targetSpawn);
+            }
+        }
+    }
+
+    private void checkGatewayCollisions() {
+        if (player == null) return;
+
+        Transform playerTransform = player.getTransform();
+        ColliderComponent playerCollider = player.getComponent(ColliderComponent.class);
+
+        if (playerCollider == null) return;
+
+        Rectangle playerBounds = playerCollider.getBounds(player);
+
+        // Check all gateways
+        for (GameObject obj : world.getGameObjects()) {
+            if (obj instanceof GatewayEntity) {
+                GatewayEntity gateway = (GatewayEntity) obj;
+                ColliderComponent gatewayCollider = gateway.getComponent(ColliderComponent.class);
+
+                if (gatewayCollider != null) {
+                    Rectangle gatewayBounds = gatewayCollider.getBounds(gateway);
+                    if (playerBounds.overlaps(gatewayBounds)) {
+                        pendingGateway = gateway;
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private void updateCamera() {
+        Transform playerTransform = player.getTransform();
+        float playerCenterX = playerTransform.getX() + (world.getTileSize() / 2f);
+        float playerCenterY = playerTransform.getY() + (world.getTileSize() / 2f);
+
+        float worldWidth = world.getWorldWidth() * world.getTileSize();
+        float worldHeight = world.getWorldHeight() * world.getTileSize();
+
+        float cameraHalfWidth = camera.viewportWidth * camera.zoom / 2f;
+        float cameraHalfHeight = camera.viewportHeight * camera.zoom / 2f;
+
+        float camX = Math.max(cameraHalfWidth, Math.min(playerCenterX, worldWidth - cameraHalfWidth));
+        float camY = Math.max(cameraHalfHeight, Math.min(playerCenterY, worldHeight - cameraHalfHeight));
+
+        camera.position.set(camX, camY, 0);
+        camera.update();
+    }
+
     private void renderCollisionDebug() {
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        shapeRenderer.setColor(1, 0, 0, 1); // Red
 
-        for (Rectangle rect : world.getCollisionSystem().getCollisionRectangles()) {
+        // Render world collision (red)
+        shapeRenderer.setColor(1, 0, 0, 1);
+        for (Rectangle rect : world.getCollisionSystem().getRectangles()) {
             shapeRenderer.rect(rect.x, rect.y, rect.width, rect.height);
         }
 
-        for (Polygon poly : world.getCollisionSystem().getCollisionPolygons()) {
+        for (Polygon poly : world.getCollisionSystem().getPolygons()) {
             shapeRenderer.polygon(poly.getTransformedVertices());
+        }
+
+        // Render player colliders
+        if (player != null) {
+            // Environment collider (green) - feet
+            shapeRenderer.setColor(0, 1, 0, 1);
+            ColliderComponent envCollider = player.getEnvironmentCollider();
+            if (envCollider != null) {
+                Rectangle envBounds = envCollider.getBounds(player);
+                shapeRenderer.rect(envBounds.x, envBounds.y, envBounds.width, envBounds.height);
+            }
+
+            // Combat collider (yellow) - full body
+            shapeRenderer.setColor(1, 1, 0, 1);
+            ColliderComponent combatCollider = player.getCombatCollider();
+            if (combatCollider != null) {
+                Rectangle combatBounds = combatCollider.getBounds(player);
+                shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
+            }
         }
 
         shapeRenderer.end();
     }
 
-    private void renderDebugStats() {
-        if (!debugMode) return;
+    /**
+     * Render a single entity. Called by Y-sort renderer.
+     */
+    private void renderEntity(SpriteBatch batch, GameObject gameObject) {
+        RenderComponent renderComp = gameObject.getComponent(RenderComponent.class);
+        if (renderComp != null) {
+            renderComp.render(batch, gameObject);
+        }
+    }
 
-        // Use UI camera (fixed to screen, not world)
+    private void renderDebugStats() {
         batch.setProjectionMatrix(uiCamera.combined);
         batch.begin();
 
-        // Get performance stats
         int fps = Gdx.graphics.getFramesPerSecond();
         long memUsed = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1048576;
         long memTotal = Runtime.getRuntime().totalMemory() / 1048576;
 
-        // Get player position
-        float playerX = player.getPosition().x;
-        float playerY = player.getPosition().y;
+        Transform playerTransform = player.getTransform();
+        float playerX = playerTransform.getX();
+        float playerY = playerTransform.getY();
 
-        // Render debug text (top-left corner)
         float x = 10;
         float y = VIEWPORT_HEIGHT - 10;
         float lineHeight = 9;
@@ -143,96 +319,10 @@ public class GameScreen implements Screen {
         debugFont.draw(batch, "FPS: " + fps, x, y);
         debugFont.draw(batch, "Memory: " + memUsed + "/" + memTotal + " MB", x, y - lineHeight);
         debugFont.draw(batch, "Player Pos: (" + (int)playerX + ", " + (int)playerY + ")", x, y - lineHeight * 2);
-        //debugFont.draw(batch, "Entities: " + world.getEntityCount(), x, y - lineHeight * 3);
+        debugFont.draw(batch, "Objects: " + world.getGameObjects().size(), x, y - lineHeight * 3);
         debugFont.draw(batch, "Press F3 to toggle debug", x, y - lineHeight * 4);
 
         batch.end();
-    }
-
-
-
-    /**
-     * Load a level and place the player at the specified spawn point
-     */
-    private void loadLevel(String levelPath, String spawnPointName) {
-        System.out.println("Loading level: " + levelPath + " at spawn: " + spawnPointName);
-
-        // Dispose previous level loader if it exists
-        if (levelLoader != null) {
-            levelLoader.dispose();
-        }
-
-        // Load the level
-        levelLoader = new LevelLoader();
-        List<Entity> entityList = levelLoader.loadLevel(levelPath);
-
-        // Get world dimensions from the loaded map
-        int mapWidth = levelLoader.getMapWidth();
-        int mapHeight = levelLoader.getMapHeight();
-
-        // Create new world based on map size
-        world = new GameWorld(mapWidth, mapHeight);
-        levelLoader.loadCollisionData(world);
-
-        // Get player spawn position from map (or use default)
-        float[] playerSpawn = levelLoader.getSpawnPosition(spawnPointName);
-        int spawnGridX = (int)(playerSpawn[0] / world.getTileSize());
-        int spawnGridY = (int)(playerSpawn[1] / world.getTileSize());
-
-        // Create player at spawn position (or reuse existing player)
-        if (player == null) {
-            player = new Player(world, spawnGridX, spawnGridY);
-        } else {
-            // Update player's world reference to the new world
-            player.setWorld(world);
-            player.setPosition(spawnGridX * world.getTileSize(), spawnGridY * world.getTileSize());
-        }
-
-        world.addEntity(player);
-
-        // Add gateway entities to the world
-        for (Entity entity : entityList) {
-            world.addEntity(entity);
-        }
-    }
-
-    /**
-     * Check if the player is colliding with any gateway
-     */
-    private void checkGatewayCollisions() {
-        if (player == null) return;
-
-        float playerX = player.getPosition().x;
-        float playerY = player.getPosition().y;
-        int tileSize = world.getTileSize();
-
-        Gateway gateway = world.getGatewayAtPosition(playerX, playerY, tileSize, tileSize);
-
-        if (gateway != null) {
-            // Set the pending gateway for next frame
-            pendingGateway = gateway;
-        }
-    }
-
-    private void updateCamera() {
-        // Get player center position
-        float playerCenterX = player.getPosition().x + (world.getTileSize() / 2f);
-        float playerCenterY = player.getPosition().y + (world.getTileSize() / 2f);
-
-        // Calculate world bounds (in pixels)
-        float worldWidth = world.getWorldWidth() * world.getTileSize();
-        float worldHeight = world.getWorldHeight() * world.getTileSize();
-
-        // Calculate camera bounds
-        float cameraHalfWidth = camera.viewportWidth * camera.zoom / 2f;
-        float cameraHalfHeight = camera.viewportHeight * camera.zoom / 2f;
-
-        // Clamp camera position to world bounds
-        float camX = Math.max(cameraHalfWidth, Math.min(playerCenterX, worldWidth - cameraHalfWidth));
-        float camY = Math.max(cameraHalfHeight, Math.min(playerCenterY, worldHeight - cameraHalfHeight));
-
-        camera.position.set(camX, camY, 0);
-        camera.update();
     }
 
     @Override
@@ -242,30 +332,23 @@ public class GameScreen implements Screen {
     }
 
     @Override
-    public void show() {
-        // Called when this screen becomes active
-    }
+    public void show() {}
 
     @Override
-    public void hide() {
-        // Called when this screen is no longer active
-    }
+    public void hide() {}
 
     @Override
-    public void pause() {
-        // Called when the game is paused
-    }
+    public void pause() {}
 
     @Override
-    public void resume() {
-        // Called when the game is resumed
-    }
+    public void resume() {}
 
     @Override
     public void dispose() {
         batch.dispose();
         shapeRenderer.dispose();
-        levelLoader.dispose();
         debugFont.dispose();
+        if (mapRenderer != null) mapRenderer.dispose();
+        if (currentMap != null) currentMap.dispose();
     }
 }

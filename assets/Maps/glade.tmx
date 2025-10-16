@@ -69,12 +69,12 @@
 </data>
  </layer>
  <objectgroup id="4" name="Entities">
-  <object id="1" name="gateway" x="276.667" y="134.667" width="10.3333" height="52.3333">
+  <object id="1" name="gateway" x="273" y="134.667" width="14.0003" height="51.333">
    <properties>
     <property name="targetLevel" value="Maps/prototype.tmx"/>
     <property name="targetSpawn" value="spawn_west"/>
    </properties>
   </object>
-  <object id="2" name="player_spawn" x="264.667" y="161"/>
+  <object id="2" name="spawn_point1" x="257" y="161"/>
  </objectgroup>
 </map>

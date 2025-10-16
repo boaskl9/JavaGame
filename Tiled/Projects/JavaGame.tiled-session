@@ -39,14 +39,11 @@
             }
         },
         "D:/JavaGame/assets/Maps/StartArea.tmx": {
-            "expandedObjectLayers": [
-                4
-            ],
             "scale": 1.5,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": -1.3333333333333428,
-                "y": 195.99999999999997
+                "x": 150.33333333333334,
+                "y": 258.66666666666663
             }
         },
         "D:/JavaGame/assets/Maps/glade.tmx": {
@@ -54,9 +51,9 @@
                 4
             ],
             "scale": 3,
-            "selectedLayer": 3,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": 183.83333333333331,
+                "x": 183.83333333333334,
                 "y": 160.33333333333331
             }
         },
@@ -64,22 +61,22 @@
             "expandedObjectLayers": [
                 4
             ],
-            "scale": 8,
+            "scale": 3,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 177,
-                "y": 239.375
+                "x": 154.16666666666663,
+                "y": 112.66666666666669
             }
         },
         "D:/JavaGame/assets/Maps/prototype.tmx": {
             "expandedObjectLayers": [
                 6
             ],
-            "scale": 1.5,
-            "selectedLayer": 0,
+            "scale": 4,
+            "selectedLayer": 3,
             "viewCenter": {
-                "x": 303,
-                "y": 239.33333333333337
+                "x": 294.625,
+                "y": 138.75
             }
         },
         "D:/Tiled/Projects/TilesetDesert.tsx": {
@@ -126,7 +123,7 @@
         "TilesetNature.tsx"
     ],
     "project": "JavaGame.tiled-project",
-    "property.type": "string",
+    "property.type": "bool",
     "recentFiles": [
         "TilesetElement.tsx",
         "TilesetDesert.tsx",

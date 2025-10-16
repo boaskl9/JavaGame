@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="20" height="15" tilewidth="16" tileheight="16" infinite="0" nextlayerid="5" nextobjectid="4">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="20" height="15" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="4">
  <tileset firstgid="1" source="../../Tiled/Projects/TilesetFloor.tsx"/>
  <tileset firstgid="573" source="../../Tiled/Projects/TilesetElement.tsx"/>
+ <tileset firstgid="813" source="../../Tiled/Projects/TilesetDesert.tsx"/>
  <layer id="1" name="ground" width="20" height="15">
   <data encoding="csv">
 430,320,321,321,321,321,321,321,321,321,321,321,321,321,321,321,321,321,322,430,
@@ -55,6 +56,28 @@
 0,625,626,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,671,
 0,641,642,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,625,626,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,641,642,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+</data>
+ </layer>
+ <layer id="5" name="foreground" width="20" height="15">
+  <properties>
+   <property name="foregroundRender" type="bool" value="true"/>
+  </properties>
+  <data encoding="csv">
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,813,814,815,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,833,834,835,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,853,854,855,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
