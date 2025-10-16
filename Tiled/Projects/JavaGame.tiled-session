@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "TilesetNature.tsx",
+    "activeFile": "TilesetElement.tsx",
     "expandedProjectPaths": [
         "."
     ],
@@ -125,11 +125,11 @@
     "project": "JavaGame.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "TilesetElement.tsx",
-        "TilesetDesert.tsx",
-        "TilesetFloor.tsx",
-        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
         "TilesetNature.tsx",
+        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
+        "TilesetFloor.tsx",
+        "TilesetDesert.tsx",
+        "TilesetElement.tsx",
         "D:/JavaGame/assets/Maps/StartArea.tmx",
         "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "D:/JavaGame/assets/Maps/glade.tmx",
