@@ -14,12 +14,20 @@
             "scaleInDock": 1,
             "scaleInEditor": 1
         },
-        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx": {
-            "scale": 0.7421875,
+        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/Rules/autotiles_rules.tmx": {
+            "scale": 4,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 649.4315789473684,
-                "y": 480.3368421052632
+                "x": 60.25,
+                "y": 64.625
+            }
+        },
+        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx": {
+            "scale": 3,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 547,
+                "y": 133.49999999999997
             }
         },
         "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx": {
