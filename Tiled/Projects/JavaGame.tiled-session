@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "D:/JavaGame/assets/Maps/prototype.tmx",
+    "activeFile": "TilesetNature.tsx",
     "expandedProjectPaths": [
         "."
     ],
@@ -13,6 +13,14 @@
             "dynamicWrapping": true,
             "scaleInDock": 1,
             "scaleInEditor": 1
+        },
+        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx": {
+            "scale": 0.7421875,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 649.4315789473684,
+                "y": 480.3368421052632
+            }
         },
         "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx": {
             "scale": 4,
@@ -95,11 +103,15 @@
             "dynamicWrapping": false,
             "scaleInDock": 4,
             "scaleInEditor": 2
+        },
+        "TilesetNature.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         }
     },
     "last.exportedFilePath": "D:/JavaGame/assets/Maps",
     "last.externalTilesetPath": "D:/JavaGame/Tiled/Projects",
-    "last.imagePath": "D:/JavaGame/assets/Backgrounds/Tilesets",
+    "last.imagePath": "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Backgrounds/Tilesets",
     "map.height": 18,
     "map.lastUsedExportFilter": "All Files (*)",
     "map.lastUsedFormat": "tmx",
@@ -109,20 +121,19 @@
     "openFiles": [
         "TilesetElement.tsx",
         "TilesetDesert.tsx",
-        "D:/JavaGame/assets/Maps/StartArea.tmx",
         "TilesetFloor.tsx",
-        "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
-        "D:/JavaGame/assets/Maps/prototype.tmx",
-        "D:/JavaGame/assets/Maps/house1.tmx",
-        "D:/JavaGame/assets/Maps/glade.tmx"
+        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
+        "TilesetNature.tsx"
     ],
     "project": "JavaGame.tiled-project",
     "property.type": "string",
     "recentFiles": [
         "TilesetElement.tsx",
         "TilesetDesert.tsx",
-        "D:/JavaGame/assets/Maps/StartArea.tmx",
         "TilesetFloor.tsx",
+        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
+        "TilesetNature.tsx",
+        "D:/JavaGame/assets/Maps/StartArea.tmx",
         "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "D:/JavaGame/assets/Maps/glade.tmx",
         "D:/JavaGame/assets/Maps/house1.tmx",
