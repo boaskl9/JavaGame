@@ -6,12 +6,14 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 import com.game.components.AnimationComponent;
 import com.game.components.ColliderComponent;
+import com.game.components.ItemMagnetComponent;
 import com.game.components.RenderComponent;
 import com.game.components.VelocityComponent;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
+import com.game.systems.inventory.PlayerInventory;
 
 /**
  * Player entity built using the new component-based architecture.
@@ -32,6 +34,10 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     private AnimationComponent animation;
     private ColliderComponent environmentCollider;  // For walls, trees (feet only)
     private ColliderComponent combatCollider;       // For enemies, projectiles (full body)
+    private ItemMagnetComponent itemMagnet;
+
+    // Inventory
+    private PlayerInventory inventory;
 
     public PlayerEntity(WorldManager world, float x, float y) {
         super(DEFAULT_MAX_HEALTH);
@@ -57,6 +63,14 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
         RenderComponent render = new RenderComponent(SIZE, SIZE);
         addComponent(render);
+
+        // Add item magnet
+        itemMagnet = new ItemMagnetComponent();
+        itemMagnet.setOwner(this);
+        addComponent(itemMagnet);
+
+        // Initialize inventory
+        inventory = new PlayerInventory();
 
         // Load animations
         loadAnimations();
@@ -193,5 +207,13 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     public Transform getTransform() {
         return transform;
+    }
+
+    public PlayerInventory getInventory() {
+        return inventory;
+    }
+
+    public ItemMagnetComponent getItemMagnet() {
+        return itemMagnet;
     }
 }

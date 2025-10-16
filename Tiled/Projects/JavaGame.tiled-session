@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "D:/JavaGame/assets/Maps/prototype.tmx",
+    "activeFile": "TilesetElement.tsx",
     "expandedProjectPaths": [
         "."
     ],
@@ -82,7 +82,7 @@
         },
         "TilesetDesert.tsx": {
             "scaleInDock": 1.5,
-            "scaleInEditor": 8
+            "scaleInEditor": 3
         },
         "TilesetElement.tsx": {
             "scaleInDock": 2,
@@ -106,8 +106,8 @@
     "openFiles": [
         "TilesetElement.tsx",
         "TilesetDesert.tsx",
-        "D:/JavaGame/assets/Maps/StartArea.tmx",
         "TilesetFloor.tsx",
+        "D:/JavaGame/assets/Maps/StartArea.tmx",
         "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "D:/JavaGame/assets/Maps/prototype.tmx",
         "D:/JavaGame/assets/Maps/house1.tmx",
@@ -116,14 +116,14 @@
     "project": "JavaGame.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "TilesetElement.tsx",
-        "TilesetDesert.tsx",
-        "D:/JavaGame/assets/Maps/StartArea.tmx",
-        "TilesetFloor.tsx",
-        "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "D:/JavaGame/assets/Maps/glade.tmx",
         "D:/JavaGame/assets/Maps/house1.tmx",
         "D:/JavaGame/assets/Maps/prototype.tmx",
+        "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
+        "D:/JavaGame/assets/Maps/StartArea.tmx",
+        "TilesetFloor.tsx",
+        "TilesetDesert.tsx",
+        "TilesetElement.tsx",
         "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx",
         "Backgrounds.tsx"
     ],
