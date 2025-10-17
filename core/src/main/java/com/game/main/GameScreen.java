@@ -206,6 +206,11 @@ public class GameScreen implements Screen {
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_BAG2)) {
             spawnDebugItem("bag2");
         }
+
+        // Debug: Spawn bag3 item
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_BAG3)) {
+            spawnDebugItem("bag3");
+        }
     }
 
     /**

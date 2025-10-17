@@ -46,11 +46,24 @@ public class TestItems {
             "A small pouch for carrying items. Can hold 6 items.",
             ItemType.MISC,
             1, // Bags don't stack
-            "assets/Items/Object/Bag.png",
+            "assets/Items/Object/Pouch.png",
             false,
             6 // Bag size: 6 slots
         );
         ItemRegistry.register(bag2);
+
+        // Register bag3 item - 32 slots (huge bag)
+        ItemDefinition bag3 = new ItemDefinition(
+            "bag3",
+            "Huge Pouch",
+            "A huge pouch for carrying items. Can hold 32 items!",
+            ItemType.MISC,
+            1, // Bags don't stack
+            "assets/Items/Object/BagGreen.png",
+            false,
+            32 // Bag size: 6 slots
+        );
+        ItemRegistry.register(bag3);
 
         // Register more test items as needed
         ItemDefinition stone = new ItemDefinition(
@@ -80,24 +93,36 @@ public class TestItems {
     }
 
     /**
-     * Loads and registers item textures.
+     * Automatically loads textures for all registered items.
+     * Reads the iconPath from each ItemDefinition and loads the texture.
      * @param worldItemManager The world item manager
      */
     public static void loadTextures(WorldItemManager worldItemManager) {
-        try {
-            // Load wood texture
-            Texture branchTexture = new Texture(Gdx.files.internal("assets/Items/Resource/Branch.png"));
-            TextureRegion branchRegion = new TextureRegion(branchTexture);
-            worldItemManager.registerTexture("assets/Items/Resource/Branch.png", branchRegion);
+        int loadedCount = 0;
+        int skippedCount = 0;
 
-            // Load bag texture
-            Texture bagTexture = new Texture(Gdx.files.internal("assets/Items/Object/Bag.png"));
-            TextureRegion bagRegion = new TextureRegion(bagTexture);
-            worldItemManager.registerTexture("assets/Items/Object/Bag.png", bagRegion);
+        // Load textures for all registered items
+        for (ItemDefinition item : ItemRegistry.getAll()) {
+            String iconPath = item.getIconPath();
 
-            System.out.println("Loaded item textures");
-        } catch (Exception e) {
-            System.err.println("Error loading item textures: " + e.getMessage());
+            // Skip items without textures
+            if (iconPath == null || iconPath.isEmpty()) {
+                skippedCount++;
+                continue;
+            }
+
+            try {
+                // Load and register texture
+                Texture texture = new Texture(Gdx.files.internal(iconPath));
+                TextureRegion region = new TextureRegion(texture);
+                worldItemManager.registerTexture(iconPath, region);
+                loadedCount++;
+            } catch (Exception e) {
+                System.err.println("Failed to load texture for '" + item.getId() + "' at path: " + iconPath);
+                System.err.println("  Error: " + e.getMessage());
+            }
         }
+
+        System.out.println("Loaded " + loadedCount + " item textures (" + skippedCount + " items without textures)");
     }
 }
