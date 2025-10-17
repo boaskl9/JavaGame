@@ -26,7 +26,7 @@ public class TestItems {
         );
         ItemRegistry.register(wood);
 
-        // Register bag item (simple bag for now)
+        // Register bag item - 12 slots
         ItemDefinition bag = new ItemDefinition(
             "bag",
             "Traveler's Bag",
@@ -34,9 +34,23 @@ public class TestItems {
             ItemType.MISC,
             1, // Bags don't stack
             "assets/Items/Object/Bag.png",
-            false
+            false,
+            12 // Bag size: 12 slots
         );
         ItemRegistry.register(bag);
+
+        // Register bag2 item - 6 slots (smaller bag)
+        ItemDefinition bag2 = new ItemDefinition(
+            "bag2",
+            "Small Pouch",
+            "A small pouch for carrying items. Can hold 6 items.",
+            ItemType.MISC,
+            1, // Bags don't stack
+            "assets/Items/Object/Bag.png",
+            false,
+            6 // Bag size: 6 slots
+        );
+        ItemRegistry.register(bag2);
 
         // Register more test items as needed
         ItemDefinition stone = new ItemDefinition(

@@ -221,7 +221,7 @@
    <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
-   <object id="1" x="10" y="9" width="6" height="7"/>
+   <object id="1" x="12" y="12" width="4" height="4"/>
   </objectgroup>
  </tile>
  <tile id="28">
@@ -229,7 +229,7 @@
    <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
-   <object id="1" x="0" y="10" width="7" height="6"/>
+   <object id="1" x="0" y="12" width="4" height="4"/>
   </objectgroup>
  </tile>
  <tile id="29">
@@ -381,7 +381,7 @@
    <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
-   <object id="1" x="9" y="0" width="7" height="6"/>
+   <object id="1" x="12" y="0" width="4" height="4"/>
   </objectgroup>
  </tile>
  <tile id="50">
@@ -389,7 +389,7 @@
    <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
-   <object id="1" x="0" y="0" width="6" height="7"/>
+   <object id="1" x="0" y="0" width="4" height="4"/>
   </objectgroup>
  </tile>
  <tile id="51">

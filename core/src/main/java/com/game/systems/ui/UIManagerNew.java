@@ -28,6 +28,7 @@ public class UIManagerNew {
     private BottomHUD bottomHUD;
     private ContainerWindow inventoryWindow;
     private Map<BagInstance, ContainerWindow> bagWindows;
+    private Map<BagInstance, Integer> bagSlotIndices; // Track which slot each bag is in
     private boolean inventoryOpen;
 
     private ItemDropCallback itemDropCallback;
@@ -40,6 +41,7 @@ public class UIManagerNew {
         this.playerInventory = playerInventory;
         this.worldItemManager = worldItemManager;
         this.bagWindows = new HashMap<>();
+        this.bagSlotIndices = new HashMap<>();
         this.inventoryOpen = false;
 
         // Create stage with screen viewport
@@ -162,24 +164,74 @@ public class UIManagerNew {
      * Handles unequipping a bag from a bag equipment slot.
      */
     private boolean handleBagUnequip(ItemSlotUI sourceSlot, ItemSlotUI targetSlot) {
-        int bagSlotIndex = sourceSlot.getSlotIndex();
-        BagInstance bag = playerInventory.getBag(bagSlotIndex);
+        int sourceBagSlotIndex = sourceSlot.getSlotIndex();
+        BagInstance sourceBag = playerInventory.getBag(sourceBagSlotIndex);
 
-        if (bag == null) {
+        if (sourceBag == null) {
             System.out.println("Cannot unequip: No bag in slot");
             return false;
         }
 
         // Check if bag is empty
-        if (!bag.isEmpty()) {
+        if (!sourceBag.isEmpty()) {
             System.out.println("Cannot unequip: Bag must be empty first");
             return false;
         }
 
-        // Only allow moving to regular inventory slots
+        // Handle bag-to-bag slot swapping
+        if (targetSlot.getSlotType() == ItemSlotUI.SlotType.BAG_EQUIPMENT) {
+            int targetBagSlotIndex = targetSlot.getSlotIndex();
+            BagInstance targetBag = playerInventory.getBag(targetBagSlotIndex);
+
+            // Check if target bag is also empty (or doesn't exist)
+            if (targetBag != null && !targetBag.isEmpty()) {
+                System.out.println("Cannot swap: Target bag must be empty first");
+                return false;
+            }
+
+            // Unequip source bag
+            playerInventory.unequipBag(sourceBagSlotIndex);
+
+            // Close source bag window
+            ContainerWindow sourceBagWindow = bagWindows.get(sourceBag);
+            if (sourceBagWindow != null) {
+                sourceBagWindow.remove();
+                bagWindows.remove(sourceBag);
+                bagSlotIndices.remove(sourceBag);
+            }
+
+            // If target slot has a bag, unequip it too
+            if (targetBag != null) {
+                playerInventory.unequipBag(targetBagSlotIndex);
+
+                // Close target bag window
+                ContainerWindow targetBagWindow = bagWindows.get(targetBag);
+                if (targetBagWindow != null) {
+                    targetBagWindow.remove();
+                    bagWindows.remove(targetBag);
+                    bagSlotIndices.remove(targetBag);
+                }
+
+                // Equip target bag to source slot
+                playerInventory.equipBag(targetBag, sourceBagSlotIndex);
+            }
+
+            // Equip source bag to target slot
+            playerInventory.equipBag(sourceBag, targetBagSlotIndex);
+
+            // Reopen bags FIRST, then refresh
+            closeAllBagWindows();
+            openBagWindows();
+            refreshAllWindows();
+
+            System.out.println("Swapped bags between slots " + sourceBagSlotIndex + " and " + targetBagSlotIndex);
+            return true;
+        }
+
+        // Allow moving to regular inventory slots or bag inventory
         if (targetSlot.getSlotType() != ItemSlotUI.SlotType.DEFAULT_INVENTORY &&
             targetSlot.getSlotType() != ItemSlotUI.SlotType.BAG_INVENTORY) {
-            System.out.println("Cannot unequip: Can only move bags to inventory");
+            System.out.println("Cannot unequip: Can only move bags to inventory or other bag slots");
             return false;
         }
 
@@ -199,13 +251,14 @@ public class UIManagerNew {
         ItemStack bagItem = new ItemStack(bagItemDef, 1);
 
         // Unequip the bag
-        playerInventory.unequipBag(bagSlotIndex);
+        playerInventory.unequipBag(sourceBagSlotIndex);
 
         // Close the bag window
-        ContainerWindow bagWindow = bagWindows.get(bag);
+        ContainerWindow bagWindow = bagWindows.get(sourceBag);
         if (bagWindow != null) {
             bagWindow.remove();
-            bagWindows.remove(bag);
+            bagWindows.remove(sourceBag);
+            bagSlotIndices.remove(sourceBag);
         }
 
         // Add bag item to target slot
@@ -221,7 +274,7 @@ public class UIManagerNew {
         // Reposition all remaining bag windows
         positionAllBagWindows();
 
-        System.out.println("Unequipped bag from slot " + bagSlotIndex);
+        System.out.println("Unequipped bag from slot " + sourceBagSlotIndex);
         return true;
     }
 
@@ -234,8 +287,8 @@ public class UIManagerNew {
             return false;
         }
 
-        // Check if the item is a bag (id = "bag")
-        if (!"bag".equals(sourceStack.getDefinition().getId())) {
+        // Check if the item is a bag
+        if (!sourceStack.getDefinition().isBag()) {
             System.out.println("Cannot equip: Item is not a bag");
             return false;
         }
@@ -248,15 +301,21 @@ public class UIManagerNew {
             return false;
         }
 
-        // Create a BagInstance from the bag item
-        // For now, create a simple 12-slot bag
+        // Get bag size from item definition
+        Integer bagSize = sourceStack.getDefinition().getBagSize();
+        if (bagSize == null || bagSize <= 0) {
+            System.out.println("Cannot equip: Bag has invalid size");
+            return false;
+        }
+
+        // Create a BagInstance from the item definition
         com.game.systems.inventory.BagDefinition bagDef = new com.game.systems.inventory.BagDefinition(
-            "traveler_bag",
-            "Traveler's Bag",
-            "A simple bag for carrying items",
-            12,
+            sourceStack.getDefinition().getId(),
+            sourceStack.getDefinition().getName(),
+            sourceStack.getDefinition().getDescription(),
+            bagSize,
             com.game.systems.inventory.ItemFilter.allowAll(),
-            "assets/Items/Object/Bag.png"
+            sourceStack.getDefinition().getIconPath()
         );
         BagInstance newBag = new BagInstance(bagDef);
 
@@ -268,16 +327,16 @@ public class UIManagerNew {
             sourceSlot.setItemStack(null);
             updateBackingData(sourceSlot, null);
 
-            // Refresh UI to show the equipped bag
-            refreshAllWindows();
-
-            // Open the bag window if inventory is open
+            // Open the bag window if inventory is open (BEFORE refreshing)
             if (inventoryOpen) {
                 // Close all bag windows first
                 closeAllBagWindows();
                 // Reopen all bags (including the new one) with proper positioning
                 openBagWindows();
             }
+
+            // Refresh UI to show the equipped bag (AFTER opening windows)
+            refreshAllWindows();
 
             System.out.println("Equipped bag to slot " + bagSlotIndex);
             return true;
@@ -306,6 +365,59 @@ public class UIManagerNew {
     }
 
     private void handleItemDropToWorld(ItemSlotUI sourceSlot) {
+        // Special handling for bag equipment slots
+        if (sourceSlot.getSlotType() == ItemSlotUI.SlotType.BAG_EQUIPMENT) {
+            int bagSlotIndex = sourceSlot.getSlotIndex();
+            BagInstance bag = playerInventory.getBag(bagSlotIndex);
+
+            if (bag == null) {
+                System.out.println("Cannot drop: No bag in slot");
+                return;
+            }
+
+            // Check if bag is empty
+            if (!bag.isEmpty()) {
+                System.out.println("Cannot drop: Bag must be empty first");
+                return;
+            }
+
+            // Create a bag item to drop
+            com.game.systems.item.ItemDefinition bagItemDef = com.game.systems.item.ItemRegistry.get("bag");
+            if (bagItemDef == null) {
+                System.out.println("Cannot drop: Bag item definition not found");
+                return;
+            }
+
+            ItemStack bagItem = new ItemStack(bagItemDef, 1);
+
+            // Unequip the bag
+            playerInventory.unequipBag(bagSlotIndex);
+
+            // Close the bag window
+            ContainerWindow bagWindow = bagWindows.get(bag);
+            if (bagWindow != null) {
+                bagWindow.remove();
+                bagWindows.remove(bag);
+                bagSlotIndices.remove(bag);
+            }
+
+            // Clear the equipment slot display
+            sourceSlot.setItemStack(null);
+            sourceSlot.setItemIcon(null);
+
+            refreshAllWindows();
+            positionAllBagWindows();
+
+            // Notify callback to drop the bag item
+            if (itemDropCallback != null) {
+                itemDropCallback.onDropItemToWorld(bagItem);
+            }
+
+            System.out.println("Dropped equipped bag to world from slot " + bagSlotIndex);
+            return;
+        }
+
+        // Normal item drop handling
         ItemStack stack = sourceSlot.getItemStack();
         if (stack == null) return;
 
@@ -405,20 +517,11 @@ public class UIManagerNew {
      * Opens bag windows for all equipped bags.
      */
     private void openBagWindows() {
-        // Collect all equipped bags (ignoring empty slots)
-        java.util.List<BagInstance> equippedBags = new java.util.ArrayList<>();
-        for (int i = 0; i < playerInventory.getMaxBagSlots(); i++) {
-            BagInstance bag = playerInventory.getBag(i);
-            if (bag != null) {
-                equippedBags.add(bag);
-            }
-        }
-
-        // Open windows for all bags
-        for (int i = 0; i < equippedBags.size(); i++) {
-            BagInstance bag = equippedBags.get(i);
-            if (!bagWindows.containsKey(bag)) {
-                openBagWindow(bag, i);
+        // Open windows for all equipped bags, preserving slot order
+        for (int slotIndex = 0; slotIndex < playerInventory.getMaxBagSlots(); slotIndex++) {
+            BagInstance bag = playerInventory.getBag(slotIndex);
+            if (bag != null && !bagWindows.containsKey(bag)) {
+                openBagWindow(bag, slotIndex);
             }
         }
 
@@ -428,8 +531,10 @@ public class UIManagerNew {
 
     /**
      * Opens a window for a specific bag.
+     * @param bag The bag instance
+     * @param slotIndex The bag slot index (0, 1, 2, etc.)
      */
-    private void openBagWindow(BagInstance bag, int displayIndex) {
+    private void openBagWindow(BagInstance bag, int slotIndex) {
         ContainerWindow bagWindow = new ContainerWindow(
             bag.getDefinition().getName(),
             bag.getContainer(),
@@ -438,14 +543,16 @@ public class UIManagerNew {
             skin
         );
         bagWindows.put(bag, bagWindow);
+        bagSlotIndices.put(bag, slotIndex); // Track which slot this bag is in
         stage.addActor(bagWindow);
         bagWindow.setVisible(true);
 
-        System.out.println("UIManagerNew: Opened bag window for " + bag.getDefinition().getName() + " at display index " + displayIndex);
+        System.out.println("UIManagerNew: Opened bag window for " + bag.getDefinition().getName() + " in slot " + slotIndex);
     }
 
     /**
-     * Intelligently positions all bag windows in columns.
+     * Intelligently positions all bag windows in columns, maintaining slot order.
+     * Bags are ordered by slot index (0 at bottom, higher slots above).
      * Fills vertical space first, then creates new columns to the left.
      */
     private void positionAllBagWindows() {
@@ -462,10 +569,17 @@ public class UIManagerNew {
         int columnIndex = 0;
         float maxWindowWidthInColumn = 0;
 
-        // Convert map to list for ordered iteration
-        java.util.List<ContainerWindow> windows = new java.util.ArrayList<>(bagWindows.values());
+        // Sort bags by slot index to maintain consistent order
+        java.util.List<java.util.Map.Entry<BagInstance, ContainerWindow>> sortedBags =
+            new java.util.ArrayList<>(bagWindows.entrySet());
+        sortedBags.sort((a, b) -> {
+            int slotA = bagSlotIndices.getOrDefault(a.getKey(), 999);
+            int slotB = bagSlotIndices.getOrDefault(b.getKey(), 999);
+            return Integer.compare(slotA, slotB);
+        });
 
-        for (ContainerWindow bagWindow : windows) {
+        for (java.util.Map.Entry<BagInstance, ContainerWindow> entry : sortedBags) {
+            ContainerWindow bagWindow = entry.getValue();
             float windowHeight = bagWindow.getHeight();
             float windowWidth = bagWindow.getWidth();
 
@@ -514,6 +628,7 @@ public class UIManagerNew {
             window.remove();
         }
         bagWindows.clear();
+        bagSlotIndices.clear();
         System.out.println("UIManagerNew: Closed all bag windows");
     }
 

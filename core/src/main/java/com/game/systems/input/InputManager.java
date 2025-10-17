@@ -43,6 +43,7 @@ public class InputManager {
         // Debug
         bind(InputAction.DEBUG_SPAWN_ITEM, Input.Keys.NUM_1);
         bind(InputAction.DEBUG_SPAWN_BAG, Input.Keys.NUM_2);
+        bind(InputAction.DEBUG_SPAWN_BAG2, Input.Keys.NUM_3);
         bind(InputAction.DEBUG_TOGGLE, Input.Keys.F3);
     }
 

@@ -1,11 +1,16 @@
 package com.game.systems.ui;
 
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.utils.DragAndDrop;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Handles drag-and-drop functionality for inventory items using the new image-based slots.
@@ -13,6 +18,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 public class ItemDragAndDropSystem extends DragAndDrop {
     private final Skin skin;
     private ItemDropListener dropListener;
+    private List<ItemSlotUI> registeredSlots = new ArrayList<>();
+    private static final float SNAP_DISTANCE = 60f; // Distance threshold for snapping to nearest slot
 
     public interface ItemDropListener {
         /**
@@ -40,6 +47,9 @@ public class ItemDragAndDropSystem extends DragAndDrop {
      * @param slot The item slot UI
      */
     public void registerSlot(ItemSlotUI slot) {
+        // Keep track of all registered slots for snap-to-nearest feature
+        registeredSlots.add(slot);
+
         // Add as drag source
         addSource(new Source(slot) {
             private TextureRegion dragIcon;
@@ -74,9 +84,18 @@ public class ItemDragAndDropSystem extends DragAndDrop {
 
             @Override
             public void dragStop(InputEvent event, float x, float y, int pointer, Payload payload, Target target) {
-                if (target == null && dropListener != null) {
-                    // Dropped outside any valid target - drop to world
-                    dropListener.onItemDropToWorld(slot);
+                if (target == null) {
+                    // No target detected - try to find nearest slot within snap distance
+                    ItemSlotUI nearestSlot = findNearestSlot(event.getStageX(), event.getStageY(), slot);
+
+                    if (nearestSlot != null && dropListener != null) {
+                        // Snap to nearest slot
+                        System.out.println("Quick drag detected - snapping to nearest slot");
+                        dropListener.onItemDrop(slot, nearestSlot);
+                    } else if (dropListener != null) {
+                        // Dropped outside any valid target - drop to world
+                        dropListener.onItemDropToWorld(slot);
+                    }
                 }
             }
         });
@@ -118,5 +137,43 @@ public class ItemDragAndDropSystem extends DragAndDrop {
      */
     public void setDropListener(ItemDropListener listener) {
         this.dropListener = listener;
+    }
+
+    /**
+     * Finds the nearest slot to the given position within SNAP_DISTANCE.
+     * @param stageX X coordinate in stage space
+     * @param stageY Y coordinate in stage space
+     * @param sourceSlot The source slot (to exclude from search)
+     * @return The nearest slot, or null if none within range
+     */
+    private ItemSlotUI findNearestSlot(float stageX, float stageY, ItemSlotUI sourceSlot) {
+        ItemSlotUI nearest = null;
+        float nearestDistance = SNAP_DISTANCE;
+
+        for (ItemSlotUI slot : registeredSlots) {
+            // Skip the source slot and invisible/removed slots
+            if (slot == sourceSlot || !slot.isVisible() || slot.getStage() == null) {
+                continue;
+            }
+
+            // Calculate center position of the slot in stage coordinates
+            Vector2 slotCenter = slot.localToStageCoordinates(new Vector2(
+                slot.getWidth() / 2f,
+                slot.getHeight() / 2f
+            ));
+
+            // Calculate distance
+            float dx = stageX - slotCenter.x;
+            float dy = stageY - slotCenter.y;
+            float distance = (float) Math.sqrt(dx * dx + dy * dy);
+
+            // Update nearest if this is closer
+            if (distance < nearestDistance) {
+                nearest = slot;
+                nearestDistance = distance;
+            }
+        }
+
+        return nearest;
     }
 }

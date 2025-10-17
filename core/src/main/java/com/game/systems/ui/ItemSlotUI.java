@@ -64,6 +64,20 @@ public class ItemSlotUI extends Image {
     }
 
     /**
+     * Override hit detection to use a slightly larger area.
+     * This makes drag-and-drop more forgiving when moving quickly.
+     */
+    @Override
+    public com.badlogic.gdx.scenes.scene2d.Actor hit(float x, float y, boolean touchable) {
+        // Expand hit area by 4 pixels on each side for more forgiving drag-drop
+        float padding = 4f;
+        if (x >= -padding && x < getWidth() + padding && y >= -padding && y < getHeight() + padding) {
+            return this;
+        }
+        return null;
+    }
+
+    /**
      * Sets the item stack displayed in this slot.
      * @param itemStack The item stack, or null for empty slot
      */

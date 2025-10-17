@@ -12,9 +12,15 @@ public class ItemDefinition {
     private final int maxStackSize;
     private final String iconPath;
     private final boolean consumable;
+    private final Integer bagSize; // Number of slots if this is a bag item, null otherwise
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable) {
+        this(id, name, description, type, maxStackSize, iconPath, consumable, null);
+    }
+
+    public ItemDefinition(String id, String name, String description, ItemType type,
+                         int maxStackSize, String iconPath, boolean consumable, Integer bagSize) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -22,6 +28,7 @@ public class ItemDefinition {
         this.maxStackSize = maxStackSize;
         this.iconPath = iconPath;
         this.consumable = consumable;
+        this.bagSize = bagSize;
     }
 
     public String getId() {
@@ -56,6 +63,14 @@ public class ItemDefinition {
         return maxStackSize > 1;
     }
 
+    public Integer getBagSize() {
+        return bagSize;
+    }
+
+    public boolean isBag() {
+        return bagSize != null;
+    }
+
     @Override
     public String toString() {
         return "ItemDefinition{" +
@@ -63,6 +78,7 @@ public class ItemDefinition {
                 ", name='" + name + '\'' +
                 ", type=" + type +
                 ", maxStackSize=" + maxStackSize +
+                ", bagSize=" + bagSize +
                 '}';
     }
 }

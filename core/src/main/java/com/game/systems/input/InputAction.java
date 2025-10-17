@@ -20,5 +20,6 @@ public enum InputAction {
     // Debug
     DEBUG_SPAWN_ITEM,
     DEBUG_SPAWN_BAG,
+    DEBUG_SPAWN_BAG2,
     DEBUG_TOGGLE
 }
