@@ -1,5 +1,5 @@
 {
-    "activeFile": "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
+    "activeFile": "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
     "expandedProjectPaths": [
         "."
     ],
@@ -21,8 +21,8 @@
             "scale": 2,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 527.25,
-                "y": 169
+                "x": 222.25,
+                "y": 301
             }
         },
         "D:/JavaGame/assets/Maps/StartArea.tmx": {
@@ -45,9 +45,6 @@
             }
         },
         "D:/JavaGame/assets/Maps/house1.tmx": {
-            "expandedObjectLayers": [
-                4
-            ],
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
@@ -93,23 +90,23 @@
         "TilesetElement.tsx",
         "TilesetDesert.tsx",
         "TilesetFloor.tsx",
-        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
-        "TilesetNature.tsx",
-        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/Rules/autotiles_rules.tmx"
+        "D:/JavaGame/assets/Maps/StartArea.tmx",
+        "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
+        "D:/JavaGame/assets/Maps/prototype.tmx",
+        "D:/JavaGame/assets/Maps/house1.tmx",
+        "D:/JavaGame/assets/Maps/glade.tmx"
     ],
     "project": "JavaGame.tiled-project",
     "recentFiles": [
         "TilesetElement.tsx",
         "TilesetDesert.tsx",
         "TilesetFloor.tsx",
-        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
-        "TilesetNature.tsx",
-        "C:/Users/ditte/Documents/GitHub/JavaGame/assets/Maps/prototype.tmx",
         "D:/JavaGame/assets/Maps/StartArea.tmx",
-        "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "D:/JavaGame/assets/Maps/glade.tmx",
         "D:/JavaGame/assets/Maps/house1.tmx",
         "D:/JavaGame/assets/Maps/prototype.tmx",
-        "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx"
+        "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
+        "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx",
+        "Backgrounds.tsx"
     ]
 }

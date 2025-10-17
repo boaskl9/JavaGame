@@ -192,13 +192,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Open test window
-        if (inputManager.isJustPressed(InputAction.OPEN_TEST_WINDOW)) {
-            if (uiManager != null) {
-                uiManager.toggleTestWindow();
-            }
-        }
-
         // Debug: Spawn wood item
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_ITEM)) {
             spawnDebugItem("wood");
@@ -222,7 +215,7 @@ public class GameScreen implements Screen {
         // Create item
         ItemStack itemStack = ItemFactory.create(itemId, 1);
         if (itemStack != null) {
-            worldItemManager.spawnItem(itemStack, mousePos.x, mousePos.y);
+            worldItemManager.spawnItem(itemStack, mousePos.x, mousePos.y, 0);
             System.out.println("Spawned " + itemId + " at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
         }
     }
@@ -364,7 +357,7 @@ public class GameScreen implements Screen {
             uiManager.setItemDropCallback(itemStack -> {
                 // Drop item at player position
                 Vector2 playerPos = player.getTransform().getPosition();
-                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y);
+                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 3f);
             });
         }
 
