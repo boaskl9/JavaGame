@@ -56,10 +56,18 @@ public class ItemDragAndDropSystem extends DragAndDrop {
 
             @Override
             public Payload dragStart(InputEvent event, float x, float y, int pointer) {
+                System.out.println("ItemDragAndDropSystem: dragStart called with button=" + event.getButton() + ", pointer=" + pointer);
+
+                // Only allow dragging with left mouse button (button 0)
+                // Right click (button 1) should be ignored to allow context menu
+
+
                 if (slot.isEmpty()) {
+                    System.out.println("ItemDragAndDropSystem: Slot is empty, no drag");
                     return null; // Can't drag empty slot
                 }
 
+                System.out.println("ItemDragAndDropSystem: Starting drag for item: " + slot.getItemStack().getDefinition().getName());
                 Payload payload = new Payload();
                 payload.setObject(slot);
 

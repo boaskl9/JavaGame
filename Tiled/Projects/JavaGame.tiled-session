@@ -21,16 +21,16 @@
             "scale": 2,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 640,
-                "y": 480.25
+                "x": 222.25,
+                "y": 169
             }
         },
         "D:/JavaGame/assets/Maps/StartArea.tmx": {
             "scale": 1.5,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 650.6666666666666,
-                "y": 480.33333333333326
+                "x": 651,
+                "y": 479.99999999999994
             }
         },
         "D:/JavaGame/assets/Maps/glade.tmx": {

@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.game.integration.WorldItemManager;
 import com.game.systems.inventory.InventoryContainer;
@@ -31,7 +32,11 @@ public class UIManagerNew {
     private Map<BagInstance, Integer> bagSlotIndices; // Track which slot each bag is in
     private boolean inventoryOpen;
 
+    private TooltipLabel tooltip;
+    private ContextMenu contextMenu;
     private ItemDropCallback itemDropCallback;
+    private Timer.Task tooltipDelayTask; // Task for delaying tooltip display
+    private static final float TOOLTIP_DELAY = 0.5f; // 0.5 seconds delay
 
     public interface ItemDropCallback {
         void onDropItemToWorld(ItemStack itemStack);
@@ -50,6 +55,11 @@ public class UIManagerNew {
 
         // Load UI skin
         skin = new Skin(Gdx.files.internal("assets/ui/uiskin.json"));
+
+        // Create tooltip and context menu
+        tooltip = new TooltipLabel(skin);
+        contextMenu = new ContextMenu(skin);
+        setupContextMenuListener();
 
         // Create drag and drop handler
         dragAndDrop = new ItemDragAndDropSystem(skin);
@@ -75,6 +85,12 @@ public class UIManagerNew {
         );
         inventoryWindow.setVisible(false);
         stage.addActor(inventoryWindow);
+
+        // Add tooltip and context menu to stage (they manage their own visibility)
+        stage.addActor(tooltip);
+        stage.addActor(contextMenu);
+        System.out.println("UIManagerNew: Tooltip and ContextMenu added to stage");
+        System.out.println("UIManagerNew: ContextMenu initial visible = " + contextMenu.isVisible());
 
         System.out.println("UIManagerNew: Window movable = " + inventoryWindow.isMovable());
         System.out.println("UIManagerNew: Window visible = " + inventoryWindow.isVisible());
@@ -102,6 +118,15 @@ public class UIManagerNew {
             @Override
             public void onItemDropToWorld(ItemSlotUI sourceSlot) {
                 handleItemDropToWorld(sourceSlot);
+            }
+        });
+    }
+
+    private void setupContextMenuListener() {
+        contextMenu.setListener(new ContextMenu.ContextMenuListener() {
+            @Override
+            public void onMenuAction(String action, ItemSlotUI slot) {
+                handleContextMenuAction(action, slot);
             }
         });
     }
@@ -241,14 +266,16 @@ public class UIManagerNew {
             return false;
         }
 
-        // Create a bag item
-        com.game.systems.item.ItemDefinition bagItemDef = com.game.systems.item.ItemRegistry.get("bag");
+        // Create a bag item using the original bag's ItemDefinition ID
+        String bagId = sourceBag.getDefinition().getId();
+        com.game.systems.item.ItemDefinition bagItemDef = com.game.systems.item.ItemRegistry.get(bagId);
         if (bagItemDef == null) {
-            System.out.println("Cannot unequip: Bag item definition not found");
+            System.out.println("Cannot unequip: Bag item definition not found for id: " + bagId);
             return false;
         }
 
         ItemStack bagItem = new ItemStack(bagItemDef, 1);
+        System.out.println("Unequipping bag with id: " + bagId);
 
         // Unequip the bag
         playerInventory.unequipBag(sourceBagSlotIndex);
@@ -381,14 +408,16 @@ public class UIManagerNew {
                 return;
             }
 
-            // Create a bag item to drop
-            com.game.systems.item.ItemDefinition bagItemDef = com.game.systems.item.ItemRegistry.get("bag");
+            // Create a bag item to drop using the original bag's ItemDefinition ID
+            String bagId = bag.getDefinition().getId();
+            com.game.systems.item.ItemDefinition bagItemDef = com.game.systems.item.ItemRegistry.get(bagId);
             if (bagItemDef == null) {
-                System.out.println("Cannot drop: Bag item definition not found");
+                System.out.println("Cannot drop: Bag item definition not found for id: " + bagId);
                 return;
             }
 
             ItemStack bagItem = new ItemStack(bagItemDef, 1);
+            System.out.println("Dropping bag with id: " + bagId);
 
             // Unequip the bag
             playerInventory.unequipBag(bagSlotIndex);
@@ -432,6 +461,162 @@ public class UIManagerNew {
         }
 
         System.out.println("Dropped to world: " + stack.toString());
+    }
+
+    /**
+     * Handles context menu actions for items.
+     */
+    private void handleContextMenuAction(String action, ItemSlotUI slot) {
+        ItemStack stack = slot.getItemStack();
+        if (stack == null) return;
+
+        switch (action) {
+            case "Drop":
+                // Drop the item to the world
+                handleItemDropToWorld(slot);
+                System.out.println("Context menu: Dropped " + stack.getDefinition().getName());
+                break;
+
+            case "Equip":
+                // Try to equip the item (bags, armor, etc.)
+                if (stack.getDefinition().isBag()) {
+                    // Find first empty bag slot
+                    for (int i = 0; i < playerInventory.getMaxBagSlots(); i++) {
+                        if (playerInventory.getBag(i) == null) {
+                            // Create a temporary target slot for the bag equipment
+                            ItemSlotUI targetSlot = bottomHUD.getBagEquipmentSlots()[i];
+                            if (handleBagEquip(slot, targetSlot)) {
+                                System.out.println("Context menu: Equipped bag to slot " + i);
+                                return;
+                            }
+                        }
+                    }
+                    System.out.println("Context menu: No empty bag slots available");
+                }
+                // Future: Handle armor/weapon equipping here
+                break;
+
+            case "Unequip":
+                // Unequip item from equipment slot
+                if (slot.getSlotType() == ItemSlotUI.SlotType.BAG_EQUIPMENT) {
+                    // Find first empty inventory slot to move the bag to
+                    InventoryContainer defaultInventory = playerInventory.getDefaultInventory();
+                    ItemSlotUI[] inventorySlots = inventoryWindow.getSlots();
+                    for (int i = 0; i < defaultInventory.getSize(); i++) {
+                        if (defaultInventory.getItem(i) == null) {
+                            // Create a pseudo-target slot for the inventory
+                            // We'll use handleBagUnequip which expects source and target slots
+                            ItemSlotUI targetSlot = inventorySlots[i];
+                            if (handleBagUnequip(slot, targetSlot)) {
+                                System.out.println("Context menu: Unequipped bag to inventory slot " + i);
+                                return;
+                            }
+                        }
+                    }
+                    System.out.println("Context menu: No empty inventory slots to unequip bag");
+                } else {
+                    System.out.println("Context menu: Cannot unequip - item not in equipment slot");
+                }
+                break;
+
+            case "Consume":
+                // Consume the item (potions, food, etc.)
+                if (stack.getDefinition().isConsumable()) {
+                    // Remove one from stack
+                    stack.setQuantity(stack.getQuantity() - 1);
+                    if (stack.getQuantity() <= 0) {
+                        slot.setItemStack(null);
+                        updateBackingData(slot, null);
+                    } else {
+                        updateBackingData(slot, stack);
+                    }
+                    refreshAllWindows();
+                    System.out.println("Context menu: Consumed " + stack.getDefinition().getName());
+                    // Future: Apply consumable effects here
+                }
+                break;
+
+            case "Split":
+                // Split a stack in half
+                if (stack.getQuantity() > 1) {
+                    int halfQuantity = stack.getQuantity() / 2;
+                    int remainingQuantity = stack.getQuantity() - halfQuantity;
+
+                    System.out.println("Context menu: Splitting stack of " + stack.getQuantity() +
+                                     " into " + remainingQuantity + " and " + halfQuantity);
+
+                    // Find first empty slot in the same container
+                    ItemSlotUI emptySlot = findEmptySlotInContainer(slot);
+                    if (emptySlot != null) {
+                        // Create new stack with half the quantity
+                        ItemStack newStack = new ItemStack(stack.getDefinition(), halfQuantity);
+
+                        // Update original stack
+                        stack.setQuantity(remainingQuantity);
+                        updateBackingData(slot, stack);
+
+                        // Place new stack in empty slot
+                        emptySlot.setItemStack(newStack);
+                        updateBackingData(emptySlot, newStack);
+
+                        refreshAllWindows();
+                        System.out.println("Context menu: Split successful - " + remainingQuantity + " in original, " +
+                                         halfQuantity + " in new slot");
+                    } else {
+                        System.out.println("Context menu: No empty slots available for split");
+                    }
+                } else {
+                    System.out.println("Context menu: Cannot split - only 1 item in stack");
+                }
+                break;
+
+            default:
+                System.out.println("Context menu: Unknown action " + action);
+                break;
+        }
+    }
+
+    /**
+     * Finds the first empty slot in the same container as the given slot.
+     * @param referenceSlot The slot to match the container type
+     * @return The first empty slot, or null if none available
+     */
+    private ItemSlotUI findEmptySlotInContainer(ItemSlotUI referenceSlot) {
+        ItemSlotUI.SlotType slotType = referenceSlot.getSlotType();
+
+        switch (slotType) {
+            case DEFAULT_INVENTORY:
+                // Search in default inventory
+                ItemSlotUI[] invSlots = inventoryWindow.getSlots();
+                for (ItemSlotUI slot : invSlots) {
+                    if (slot.isEmpty()) {
+                        return slot;
+                    }
+                }
+                break;
+
+            case BAG_INVENTORY:
+                // Search in the same bag
+                InventoryContainer container = (InventoryContainer) referenceSlot.getContainerRef();
+                // Find the window for this bag
+                for (ContainerWindow window : bagWindows.values()) {
+                    if (window.getSlots()[0].getContainerRef() == container) {
+                        for (ItemSlotUI slot : window.getSlots()) {
+                            if (slot.isEmpty()) {
+                                return slot;
+                            }
+                        }
+                        break;
+                    }
+                }
+                break;
+
+            case BAG_EQUIPMENT:
+                // Equipment slots can't be used for splitting
+                break;
+        }
+
+        return null;
     }
 
     public void toggleInventory() {
@@ -649,7 +834,7 @@ public class UIManagerNew {
     private void refreshContainerWindowWithIcons(ContainerWindow window) {
         window.refresh();
 
-        // Set item icons for all slots
+        // Set item icons and listeners for all slots
         for (ItemSlotUI slot : window.getSlots()) {
             ItemStack stack = slot.getItemStack();
             if (stack != null && stack.getDefinition().getIconPath() != null) {
@@ -658,6 +843,9 @@ public class UIManagerNew {
             } else {
                 slot.setItemIcon(null);
             }
+
+            // Set up hover and right-click listeners
+            setupSlotListener(slot);
         }
     }
 
@@ -666,5 +854,103 @@ public class UIManagerNew {
      */
     private void refreshBottomHUDWithIcons() {
         bottomHUD.refreshWithTextures(iconPath -> worldItemManager.getTexture(iconPath));
+
+        // Set up listeners for bag equipment slots
+        for (ItemSlotUI slot : bottomHUD.getBagEquipmentSlots()) {
+            setupSlotListener(slot);
+        }
+    }
+
+    /**
+     * Sets up hover and right-click listeners for all slots in a container window.
+     */
+    private void setupSlotListeners(ContainerWindow window) {
+        for (ItemSlotUI slot : window.getSlots()) {
+            setupSlotListener(slot);
+        }
+    }
+
+    /**
+     * Sets up hover and right-click listeners for a single slot.
+     */
+    private void setupSlotListener(ItemSlotUI slot) {
+        // Hover listener for tooltips with delay
+        slot.setHoverListener(new ItemSlotUI.SlotHoverListener() {
+            @Override
+            public void onHoverEnter(ItemSlotUI slot, float x, float y) {
+                // Cancel any existing tooltip delay task
+                if (tooltipDelayTask != null) {
+                    tooltipDelayTask.cancel();
+                }
+
+                // Schedule tooltip to show after delay
+                tooltipDelayTask = Timer.schedule(new Timer.Task() {
+                    @Override
+                    public void run() {
+                        String tooltipText = slot.getTooltipText();
+                        if (tooltipText != null) {
+                            tooltip.show(tooltipText, x, y);
+                        }
+                    }
+                }, TOOLTIP_DELAY);
+            }
+
+            @Override
+            public void onHoverExit(ItemSlotUI slot) {
+                // Cancel tooltip delay if still waiting
+                if (tooltipDelayTask != null) {
+                    tooltipDelayTask.cancel();
+                }
+                tooltip.hide();
+            }
+
+            @Override
+            public void onMouseDown(ItemSlotUI slot) {
+                // Hide tooltip immediately on any mouse button press (left or right)
+                if (tooltipDelayTask != null) {
+                    tooltipDelayTask.cancel();
+                }
+                tooltip.hide();
+            }
+        });
+
+        // Right-click listener for context menu
+        slot.setRightClickListener(new ItemSlotUI.SlotRightClickListener() {
+            @Override
+            public void onRightClick(ItemSlotUI slot, float x, float y) {
+                System.out.println("UIManagerNew: Right-click detected on slot at (" + x + ", " + y + ")");
+                if (slot.getItemStack() != null) {
+                    System.out.println("UIManagerNew: Slot has item: " + slot.getItemStack().getDefinition().getName());
+                    // Cancel tooltip delay and hide tooltip when showing context menu
+                    if (tooltipDelayTask != null) {
+                        tooltipDelayTask.cancel();
+                    }
+                    tooltip.hide();
+                    System.out.println("UIManagerNew: About to show context menu");
+                    contextMenu.show(slot, x, y);
+                    contextMenu.toFront(); // Bring to very front
+                    System.out.println("UIManagerNew: Context menu shown and brought to front");
+                } else {
+                    System.out.println("UIManagerNew: Slot is empty, not showing context menu");
+                }
+            }
+        });
+
+        // Double-click listener for primary action
+        slot.setDoubleClickListener(new ItemSlotUI.SlotDoubleClickListener() {
+            @Override
+            public void onDoubleClick(ItemSlotUI slot) {
+                System.out.println("UIManagerNew: Double-click detected on slot");
+                if (slot.getItemStack() != null) {
+                    String primaryAction = contextMenu.getPrimaryActionForSlot(slot);
+                    if (primaryAction != null) {
+                        System.out.println("UIManagerNew: Executing primary action: " + primaryAction);
+                        handleContextMenuAction(primaryAction, slot);
+                    } else {
+                        System.out.println("UIManagerNew: No primary action for item type: " + slot.getItemStack().getDefinition().getType());
+                    }
+                }
+            }
+        });
     }
 }

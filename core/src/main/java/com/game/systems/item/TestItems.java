@@ -31,7 +31,7 @@ public class TestItems {
             "bag",
             "Traveler's Bag",
             "A simple bag for carrying items. Can hold 12 items.",
-            ItemType.MISC,
+            ItemType.BAG,
             1, // Bags don't stack
             "assets/Items/Object/Bag.png",
             false,
@@ -44,7 +44,7 @@ public class TestItems {
             "bag2",
             "Small Pouch",
             "A small pouch for carrying items. Can hold 6 items.",
-            ItemType.MISC,
+            ItemType.BAG,
             1, // Bags don't stack
             "assets/Items/Object/Pouch.png",
             false,
@@ -57,7 +57,7 @@ public class TestItems {
             "bag3",
             "Huge Pouch",
             "A huge pouch for carrying items. Can hold 32 items!",
-            ItemType.MISC,
+            ItemType.BAG,
             1, // Bags don't stack
             "assets/Items/Object/BagGreen.png",
             false,

@@ -12,5 +12,6 @@ public enum ItemType {
     MATERIAL,       // Crafting materials, resources
     QUEST,          // Quest-specific items
     RESOURCE,       //
+    BAG,
     MISC            // Other items
 }

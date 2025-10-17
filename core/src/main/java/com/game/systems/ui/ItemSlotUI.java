@@ -4,11 +4,12 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
-import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
-import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.game.systems.item.ItemStack;
 
 /**
@@ -28,10 +29,28 @@ public class ItemSlotUI extends Image {
     private BitmapFont font;
     private boolean highlighted = false;
 
+    private SlotHoverListener hoverListener;
+    private SlotRightClickListener rightClickListener;
+    private SlotDoubleClickListener doubleClickListener;
+
     public enum SlotType {
         DEFAULT_INVENTORY,
         BAG_INVENTORY,
         BAG_EQUIPMENT
+    }
+
+    public interface SlotHoverListener {
+        void onHoverEnter(ItemSlotUI slot, float x, float y);
+        void onHoverExit(ItemSlotUI slot);
+        void onMouseDown(ItemSlotUI slot); // Called when any mouse button is pressed
+    }
+
+    public interface SlotRightClickListener {
+        void onRightClick(ItemSlotUI slot, float x, float y);
+    }
+
+    public interface SlotDoubleClickListener {
+        void onDoubleClick(ItemSlotUI slot);
     }
 
     public ItemSlotUI(int slotIndex, SlotType slotType, Object containerRef, Skin skin) {
@@ -49,14 +68,63 @@ public class ItemSlotUI extends Image {
         setDrawable(slotBackground);
         setSize(48, 48);
 
+        // Add hover listener for tooltips
+        addListener(new InputListener() {
+            @Override
+            public void enter(InputEvent event, float x, float y, int pointer, com.badlogic.gdx.scenes.scene2d.Actor fromActor) {
+                if (pointer == -1 && hoverListener != null && itemStack != null) { // -1 means mouse hover, not drag
+                    hoverListener.onHoverEnter(ItemSlotUI.this, event.getStageX(), event.getStageY());
+                }
+            }
+
+            @Override
+            public void exit(InputEvent event, float x, float y, int pointer, com.badlogic.gdx.scenes.scene2d.Actor toActor) {
+                if (pointer == -1 && hoverListener != null) {
+                    hoverListener.onHoverExit(ItemSlotUI.this);
+                }
+            }
+
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                System.out.println("ItemSlotUI.InputListener.touchDown: button=" + button + ", pointer=" + pointer);
+                // Notify on any mouse button press (left or right click)
+                if (hoverListener != null) {
+                    hoverListener.onMouseDown(ItemSlotUI.this);
+                }
+                System.out.println("ItemSlotUI.InputListener.touchDown: returning false (not consuming)");
+                return false; // Don't consume the event, let other listeners handle it
+            }
+        });
+
         // Add right-click listener for context menu
-        addListener(new ClickListener() {
+        // ClickListener(int button) constructor - use button 1 for right-click
+        addListener(new ClickListener(1) { // Listen specifically for right-click (button 1)
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (getTapCount() == 1) {
-                    int button = event.getButton();
-                    if (button == 1) { // Right click
-                        onRightClick();
+                System.out.println("ItemSlotUI.ClickListener.clicked: Right-click event received!");
+                System.out.println("ItemSlotUI.ClickListener.clicked: TapCount=" + getTapCount() + ", Button=" + getButton());
+
+                if (rightClickListener != null) {
+                    System.out.println("ItemSlotUI.ClickListener.clicked: Calling rightClickListener at (" + event.getStageX() + ", " + event.getStageY() + ")");
+                    rightClickListener.onRightClick(ItemSlotUI.this, event.getStageX(), event.getStageY());
+                } else {
+                    System.out.println("ItemSlotUI.ClickListener.clicked: rightClickListener is null!");
+                }
+            }
+        });
+
+        // Add left-click listener for double-click primary action
+        addListener(new ClickListener(0) { // Listen specifically for left-click (button 0)
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                System.out.println("ItemSlotUI.LeftClickListener.clicked: TapCount=" + getTapCount());
+                if (getTapCount() == 2) { // Double-click
+                    System.out.println("ItemSlotUI.LeftClickListener.clicked: Double-click detected!");
+                    if (doubleClickListener != null && itemStack != null) {
+                        System.out.println("ItemSlotUI.LeftClickListener.clicked: Calling doubleClickListener");
+                        doubleClickListener.onDoubleClick(ItemSlotUI.this);
+                    } else {
+                        System.out.println("ItemSlotUI.LeftClickListener.clicked: doubleClickListener is null or no item");
                     }
                 }
             }
@@ -99,11 +167,28 @@ public class ItemSlotUI extends Image {
         setDrawable(highlighted ? slotHighlight : slotBackground);
     }
 
-    private void onRightClick() {
-        if (itemStack != null) {
-            // TODO: Show context menu
-            System.out.println("Right-clicked: " + itemStack.toString());
-        }
+    /**
+     * Sets the hover listener for tooltip display.
+     * @param listener The hover listener
+     */
+    public void setHoverListener(SlotHoverListener listener) {
+        this.hoverListener = listener;
+    }
+
+    /**
+     * Sets the right-click listener for context menu.
+     * @param listener The right-click listener
+     */
+    public void setRightClickListener(SlotRightClickListener listener) {
+        this.rightClickListener = listener;
+    }
+
+    /**
+     * Sets the double-click listener for primary action.
+     * @param listener The double-click listener
+     */
+    public void setDoubleClickListener(SlotDoubleClickListener listener) {
+        this.doubleClickListener = listener;
     }
 
     @Override
