@@ -218,6 +218,9 @@ public class UIManagerNew {
 
         refreshAllWindows();
 
+        // Reposition all remaining bag windows
+        positionAllBagWindows();
+
         System.out.println("Unequipped bag from slot " + bagSlotIndex);
         return true;
     }
@@ -257,6 +260,8 @@ public class UIManagerNew {
         );
         BagInstance newBag = new BagInstance(bagDef);
 
+
+
         // Equip the bag
         if (playerInventory.equipBag(newBag, bagSlotIndex)) {
             // Remove item from source slot
@@ -266,9 +271,12 @@ public class UIManagerNew {
             // Refresh UI to show the equipped bag
             refreshAllWindows();
 
-            // Open the bag window
-            if (inventoryOpen && !bagWindows.containsKey(newBag)) {
-                openBagWindow(newBag, bagSlotIndex);
+            // Open the bag window if inventory is open
+            if (inventoryOpen) {
+                // Close all bag windows first
+                closeAllBagWindows();
+                // Reopen all bags (including the new one) with proper positioning
+                openBagWindows();
             }
 
             System.out.println("Equipped bag to slot " + bagSlotIndex);
@@ -323,13 +331,18 @@ public class UIManagerNew {
         System.out.println("UIManagerNew: Window position = (" + inventoryWindow.getX() + ", " + inventoryWindow.getY() + ")");
 
         if (inventoryOpen) {
+            // Reset inventory window to default position
+            positionInventoryWindow();
+
+            // Open bag windows for equipped bags FIRST (before refreshing)
+            openBagWindows();
+
+            // Now refresh all windows (including the newly opened bag windows)
             refreshAllWindows();
+
             // Bring window to front
             inventoryWindow.toFront();
             System.out.println("UIManagerNew: Window brought to front");
-
-            // Open bag windows for equipped bags
-            openBagWindows();
         } else {
             // Close all bag windows
             closeAllBagWindows();
@@ -392,19 +405,31 @@ public class UIManagerNew {
      * Opens bag windows for all equipped bags.
      */
     private void openBagWindows() {
-        // Check for equipped bags and open windows for them
+        // Collect all equipped bags (ignoring empty slots)
+        java.util.List<BagInstance> equippedBags = new java.util.ArrayList<>();
         for (int i = 0; i < playerInventory.getMaxBagSlots(); i++) {
             BagInstance bag = playerInventory.getBag(i);
-            if (bag != null && !bagWindows.containsKey(bag)) {
+            if (bag != null) {
+                equippedBags.add(bag);
+            }
+        }
+
+        // Open windows for all bags
+        for (int i = 0; i < equippedBags.size(); i++) {
+            BagInstance bag = equippedBags.get(i);
+            if (!bagWindows.containsKey(bag)) {
                 openBagWindow(bag, i);
             }
         }
+
+        // Position all bag windows intelligently
+        positionAllBagWindows();
     }
 
     /**
      * Opens a window for a specific bag.
      */
-    private void openBagWindow(BagInstance bag, int bagIndex) {
+    private void openBagWindow(BagInstance bag, int displayIndex) {
         ContainerWindow bagWindow = new ContainerWindow(
             bag.getDefinition().getName(),
             bag.getContainer(),
@@ -414,19 +439,64 @@ public class UIManagerNew {
         );
         bagWindows.put(bag, bagWindow);
         stage.addActor(bagWindow);
-
-        // Position bag windows above the inventory window
-        positionBagWindow(bagWindow, bagIndex);
         bagWindow.setVisible(true);
 
-        System.out.println("UIManagerNew: Opened bag window for " + bag.getDefinition().getName() + " at index " + bagIndex);
+        System.out.println("UIManagerNew: Opened bag window for " + bag.getDefinition().getName() + " at display index " + displayIndex);
+    }
+
+    /**
+     * Intelligently positions all bag windows in columns.
+     * Fills vertical space first, then creates new columns to the left.
+     */
+    private void positionAllBagWindows() {
+        if (bagWindows.isEmpty()) return;
+
+        float padding = 10;
+        float screenHeight = Gdx.graphics.getHeight();
+
+        // Starting position: bottom right, above inventory
+        float startY = inventoryWindow.getY() + inventoryWindow.getHeight() + padding;
+        float currentX = Gdx.graphics.getWidth() - padding;
+        float currentY = startY;
+
+        int columnIndex = 0;
+        float maxWindowWidthInColumn = 0;
+
+        // Convert map to list for ordered iteration
+        java.util.List<ContainerWindow> windows = new java.util.ArrayList<>(bagWindows.values());
+
+        for (ContainerWindow bagWindow : windows) {
+            float windowHeight = bagWindow.getHeight();
+            float windowWidth = bagWindow.getWidth();
+
+            // Check if this window would go off the top of the screen
+            if (currentY + windowHeight > screenHeight - padding) {
+                // Start a new column to the left
+                columnIndex++;
+                currentX -= (maxWindowWidthInColumn + padding);
+                currentY = startY;
+                maxWindowWidthInColumn = 0;
+            }
+
+            // Position the window
+            float windowX = currentX - windowWidth;
+            bagWindow.setPosition(windowX, currentY);
+
+            // Track the widest window in this column for next column positioning
+            maxWindowWidthInColumn = Math.max(maxWindowWidthInColumn, windowWidth);
+
+            // Move up for next window in column
+            currentY += windowHeight + padding;
+        }
     }
 
     /**
      * Positions a bag window above the inventory.
      * @param bagWindow The bag window to position
      * @param bagIndex The index of the bag (0, 1, 2, etc.)
+     * @deprecated Use positionAllBagWindows() instead for intelligent multi-column layout
      */
+    @Deprecated
     private void positionBagWindow(ContainerWindow bagWindow, int bagIndex) {
         float padding = 10;
         // Position at bottom right, aligned with inventory

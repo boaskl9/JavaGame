@@ -417,7 +417,7 @@ public class GameScreen implements Screen {
         float cameraHalfHeight = camera.viewportHeight * camera.zoom / 2f;
 
         float camX = Math.max(cameraHalfWidth, Math.min(playerCenterX, worldWidth - cameraHalfWidth));
-        float camY = Math.max(cameraHalfHeight, Math.min(playerCenterY, worldHeight - cameraHalfHeight));
+        float camY = Math.max(cameraHalfHeight - 12, Math.min(playerCenterY, worldHeight - cameraHalfHeight));
 
         camera.position.set(camX, camY, 0);
         camera.update();

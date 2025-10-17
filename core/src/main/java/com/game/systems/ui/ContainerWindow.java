@@ -32,8 +32,9 @@ public class ContainerWindow extends Window {
         this.slotType = slotType;
         this.dragAndDrop = dragAndDrop;
         this.skin = skin;
+        this.padTop(10);
 
-        setMovable(false);
+        setMovable(true);
         setResizable(false);
 
         buildUI();
@@ -42,14 +43,14 @@ public class ContainerWindow extends Window {
 
     private void buildUI() {
         Table content = new Table();
-        content.pad(10);
+        content.pad(3);
 
         // Create slots grid
         Table slotsTable = new Table();
         int slotCount = container.getSize();
         slots = new ItemSlotUI[slotCount];
 
-        int columns = 8; // 8 slots per row
+        int columns = 4; // 8 slots per row
         for (int i = 0; i < slotCount; i++) {
             ItemSlotUI slot = new ItemSlotUI(
                 i,
@@ -60,7 +61,7 @@ public class ContainerWindow extends Window {
             slots[i] = slot;
             dragAndDrop.registerSlot(slot);
 
-            slotsTable.add(slot).size(48, 48).pad(2);
+            slotsTable.add(slot).size(48, 48).pad(-1);
             if ((i + 1) % columns == 0) {
                 slotsTable.row();
             }

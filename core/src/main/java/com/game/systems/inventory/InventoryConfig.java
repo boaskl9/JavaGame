@@ -8,7 +8,7 @@ public class InventoryConfig {
 
     // Inventory sizes
     public static int DEFAULT_INVENTORY_SIZE = 8;      // Slots when no bags equipped
-    public static int MAX_BAG_SLOTS = 4;               // Number of bag equipment slots
+    public static int MAX_BAG_SLOTS = 16;               // Number of bag equipment slots
 
     // World items
     public static int MAX_WORLD_ITEMS = 100;           // Global limit for dropped items
