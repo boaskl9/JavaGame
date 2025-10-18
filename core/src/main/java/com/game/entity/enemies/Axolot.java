@@ -46,7 +46,6 @@ public class Axolot extends EnemyEntity {
         // Frog's simple attack: lunge forward after a brief delay
         if (ai.getStateTimer() > 0.5f) {
             // TODO: Implement actual damage dealing when weapon/combat system is ready
-            System.out.println("Frog attacks!");
             ai.setState(com.game.components.AIComponent.AIState.CHASE);
         }
     }

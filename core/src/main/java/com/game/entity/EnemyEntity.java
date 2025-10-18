@@ -3,6 +3,7 @@ package com.game.entity;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Array;
 import com.game.components.AIComponent;
 import com.game.components.AnimationComponent;
 import com.game.components.ColliderComponent;
@@ -32,6 +33,13 @@ public abstract class EnemyEntity extends Entity {
 
     protected int lastDirectionAngle = 180; // Down
 
+    // Pathfinding
+    protected Array<Vector2> currentPath;
+    protected int currentWaypointIndex;
+    protected float pathfindingUpdateTimer = 0f;
+    protected static final float PATHFINDING_UPDATE_INTERVAL = 0.5f;
+    protected static final float WAYPOINT_ARRIVAL_THRESHOLD = 8f;
+
     public EnemyEntity(WorldManager world, int maxHealth, float x, float y) {
         super(maxHealth);
         this.world = world;
@@ -46,9 +54,9 @@ public abstract class EnemyEntity extends Entity {
         animation = new AnimationComponent();
         addComponent(animation);
 
-        // Environment collider - feet only, smaller for better navigation
-        // 8x4 pixels at bottom center (50% width, 25% height)
-        environmentCollider = new ColliderComponent(SIZE * 0.5f, SIZE * 0.25f, SIZE * 0.25f, 0);
+        // Environment collider - very small "point" at feet for smooth corner navigation
+        // 4x4 pixels at bottom center - small enough to slide around corners easily
+        environmentCollider = new ColliderComponent(4f, 4f, SIZE * 0.375f, SIZE * 0.0625f);
         addComponent(environmentCollider);
 
         // Combat collider - full body, slightly smaller than sprite
@@ -193,13 +201,14 @@ public abstract class EnemyEntity extends Entity {
     }
 
     /**
-     * Handle CHASE state - move directly towards target.
+     * Handle CHASE state - use NavMesh pathfinding.
      */
     protected void handleChaseState(float delta, float distanceToTarget) {
         // Lost sight of player
         if (distanceToTarget > ai.getDetectionRange() * 1.5f) {
             ai.setState(AIComponent.AIState.IDLE);
             velocity.setVelocity(0, 0);
+            currentPath = null;
             return;
         }
 
@@ -207,16 +216,108 @@ public abstract class EnemyEntity extends Entity {
         if (distanceToTarget <= ai.getAttackRange()) {
             ai.setState(AIComponent.AIState.ATTACK);
             velocity.setVelocity(0, 0);
+            currentPath = null;
             return;
         }
 
-        // Move directly towards target
-        Vector2 direction = new Vector2(
-            target.getTransform().getX() - transform.getX(),
-            target.getTransform().getY() - transform.getY()
-        ).nor();
+        // Update pathfinding periodically
+        if (world.getNavMesh() != null) {
+            pathfindingUpdateTimer += delta;
+            if (pathfindingUpdateTimer >= PATHFINDING_UPDATE_INTERVAL || currentPath == null) {
+                pathfindingUpdateTimer = 0f;
+                updatePath();
+            }
 
-        velocity.setVelocity(direction.x * ai.getMoveSpeed(), direction.y * ai.getMoveSpeed());
+            // Follow current path
+            if (currentPath != null && currentWaypointIndex < currentPath.size) {
+                Vector2 currentWaypoint = currentPath.get(currentWaypointIndex);
+                Vector2 feetPos = getFeetPosition();
+
+                // Check if we've reached the current waypoint (use feet position)
+                float distToWaypoint = feetPos.dst(currentWaypoint);
+                if (distToWaypoint < WAYPOINT_ARRIVAL_THRESHOLD) {
+                    currentWaypointIndex++;
+
+                    // If we've reached the last waypoint, stop
+                    if (currentWaypointIndex >= currentPath.size) {
+                        currentPath = null;
+                        return;
+                    }
+
+                    currentWaypoint = currentPath.get(currentWaypointIndex);
+                }
+
+                // Move towards current waypoint (from feet position)
+                Vector2 direction = new Vector2(
+                    currentWaypoint.x - feetPos.x,
+                    currentWaypoint.y - feetPos.y
+                ).nor();
+
+                velocity.setVelocity(direction.x * ai.getMoveSpeed(), direction.y * ai.getMoveSpeed());
+            } else {
+                // No path - stop
+                velocity.setVelocity(0, 0);
+            }
+        } else {
+            // No NavMesh - fall back to direct movement
+            Vector2 direction = new Vector2(
+                target.getTransform().getX() - transform.getX(),
+                target.getTransform().getY() - transform.getY()
+            ).nor();
+
+            velocity.setVelocity(direction.x * ai.getMoveSpeed(), direction.y * ai.getMoveSpeed());
+        }
+    }
+
+    /**
+     * Updates the path to the target using NavMesh.
+     */
+    protected void updatePath() {
+        if (target == null || world.getNavMesh() == null) {
+            currentPath = null;
+            return;
+        }
+
+        // Use feet position (environment collider center) for pathfinding
+        Vector2 startPos = getFeetPosition();
+        Vector2 targetPos = getTargetFeetPosition();
+
+        currentPath = world.getNavMesh().findPath(startPos, targetPos);
+
+        currentWaypointIndex = 0;
+
+        if (currentPath == null) {
+            System.out.println(getClass().getSimpleName() + ": No path found to target");
+        }
+    }
+
+    /**
+     * Gets the position of the enemy's feet (center of environment collider).
+     */
+    protected Vector2 getFeetPosition() {
+        float x = transform.getX() + environmentCollider.getOffsetX() + environmentCollider.getWidth() / 2f;
+        float y = transform.getY() + environmentCollider.getOffsetY() + environmentCollider.getHeight() / 2f;
+        return new Vector2(x, y);
+    }
+
+    /**
+     * Gets the target's feet position.
+     */
+    protected Vector2 getTargetFeetPosition() {
+        if (target == null) {
+            return transform.getPosition();
+        }
+
+        // Player also has environment collider at feet
+        ColliderComponent targetCollider = target.getEnvironmentCollider();
+        if (targetCollider != null) {
+            Transform targetTransform = target.getTransform();
+            float x = targetTransform.getX() + targetCollider.getOffsetX() + targetCollider.getWidth() / 2f;
+            float y = targetTransform.getY() + targetCollider.getOffsetY() + targetCollider.getHeight() / 2f;
+            return new Vector2(x, y);
+        }
+
+        return target.getTransform().getPosition();
     }
 
     /**
@@ -384,5 +485,13 @@ public abstract class EnemyEntity extends Entity {
 
     public ColliderComponent getCombatCollider() {
         return combatCollider;
+    }
+
+    public Array<Vector2> getCurrentPath() {
+        return currentPath;
+    }
+
+    public int getCurrentWaypointIndex() {
+        return currentWaypointIndex;
     }
 }

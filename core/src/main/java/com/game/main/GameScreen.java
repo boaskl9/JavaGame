@@ -14,6 +14,7 @@ import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.game.components.ColliderComponent;
@@ -176,6 +177,7 @@ public class GameScreen implements Screen {
         // Render debug
         if (debugMode) {
             renderCollisionDebug();
+            renderNavMeshDebug();
             renderDebugStats();
         }
     }
@@ -383,6 +385,9 @@ public class GameScreen implements Screen {
         world.setCollisionSystem(collisionSystem);
         System.out.println("Loaded " + collisionSystem.getShapeCount() + " collision shapes");
 
+        // Build navigation mesh for pathfinding
+        world.buildNavMesh();
+
         // Get spawn position - with proper fallback logic
         LevelData.SpawnPoint spawn;
         if (spawnPointName != null) {
@@ -553,6 +558,95 @@ public class GameScreen implements Screen {
                 if (combatCollider != null) {
                     Rectangle combatBounds = combatCollider.getBounds(enemy);
                     shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
+                }
+            }
+        }
+
+        shapeRenderer.end();
+    }
+
+    private void renderNavMeshDebug() {
+        if (world.getNavMesh() == null) return;
+
+        shapeRenderer.setProjectionMatrix(camera.combined);
+
+        // Render NavMesh triangles
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        shapeRenderer.setColor(0, 0.5f, 1, 0.3f); // Blue, semi-transparent
+
+        for (com.game.systems.pathfinding.NavMeshTriangle triangle : world.getNavMesh().getTriangles()) {
+            // Draw triangle edges
+            shapeRenderer.line(triangle.a, triangle.b);
+            shapeRenderer.line(triangle.b, triangle.c);
+            shapeRenderer.line(triangle.c, triangle.a);
+        }
+
+        shapeRenderer.end();
+
+        // Render enemy paths
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
+        for (GameObject obj : world.getGameObjects()) {
+            if (obj instanceof EnemyEntity) {
+                EnemyEntity enemy = (EnemyEntity) obj;
+
+                // Access current path via a getter we'll need to add
+                Array<Vector2> path = enemy.getCurrentPath();
+                int waypointIndex = enemy.getCurrentWaypointIndex();
+
+                if (path != null && path.size > 0) {
+                    // Draw waypoints
+                    for (int i = 0; i < path.size; i++) {
+                        Vector2 waypoint = path.get(i);
+
+                        if (i < waypointIndex) {
+                            shapeRenderer.setColor(0.5f, 0.5f, 0.5f, 0.5f); // Gray - passed
+                        } else if (i == waypointIndex) {
+                            shapeRenderer.setColor(1, 1, 0, 0.8f); // Yellow - current
+                        } else {
+                            shapeRenderer.setColor(1, 1, 1, 0.6f); // White - future
+                        }
+
+                        shapeRenderer.circle(waypoint.x, waypoint.y, 3f, 8);
+                    }
+                }
+            }
+        }
+
+        shapeRenderer.end();
+
+        // Draw lines between waypoints
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+
+        for (GameObject obj : world.getGameObjects()) {
+            if (obj instanceof EnemyEntity) {
+                EnemyEntity enemy = (EnemyEntity) obj;
+                Array<Vector2> path = enemy.getCurrentPath();
+                int waypointIndex = enemy.getCurrentWaypointIndex();
+
+                if (path != null && path.size > 1) {
+                    shapeRenderer.setColor(0, 1, 0, 0.5f); // Green lines
+
+                    // Draw lines between waypoints
+                    for (int i = waypointIndex; i < path.size - 1; i++) {
+                        shapeRenderer.line(path.get(i), path.get(i + 1));
+                    }
+
+                    // Draw line from enemy feet to current waypoint
+                    if (waypointIndex < path.size) {
+                        shapeRenderer.setColor(1, 0.5f, 0, 0.7f); // Orange
+
+                        // Get feet position from environment collider
+                        ColliderComponent envCollider = enemy.getEnvironmentCollider();
+                        Transform enemyTransform = enemy.getTransform();
+                        float feetX = enemyTransform.getX() + envCollider.getOffsetX() + envCollider.getWidth() / 2f;
+                        float feetY = enemyTransform.getY() + envCollider.getOffsetY() + envCollider.getHeight() / 2f;
+
+                        shapeRenderer.line(
+                            feetX, feetY,
+                            path.get(waypointIndex).x, path.get(waypointIndex).y
+                        );
+                    }
                 }
             }
         }

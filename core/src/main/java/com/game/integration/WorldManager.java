@@ -7,6 +7,8 @@ import com.game.components.RenderComponent;
 import com.game.systems.collision.SpatialQuery;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
+import com.game.systems.pathfinding.NavMesh;
+import com.game.systems.pathfinding.NavMeshBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,12 +24,34 @@ public class WorldManager {
 
     private List<GameObject> gameObjects;
     private SpatialQuery collisionSystem;
+    private NavMesh navMesh;
 
     public WorldManager(int width, int height) {
         this.worldWidth = width;
         this.worldHeight = height;
         this.gameObjects = new ArrayList<>();
         this.collisionSystem = new SpatialQuery();
+    }
+
+    /**
+     * Builds the navigation mesh for pathfinding.
+     * Should be called after collision system is set up.
+     */
+    public void buildNavMesh() {
+        float worldWidthPixels = worldWidth * TILE_SIZE;
+        float worldHeightPixels = worldHeight * TILE_SIZE;
+
+        // Sample distance of 32 pixels (2 tiles) - creates reasonable triangle density
+        float sampleDistance = 10;
+
+        this.navMesh = NavMeshBuilder.build(
+            worldWidthPixels,
+            worldHeightPixels,
+            collisionSystem,
+            sampleDistance
+        );
+
+        System.out.println("WorldManager: NavMesh built with " + navMesh.getTriangles().size() + " triangles");
     }
 
 
@@ -120,4 +144,7 @@ public class WorldManager {
         return new ArrayList<>(gameObjects);
     }
 
+    public NavMesh getNavMesh() {
+        return navMesh;
+    }
 }
