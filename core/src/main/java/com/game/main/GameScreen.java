@@ -433,6 +433,9 @@ public class GameScreen implements Screen {
                 worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 3f);
             });
 
+            // Set player health for HUD display
+            uiManager.setPlayerHealth(player.getHealthComponent());
+
             // Set input processor to stage (for HUD and all UI interactions)
             Gdx.input.setInputProcessor(uiManager.getStage());
             System.out.println("GameScreen: Input processor set to UI Stage");

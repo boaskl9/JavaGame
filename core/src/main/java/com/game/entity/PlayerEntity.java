@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 import com.game.components.AnimationComponent;
 import com.game.components.ColliderComponent;
+import com.game.components.HealthComponent;
 import com.game.components.ItemMagnetComponent;
 import com.game.components.RenderComponent;
 import com.game.components.VelocityComponent;
@@ -35,6 +36,7 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     private ColliderComponent environmentCollider;  // For walls, trees (feet only)
     private ColliderComponent combatCollider;       // For enemies, projectiles (full body)
     private ItemMagnetComponent itemMagnet;
+    private HealthComponent health;
 
     // Inventory
     private PlayerInventory inventory;
@@ -68,6 +70,10 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         itemMagnet = new ItemMagnetComponent();
         itemMagnet.setOwner(this);
         addComponent(itemMagnet);
+
+        // Add health component (6 hearts = 12 HP)
+        health = new HealthComponent(12);
+        addComponent(health);
 
         // Initialize inventory
         inventory = new PlayerInventory();
@@ -215,5 +221,9 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     public ItemMagnetComponent getItemMagnet() {
         return itemMagnet;
+    }
+
+    public HealthComponent getHealthComponent() {
+        return health;
     }
 }

@@ -1041,4 +1041,22 @@ public class UIManagerNew {
             }
         });
     }
+
+    /**
+     * Sets the player health to display on the HUD.
+     */
+    public void setPlayerHealth(com.game.components.HealthComponent health) {
+        if (bottomHUD != null) {
+            bottomHUD.setPlayerHealth(health);
+        }
+    }
+
+    /**
+     * Updates the health display. Call when player health changes.
+     */
+    public void updateHealthDisplay() {
+        if (bottomHUD != null) {
+            bottomHUD.updateHealthDisplay();
+        }
+    }
 }
