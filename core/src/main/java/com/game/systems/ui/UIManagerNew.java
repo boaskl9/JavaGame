@@ -13,6 +13,7 @@ import com.game.systems.inventory.InventoryContainer;
 import com.game.systems.inventory.PlayerInventory;
 import com.game.systems.inventory.BagInstance;
 import com.game.systems.item.ItemStack;
+import com.game.systems.settings.GameSettings;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +36,8 @@ public class UIManagerNew {
 
     private TooltipLabel tooltip;
     private ContextMenu contextMenu;
+    private SettingsMenu settingsMenu;
+    private GameSettings gameSettings;
     private ItemDropCallback itemDropCallback;
     private Timer.Task tooltipDelayTask; // Task for delaying tooltip display
     private static final float TOOLTIP_DELAY = 0.5f; // 0.5 seconds delay
@@ -58,6 +61,24 @@ public class UIManagerNew {
 
         // Load UI skin
         skin = new Skin(Gdx.files.internal("assets/ui/wood-theme.json"));
+
+        // Initialize settings
+        gameSettings = new GameSettings();
+
+        // Set up settings change listener
+        gameSettings.setListener(new GameSettings.SettingsChangeListener() {
+            @Override
+            public void onCameraScaleChanged(float newScale) {
+                System.out.println("UIManagerNew: Camera scale changed to " + newScale);
+                // The GameScreen will apply this via getGameSettings()
+            }
+
+            @Override
+            public void onUIScaleChanged(float newScale) {
+                System.out.println("UIManagerNew: UI scale changed to " + newScale);
+                applyUIScale(newScale);
+            }
+        });
 
         // Create tooltip and context menu
         tooltip = new TooltipLabel(skin);
@@ -94,6 +115,11 @@ public class UIManagerNew {
         stage.addActor(contextMenu);
         System.out.println("UIManagerNew: Tooltip and ContextMenu added to stage");
         System.out.println("UIManagerNew: ContextMenu initial visible = " + contextMenu.isVisible());
+
+        // Create settings menu
+        settingsMenu = new SettingsMenu(gameSettings, skin);
+        stage.addActor(settingsMenu);
+        System.out.println("UIManagerNew: SettingsMenu created");
 
         System.out.println("UIManagerNew: Window movable = " + inventoryWindow.isMovable());
         System.out.println("UIManagerNew: Window visible = " + inventoryWindow.isVisible());
@@ -693,14 +719,40 @@ public class UIManagerNew {
     }
 
     public void resize(int width, int height) {
-        stage.getViewport().update(width, height, true);
+        // Apply UI scale to viewport
+        float uiScale = gameSettings.getUIScale();
+        ScreenViewport viewport = (ScreenViewport) stage.getViewport();
+        viewport.setUnitsPerPixel(1f / uiScale);
+        viewport.update(width, height, true);
 
         // Resize bottom HUD to match screen width
         float hudHeight = 60;
-        bottomHUD.setSize(width, hudHeight);
+        bottomHUD.setSize(width / uiScale, hudHeight);
         bottomHUD.setPosition(0, 0);
 
         positionInventoryWindow();
+
+        // Recenter settings menu if visible
+        if (settingsMenu.isVisible()) {
+            settingsMenu.onResize();
+        }
+    }
+
+    /**
+     * Applies UI scale to the stage viewport.
+     */
+    private void applyUIScale(float scale) {
+        ScreenViewport viewport = (ScreenViewport) stage.getViewport();
+        viewport.setUnitsPerPixel(1f / scale);
+        viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
+
+        // Reposition UI elements after scale change
+        float hudHeight = 60;
+        bottomHUD.setSize(Gdx.graphics.getWidth() / scale, hudHeight);
+        bottomHUD.setPosition(0, 0);
+        positionInventoryWindow();
+
+        System.out.println("UIManagerNew: Applied UI scale " + scale);
     }
 
     public void dispose() {
@@ -714,6 +766,20 @@ public class UIManagerNew {
 
     public Stage getStage() {
         return stage;
+    }
+
+    public GameSettings getGameSettings() {
+        return gameSettings;
+    }
+
+    public void toggleSettings() {
+        settingsMenu.toggle();
+
+        // Ensure input processor is set to stage when settings menu is open
+        if (settingsMenu.isVisible()) {
+            Gdx.input.setInputProcessor(stage);
+            System.out.println("UIManagerNew: Settings menu opened, input processor set to stage");
+        }
     }
 
     public void setItemDropCallback(ItemDropCallback callback) {

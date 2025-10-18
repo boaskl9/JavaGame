@@ -14,6 +14,9 @@ public enum InputAction {
     // Inventory
     OPEN_INVENTORY,
 
+    // UI
+    OPEN_SETTINGS,
+
     // Interaction
     INTERACT,
 

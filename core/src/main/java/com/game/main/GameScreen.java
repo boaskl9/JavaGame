@@ -181,6 +181,13 @@ public class GameScreen implements Screen {
      * Handles input actions from InputManager.
      */
     private void handleInputActions() {
+        // Open settings menu
+        if (inputManager.isJustPressed(InputAction.OPEN_SETTINGS)) {
+            if (uiManager != null) {
+                uiManager.toggleSettings();
+            }
+        }
+
         // Open inventory
         if (inputManager.isJustPressed(InputAction.OPEN_INVENTORY)) {
             if (uiManager != null) {
@@ -369,6 +376,10 @@ public class GameScreen implements Screen {
                 Vector2 playerPos = player.getTransform().getPosition();
                 worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 3f);
             });
+
+            // Set input processor to stage (for HUD and all UI interactions)
+            Gdx.input.setInputProcessor(uiManager.getStage());
+            System.out.println("GameScreen: Input processor set to UI Stage");
         }
 
         // Create gateway entities
@@ -416,6 +427,12 @@ public class GameScreen implements Screen {
     }
 
     private void updateCamera() {
+        // Apply camera scale from settings
+        if (uiManager != null) {
+            float cameraScale = uiManager.getGameSettings().getCameraScale();
+            camera.zoom = 1f / cameraScale; // Higher scale = zoomed in (lower zoom value)
+        }
+
         Transform playerTransform = player.getTransform();
         float playerCenterX = playerTransform.getX() + (world.getTileSize() / 2f);
         float playerCenterY = playerTransform.getY() + (world.getTileSize() / 2f);
