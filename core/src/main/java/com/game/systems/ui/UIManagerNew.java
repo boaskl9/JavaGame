@@ -1,6 +1,7 @@
 package com.game.systems.ui;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
@@ -53,6 +54,8 @@ public class UIManagerNew {
         stage = new Stage(new ScreenViewport());
         System.out.println("UIManagerNew: Stage created");
 
+        setCustomCursor();
+
         // Load UI skin
         skin = new Skin(Gdx.files.internal("assets/ui/wood-theme.json"));
 
@@ -97,6 +100,25 @@ public class UIManagerNew {
 
         // Position inventory window
         positionInventoryWindow();
+    }
+
+    private static void setCustomCursor() {
+        // Load and scale cursor (scale down to 50% of original size)
+        Pixmap original = new Pixmap(Gdx.files.internal("assets/ui/Cursor/Outline/Double/pointer_scifi_a.png"));
+        float scale = 0.5f; // Adjust this value to make cursor smaller/larger (0.5 = 50% size)
+        int newWidth = (int)(original.getWidth() * scale);
+        int newHeight = (int)(original.getHeight() * scale);
+
+        Pixmap scaled = new Pixmap(newWidth, newHeight, original.getFormat());
+        scaled.drawPixmap(original,
+            0, 0, original.getWidth(), original.getHeight(),
+            0, 0, newWidth, newHeight
+        );
+
+        Gdx.graphics.setCursor(Gdx.graphics.newCursor(scaled, 0, 0));
+
+        scaled.dispose();
+        original.dispose();
     }
 
     private void positionInventoryWindow() {

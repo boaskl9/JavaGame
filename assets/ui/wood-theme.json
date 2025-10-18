@@ -1,10 +1,10 @@
 {
   com.badlogic.gdx.graphics.g2d.BitmapFont: {
     default: {
-      file: font.fnt
+      file: Font/chary___.fnt
     }
     title: {
-      file: font.fnt
+      file: Font/chary___.fnt
     }
   },
   com.badlogic.gdx.graphics.Color: {
@@ -16,6 +16,9 @@
     selection: { r: 0.8, g: 0.6, b: 0.3, a: 0.7 },
     highlight: { r: 1.0, g: 0.9, b: 0.7, a: 1 },
     disabled: { r: 0.5, g: 0.5, b: 0.5, a: 0.6 }
+  },
+  com.badlogic.gdx.graphics.g2d.NinePatch: {
+    selection-ninepatch: nine_path_panel_interior
   },
   com.badlogic.gdx.scenes.scene2d.ui.Skin$TintedDrawable: {
     white: {
@@ -131,7 +134,7 @@
       font: default,
       fontColorSelected: white,
       fontColorUnselected: wood-text,
-      selection: selection,
+      selection: selection-ninepatch,
       background: nine_path_panel_interior
     }
   },

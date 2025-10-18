@@ -32,7 +32,7 @@ public class ContainerWindow extends Window {
         this.slotType = slotType;
         this.dragAndDrop = dragAndDrop;
         this.skin = skin;
-        this.padTop(10);
+        this.padTop(17);
 
         setMovable(true);
         setResizable(false);

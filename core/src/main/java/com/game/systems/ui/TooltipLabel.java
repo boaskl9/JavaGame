@@ -47,7 +47,6 @@ public class TooltipLabel extends Window {
         float offsetY = 10f; // Space between cursor and tooltip
 
         // Calculate desired position
-        // Position to the right of cursor, and below it
         // In Scene2D, (x,y) is bottom-left corner, so we subtract tooltip height to place it below cursor
         float tooltipX = x + offsetX;
         float tooltipY = y - getHeight() - offsetY; // Below cursor (cursor Y minus tooltip height minus offset)
@@ -61,7 +60,7 @@ public class TooltipLabel extends Window {
         if (tooltipX + getWidth() > screenWidth - padding) {
             // If too far right, position to left of cursor instead
             tooltipX = x - getWidth() - offsetX;
-            // If still off screen, clamp to edge
+            // If still off-screen, clamp to edge
             if (tooltipX < padding) {
                 tooltipX = padding;
             }
@@ -76,7 +75,7 @@ public class TooltipLabel extends Window {
         if (tooltipY < padding) {
             // If too far down, position above cursor instead
             tooltipY = y + offsetY;
-            // If still off screen, clamp to edge
+            // If still off-screen, clamp to edge
             if (tooltipY + getHeight() > screenHeight - padding) {
                 tooltipY = screenHeight - getHeight() - padding;
             }
