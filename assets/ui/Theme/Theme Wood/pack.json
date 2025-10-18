@@ -1,0 +1,17 @@
+
+{
+  "paddingX": 2,
+  "paddingY": 2,
+  "edgePadding": true,
+  "duplicatePadding": false,
+  "filterMin": "Nearest",
+  "filterMag": "Nearest",
+  "maxWidth": 2048,
+  "maxHeight": 2048,
+  "scale": [1],
+  "scaleSuffix": [""],
+  "grid": false,
+  "square": false,
+  "stripWhitespaceX": false,
+  "stripWhitespaceY": false
+}

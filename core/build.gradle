@@ -3,12 +3,85 @@ eclipse.project.name = appName + '-core'
 
 dependencies {
   api "com.badlogicgames.gdx:gdx:$gdxVersion"
-  implementation "com.badlogicgames.gdx:gdx-tools:$gdxVersion"
+  api "com.badlogicgames.gdx:gdx-tools:$gdxVersion"
   api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
-
-
 
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"
+  }
+}
+
+task packWoodTheme {
+  description = 'Packs the wood theme UI textures into an atlas'
+  dependsOn classes
+
+  doLast {
+    // Add gdx-tools to the classpath
+    def gdxToolsJar = configurations.runtimeClasspath.find { it.name.contains('gdx-tools') }
+    if (gdxToolsJar == null) {
+      throw new GradleException("gdx-tools not found in classpath")
+    }
+
+    // Create a settings file for nine-patch configuration
+    def settingsFile = file("${project.rootDir}/assets/ui/Theme/Theme Wood/pack.json")
+    settingsFile.text = """
+{
+  "paddingX": 2,
+  "paddingY": 2,
+  "edgePadding": true,
+  "duplicatePadding": false,
+  "filterMin": "Nearest",
+  "filterMag": "Nearest",
+  "maxWidth": 2048,
+  "maxHeight": 2048,
+  "scale": [1],
+  "scaleSuffix": [""],
+  "grid": false,
+  "square": false,
+  "stripWhitespaceX": false,
+  "stripWhitespaceY": false
+}
+"""
+
+    // Use JavaExec to run the texture packer
+    javaexec {
+      mainClass = 'com.badlogic.gdx.tools.texturepacker.TexturePacker'
+      classpath = configurations.runtimeClasspath
+      args = [
+        "${project.rootDir}/assets/ui/Theme/Theme Wood",
+        "${project.rootDir}/assets/ui",
+        "wood-theme"
+      ]
+    }
+
+    println "Texture packing completed!"
+
+    // Post-process the atlas to add nine-patch splits
+    def atlasFile = file("${project.rootDir}/assets/ui/wood-theme.atlas")
+    def atlasContent = atlasFile.text
+
+    // Add split values for nine-patch images (split: left, right, top, bottom)
+    def ninePatchNames = [
+      'nine_path_bg', 'nine_path_panel', 'nine_path_panel_disabled',
+      'nine_path_panel_interior', 'nine_path_focus', 'window',
+      'textfield', 'textfield-selected'
+    ]
+
+    ninePatchNames.each { name ->
+      // For 16x16 images, use split: 6, 6, 6, 6
+      // For 8x8 images (like nine_path_focus), use split: 3, 3, 3, 3
+      def split = (atlasContent =~ /${name}\n  rotate: false\n  xy: [^\n]+\n  size: 8, 8/)
+        ? '  split: 3, 3, 3, 3'
+        : '  split: 6, 6, 6, 6'
+
+      atlasContent = atlasContent.replaceAll(
+        /(${name}\n  rotate: false\n  xy: [^\n]+\n  size: \d+, \d+\n)(  orig:)/,
+        "\$1${split}\n\$2"
+      )
+    }
+
+    atlasFile.text = atlasContent
+    println "Added nine-patch splits to atlas"
+    println "Output: ${project.rootDir}/assets/ui/wood-theme.atlas"
   }
 }

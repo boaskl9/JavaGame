@@ -1,0 +1,208 @@
+{
+  com.badlogic.gdx.graphics.g2d.BitmapFont: {
+    default: {
+      file: font.fnt
+    }
+    title: {
+      file: font.fnt
+    }
+  },
+  com.badlogic.gdx.graphics.Color: {
+    white: { r: 1, g: 1, b: 1, a: 1 },
+    black: { r: 0, g: 0, b: 0, a: 1 },
+    wood-text: { r: 0.2, g: 0.15, b: 0.1, a: 1 },
+    wood-dark: { r: 0.4, g: 0.3, b: 0.2, a: 1 },
+    wood-light: { r: 0.9, g: 0.8, b: 0.7, a: 1 },
+    selection: { r: 0.8, g: 0.6, b: 0.3, a: 0.7 },
+    highlight: { r: 1.0, g: 0.9, b: 0.7, a: 1 },
+    disabled: { r: 0.5, g: 0.5, b: 0.5, a: 0.6 }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.Skin$TintedDrawable: {
+    white: {
+      name: button_normal,
+      color: white
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.Button$ButtonStyle: {
+    default: {
+      up: button_normal,
+      down: button_pressed,
+      over: button_hover,
+      disabled: button_disabled
+    },
+    toggle: {
+      up: button_unchecked,
+      down: button_pressed,
+      over: button_hover,
+      checked: button_checked,
+      disabled: button_unchecked_disabled
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.TextButton$TextButtonStyle: {
+    default: {
+      font: default,
+      fontColor: wood-text,
+      up: button_normal,
+      down: button_pressed,
+      over: button_hover,
+      disabled: button_disabled,
+      disabledFontColor: disabled
+    },
+    toggle: {
+      font: default,
+      fontColor: wood-text,
+      up: button_unchecked,
+      down: button_pressed,
+      over: button_hover,
+      checked: button_checked,
+      disabled: button_unchecked_disabled,
+      disabledFontColor: disabled
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.CheckBox$CheckBoxStyle: {
+    default: {
+      checkboxOn: checked,
+      checkboxOff: unchecked,
+      checkboxOver: unchecked,
+      checkboxOnDisabled: checked_disabled,
+      checkboxOffDisabled: unchecked_disabled,
+      font: default,
+      fontColor: wood-text,
+      disabledFontColor: disabled
+    },
+    radio: {
+      checkboxOn: radio_checked,
+      checkboxOff: radio_unchecked,
+      checkboxOver: radio_unchecked,
+      checkboxOnDisabled: radio_checked_disabled,
+      checkboxOffDisabled: radio_unchecked_disabled,
+      font: default,
+      fontColor: wood-text,
+      disabledFontColor: disabled
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle: {
+    default: {
+      font: default,
+      fontColor: wood-text
+    },
+    white: {
+      font: default,
+      fontColor: white
+    },
+    title: {
+      font: title,
+      fontColor: wood-dark
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.Window$WindowStyle: {
+    default: {
+      titleFont: default,
+      titleFontColor: wood-text,
+      background: nine_path_panel
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.ScrollPane$ScrollPaneStyle: {
+    default: {
+      background: nine_path_panel_interior
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.SelectBox$SelectBoxStyle: {
+    default: {
+      font: default,
+      fontColor: wood-text,
+      disabledFontColor: disabled,
+      background: button_normal,
+      backgroundOver: button_hover,
+      backgroundOpen: button_pressed,
+      backgroundDisabled: button_disabled,
+      scrollStyle: default,
+      listStyle: {
+        font: default,
+        fontColorSelected: white,
+        fontColorUnselected: wood-text,
+        selection: selection,
+        background: nine_path_panel_interior
+      }
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.List$ListStyle: {
+    default: {
+      font: default,
+      fontColorSelected: white,
+      fontColorUnselected: wood-text,
+      selection: selection,
+      background: nine_path_panel_interior
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.TextField$TextFieldStyle: {
+    default: {
+      font: default,
+      fontColor: wood-text,
+      disabledFontColor: disabled,
+      background: nine_path_bg,
+      focusedBackground: nine_path_focus,
+      cursor: cursor,
+      selection: selection
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.Slider$SliderStyle: {
+    default-horizontal: {
+      background: slider_progress,
+      knob: h_slidder_grabber,
+      knobOver: h_slidder_grabber_hover,
+      knobDown: h_slidder_grabber_hover,
+      disabledKnob: h_slidder_grabber_disabled,
+      disabledBackground: slider_progress
+    },
+    default-vertical: {
+      background: slider_progress,
+      knob: v_slidder_grabber,
+      knobOver: v_slidder_grabber_hover,
+      knobDown: v_slidder_grabber_hover,
+      disabledKnob: v_slidder_grabber_disabled,
+      disabledBackground: slider_progress
+    },
+    hover-horizontal: {
+      background: slider_progress_hover,
+      knob: h_slidder_grabber,
+      knobOver: h_slidder_grabber_hover,
+      knobDown: h_slidder_grabber_hover
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.ProgressBar$ProgressBarStyle: {
+    default-horizontal: {
+      background: slider_progress,
+      knobBefore: slider_progress_hover
+    },
+    default-vertical: {
+      background: slider_progress,
+      knobBefore: slider_progress_hover
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.ImageButton$ImageButtonStyle: {
+    default: {
+      up: button_normal,
+      down: button_pressed,
+      over: button_hover,
+      disabled: button_disabled
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton$ImageTextButtonStyle: {
+    default: {
+      font: default,
+      fontColor: wood-text,
+      up: button_normal,
+      down: button_pressed,
+      over: button_hover,
+      disabled: button_disabled,
+      disabledFontColor: disabled
+    }
+  },
+  com.badlogic.gdx.scenes.scene2d.ui.TextTooltip$TextTooltipStyle: {
+    default: {
+      label: default,
+      background: nine_path_panel_interior
+    }
+  }
+}

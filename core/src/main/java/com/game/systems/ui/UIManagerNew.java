@@ -54,7 +54,7 @@ public class UIManagerNew {
         System.out.println("UIManagerNew: Stage created");
 
         // Load UI skin
-        skin = new Skin(Gdx.files.internal("assets/ui/uiskin.json"));
+        skin = new Skin(Gdx.files.internal("assets/ui/wood-theme.json"));
 
         // Create tooltip and context menu
         tooltip = new TooltipLabel(skin);

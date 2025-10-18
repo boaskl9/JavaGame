@@ -1,0 +1,353 @@
+
+wood-theme.png
+size: 128, 128
+format: RGBA8888
+filter: Nearest, Nearest
+repeat: none
+arrow_left
+  rotate: false
+  xy: 30, 92
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+arrow_left_hover
+  rotate: false
+  xy: 2, 60
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+arrow_right
+  rotate: false
+  xy: 2, 42
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+arrow_right_hover
+  rotate: false
+  xy: 2, 24
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+button_checked
+  rotate: false
+  xy: 2, 110
+  size: 26, 14
+  orig: 26, 14
+  offset: 0, 0
+  index: -1
+button_checked_disabled
+  rotate: false
+  xy: 2, 94
+  size: 26, 14
+  orig: 26, 14
+  offset: 0, 0
+  index: -1
+button_disabled
+  rotate: false
+  xy: 38, 12
+  size: 16, 8
+  orig: 16, 8
+  offset: 0, 0
+  index: -1
+button_hover
+  rotate: false
+  xy: 56, 34
+  size: 16, 8
+  orig: 16, 8
+  offset: 0, 0
+  index: -1
+button_normal
+  rotate: false
+  xy: 74, 48
+  size: 16, 8
+  orig: 16, 8
+  offset: 0, 0
+  index: -1
+button_pressed
+  rotate: false
+  xy: 92, 62
+  size: 16, 8
+  orig: 16, 8
+  offset: 0, 0
+  index: -1
+button_unchecked
+  rotate: false
+  xy: 30, 110
+  size: 26, 14
+  orig: 26, 14
+  offset: 0, 0
+  index: -1
+button_unchecked_disabled
+  rotate: false
+  xy: 2, 78
+  size: 26, 14
+  orig: 26, 14
+  offset: 0, 0
+  index: -1
+checked
+  rotate: false
+  xy: 2, 6
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+checked_disabled
+  rotate: false
+  xy: 58, 108
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+cursor
+  rotate: false
+  xy: 76, 108
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+h_slidder_grabber
+  rotate: false
+  xy: 112, 113
+  size: 13, 11
+  orig: 13, 11
+  offset: 0, 0
+  index: -1
+h_slidder_grabber_disabled
+  rotate: false
+  xy: 56, 21
+  size: 13, 11
+  orig: 13, 11
+  offset: 0, 0
+  index: -1
+h_slidder_grabber_hover
+  rotate: false
+  xy: 74, 35
+  size: 13, 11
+  orig: 13, 11
+  offset: 0, 0
+  index: -1
+inventory_cell
+  rotate: false
+  xy: 94, 108
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+selection
+  rotate: false
+  xy: 94, 108
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+nine_path_bg
+  rotate: false
+  xy: 30, 74
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textfield
+  rotate: false
+  xy: 30, 74
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+nine_path_bg
+  rotate: false
+  xy: 48, 90
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: 2
+nine_path_focus
+  rotate: false
+  xy: 110, 62
+  size: 8, 8
+  split: 3, 3, 3, 3
+  orig: 8, 8
+  offset: 0, 0
+  index: -1
+textfield-selected
+  rotate: false
+  xy: 110, 62
+  size: 8, 8
+  split: 3, 3, 3, 3
+  orig: 8, 8
+  offset: 0, 0
+  index: -1
+nine_path_panel
+  rotate: false
+  xy: 66, 90
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+window
+  rotate: false
+  xy: 66, 90
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+nine_path_panel
+  rotate: false
+  xy: 84, 90
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: 2
+nine_path_panel
+  rotate: false
+  xy: 48, 72
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: 3
+nine_path_panel_disabled
+  rotate: false
+  xy: 66, 72
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+nine_path_panel_interior
+  rotate: false
+  xy: 84, 72
+  size: 16, 16
+  split: 6, 6, 6, 6
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+radio_checked
+  rotate: false
+  xy: 102, 90
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+radio_checked_disabled
+  rotate: false
+  xy: 102, 72
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+radio_unchecked
+  rotate: false
+  xy: 20, 56
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+radio_unchecked_disabled
+  rotate: false
+  xy: 20, 38
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+slider_progress
+  rotate: false
+  xy: 20, 20
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+slider_progress_hover
+  rotate: false
+  xy: 20, 2
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+tab
+  rotate: false
+  xy: 56, 58
+  size: 16, 12
+  orig: 16, 12
+  offset: 0, 0
+  index: -1
+tab_selected
+  rotate: false
+  xy: 56, 58
+  size: 16, 12
+  orig: 16, 12
+  offset: 0, 0
+  index: -1
+tab_disabled
+  rotate: false
+  xy: 38, 22
+  size: 16, 12
+  orig: 16, 12
+  offset: 0, 0
+  index: -1
+tab_hover
+  rotate: false
+  xy: 56, 44
+  size: 16, 12
+  orig: 16, 12
+  offset: 0, 0
+  index: -1
+tab_unselected
+  rotate: false
+  xy: 74, 58
+  size: 16, 12
+  orig: 16, 12
+  offset: 0, 0
+  index: -1
+unchecked
+  rotate: false
+  xy: 38, 54
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+unchecked_disabled
+  rotate: false
+  xy: 38, 36
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+v_slidder_grabber
+  rotate: false
+  xy: 92, 47
+  size: 11, 13
+  orig: 11, 13
+  offset: 0, 0
+  index: -1
+v_slidder_grabber_disabled
+  rotate: false
+  xy: 56, 6
+  size: 11, 13
+  orig: 11, 13
+  offset: 0, 0
+  index: -1
+v_slidder_grabber_hover
+  rotate: false
+  xy: 89, 32
+  size: 11, 13
+  orig: 11, 13
+  offset: 0, 0
+  index: -1
+white
+  rotate: false
+  xy: 112, 110
+  size: 1, 1
+  orig: 1, 1
+  offset: 0, 0
+  index: -1
