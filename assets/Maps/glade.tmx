@@ -47,6 +47,9 @@
 </data>
  </layer>
  <layer id="2" name="features" width="18" height="18">
+  <properties>
+   <property name="foregroundRender" type="bool" value="true"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,

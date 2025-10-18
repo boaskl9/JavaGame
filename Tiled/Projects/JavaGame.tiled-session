@@ -40,8 +40,8 @@
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 144,
-                "y": 144.16666666666666
+                "x": 143.83333333333334,
+                "y": 143.99999999999997
             }
         },
         "D:/JavaGame/assets/Maps/house1.tmx": {
@@ -59,8 +59,8 @@
             "scale": 4,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 640,
-                "y": 480.125
+                "x": 294.625,
+                "y": 105.75
             }
         },
         "D:/Tiled/Projects/TilesetDesert.tsx": {
@@ -97,6 +97,7 @@
         "D:/JavaGame/assets/Maps/glade.tmx"
     ],
     "project": "JavaGame.tiled-project",
+    "property.type": "bool",
     "recentFiles": [
         "TilesetElement.tsx",
         "TilesetDesert.tsx",

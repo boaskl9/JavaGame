@@ -2,6 +2,7 @@ package com.game.rendering;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.maps.tiled.TiledMap;
+import com.badlogic.gdx.maps.tiled.TiledMapTile;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.game.systems.entity.GameObject;
@@ -218,17 +219,43 @@ public class YSortRenderer {
             }
         }
 
+        // Split list into two lists based on renderOnTop property
+// Prepare two mutable lists
+        List<RenderItem> onTopItems = new ArrayList<>();
+        List<RenderItem> normalItems = new ArrayList<>();
+
+// Split the list
+        for (RenderItem item : items) {
+            if (item instanceof TileRenderItem tileItem) {
+                TiledMapTileLayer.Cell cell = tileItem.tile;
+                if (cell != null && cell.getTile() != null) {
+                    Boolean renderOnTop = cell.getTile().getProperties().get("renderOnTop", Boolean.class);
+                    if (Boolean.TRUE.equals(renderOnTop)) {
+                        onTopItems.add(item);
+                        continue;
+                    }
+                }
+            }
+            normalItems.add(item);
+        }
+
+        normalItems.sort((a, b) -> Float.compare(b.sortY, a.sortY));
+        onTopItems.sort((a, b) -> Float.compare(b.sortY, a.sortY));
+
         // Sort by Y position
         // In SpriteBatch: items drawn LATER appear ON TOP
         // In top-down 2D: HIGHER Y = further back in world = should appear BEHIND
         // So: HIGHER Y should be drawn FIRST (lower render order)
         // Therefore: ASCENDING sort (lower Y values last = drawn last = on top)
-        items.sort((a, b) -> Float.compare(b.sortY, a.sortY));
+        //items.sort((a, b) -> Float.compare(b.sortY, a.sortY));
+
+        List<RenderItem> sortedItems = new ArrayList<>(normalItems);
+        sortedItems.addAll(onTopItems);
 
         // Render in sorted order
         batch.begin();
         int renderOrder = 0;
-        for (RenderItem item : items) {
+        for (RenderItem item : sortedItems) {
             if (item instanceof EntityRenderItem) {
                 EntityRenderItem entityItem = (EntityRenderItem) item;
                 entityRenderer.render(batch, entityItem.gameObject);
@@ -305,10 +332,12 @@ public class YSortRenderer {
 
     private static class TileRenderItem extends RenderItem {
         TiledMapTileLayer layer;
+        TiledMapTileLayer.Cell tile;
         int x, y;
 
         TileRenderItem(TiledMapTileLayer layer, int x, int y, float sortY) {
             this.layer = layer;
+            this.tile = layer.getCell(x, y);
             this.x = x;
             this.y = y;
             this.sortY = sortY;
