@@ -1,7 +1,6 @@
 package com.game.main;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -19,9 +18,13 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.game.components.ColliderComponent;
 import com.game.components.RenderComponent;
+import com.game.entity.EnemyEntity;
 import com.game.entity.GatewayEntity;
 import com.game.entity.ItemPickupEntity;
 import com.game.entity.PlayerEntity;
+import com.game.entity.enemies.LizardEnemy;
+import com.game.entity.enemies.Axolot;
+import com.game.entity.enemies.CatEnemy;
 import com.game.integration.WorldItemManager;
 import com.game.integration.WorldManager;
 import com.game.rendering.YSortRenderer;
@@ -218,6 +221,19 @@ public class GameScreen implements Screen {
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_BAG3)) {
             spawnDebugItem("bag3");
         }
+
+        // Debug: Spawn enemies
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_SLIME)) {
+            spawnDebugEnemy("slime");
+        }
+
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_FROG)) {
+            spawnDebugEnemy("frog");
+        }
+
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_CAT)) {
+            spawnDebugEnemy("cat");
+        }
     }
 
     /**
@@ -234,6 +250,41 @@ public class GameScreen implements Screen {
         if (itemStack != null) {
             worldItemManager.spawnItem(itemStack, mousePos.x, mousePos.y, 0);
             System.out.println("Spawned " + itemId + " at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
+        }
+    }
+
+    /**
+     * Debug function: Spawns an enemy at mouse position.
+     * @param enemyType The enemy type to spawn (slime, frog, cat)
+     */
+    private void spawnDebugEnemy(String enemyType) {
+        // Get mouse position in world coordinates
+        Vector3 mousePos = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+        camera.unproject(mousePos);
+
+        // Create enemy based on type
+        switch (enemyType.toLowerCase()) {
+            case "slime":
+                LizardEnemy slime = new LizardEnemy(world, mousePos.x, mousePos.y);
+                world.addGameObject(slime);
+                System.out.println("Spawned Slime at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
+                break;
+
+            case "frog":
+                Axolot frog = new Axolot(world, mousePos.x, mousePos.y);
+                world.addGameObject(frog);
+                System.out.println("Spawned Frog at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
+                break;
+
+            case "cat":
+                CatEnemy cat = new CatEnemy(world, mousePos.x, mousePos.y);
+                world.addGameObject(cat);
+                System.out.println("Spawned Cat at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
+                break;
+
+            default:
+                System.out.println("Unknown enemy type: " + enemyType);
+                break;
         }
     }
 
@@ -480,6 +531,29 @@ public class GameScreen implements Screen {
             if (combatCollider != null) {
                 Rectangle combatBounds = combatCollider.getBounds(player);
                 shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
+            }
+        }
+
+        // Render enemy colliders
+        for (GameObject obj : world.getGameObjects()) {
+            if (obj instanceof EnemyEntity) {
+                EnemyEntity enemy = (EnemyEntity) obj;
+
+                // Environment collider (cyan) - feet
+                shapeRenderer.setColor(0, 1, 1, 1);
+                ColliderComponent envCollider = enemy.getEnvironmentCollider();
+                if (envCollider != null) {
+                    Rectangle envBounds = envCollider.getBounds(enemy);
+                    shapeRenderer.rect(envBounds.x, envBounds.y, envBounds.width, envBounds.height);
+                }
+
+                // Combat collider (magenta) - full body
+                shapeRenderer.setColor(1, 0, 1, 1);
+                ColliderComponent combatCollider = enemy.getCombatCollider();
+                if (combatCollider != null) {
+                    Rectangle combatBounds = combatCollider.getBounds(enemy);
+                    shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
+                }
             }
         }
 

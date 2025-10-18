@@ -1719,6 +1719,7 @@ Tiled/Projects/TilesetElement.tsx
 Tiled/Projects/TilesetFloor.tsx
 Tiled/Projects/TilesetNature.tsx
 libgdx.png
+path finding stuck.png
 ui/Arrow.png
 ui/Cursor/Basic/Default/arrow_e.png
 ui/Cursor/Basic/Default/arrow_n.png

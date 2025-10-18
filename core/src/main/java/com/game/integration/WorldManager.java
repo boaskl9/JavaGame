@@ -30,6 +30,7 @@ public class WorldManager {
         this.collisionSystem = new SpatialQuery();
     }
 
+
     public void addGameObject(GameObject obj) {
         gameObjects.add(obj);
     }
@@ -118,4 +119,5 @@ public class WorldManager {
     public List<GameObject> getGameObjects() {
         return new ArrayList<>(gameObjects);
     }
+
 }

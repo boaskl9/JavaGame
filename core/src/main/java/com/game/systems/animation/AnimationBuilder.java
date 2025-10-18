@@ -69,10 +69,31 @@ public class AnimationBuilder {
     }
 
     /**
-     * Load a single static frame for all directions (useful for idle states).
+     * Load a single static frame from the top-left corner of a sprite sheet.
+     * This extracts the first frame (top-left) and uses it for all 4 directions.
+     * Useful for idle states from 4x4 monster sprite sheets.
+     *
+     * @param animator The animator to add animations to
+     * @param stateName The state name for this animation (e.g., "idle")
+     * @param spriteSheet The texture containing the sprite sheet
+     * @param totalColumns Total number of columns in the sprite sheet (e.g., 4)
+     * @param totalRows Total number of rows in the sprite sheet (e.g., 4)
      */
     public static void loadStatic(SpriteAnimator animator, String stateName,
-                                  Texture spriteSheet) {
-        loadFourDirectional(animator, stateName, spriteSheet, 1, 1.0f);
+                                  Texture spriteSheet, int totalColumns, int totalRows) {
+        int frameWidth = spriteSheet.getWidth() / totalColumns;
+        int frameHeight = spriteSheet.getHeight() / totalRows;
+
+        // Extract only the top-left frame (first frame of the sheet)
+        TextureRegion staticFrame = new TextureRegion(spriteSheet, 0, 0, frameWidth, frameHeight);
+
+        // Use the same single frame for all 4 directions
+        TextureRegion[] singleFrame = new TextureRegion[] { staticFrame };
+
+        // Add the same static frame for all directions
+        animator.addAnimation(stateName, 180, singleFrame, 1.0f);  // Down
+        animator.addAnimation(stateName, 0, singleFrame, 1.0f);    // Up
+        animator.addAnimation(stateName, 90, singleFrame, 1.0f);   // Left
+        animator.addAnimation(stateName, 270, singleFrame, 1.0f);  // Right
     }
 }

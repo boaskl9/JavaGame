@@ -6,6 +6,9 @@ dependencies {
   api "com.badlogicgames.gdx:gdx-tools:$gdxVersion"
   api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
 
+  // Pathfinding library
+  api "com.github.xaguzman:pathfinding:0.2.6"
+
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"
   }
