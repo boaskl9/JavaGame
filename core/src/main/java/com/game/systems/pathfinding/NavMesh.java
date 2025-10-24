@@ -1,5 +1,6 @@
 package com.game.systems.pathfinding;
 
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 
@@ -8,46 +9,96 @@ import java.util.*;
 /**
  * Navigation mesh for pathfinding.
  * Consists of triangles representing walkable areas.
+ * Uses QuadTree for spatial indexing to speed up triangle lookups.
  */
 public class NavMesh {
     private final List<NavMeshTriangle> triangles;
     private final float worldWidth;
     private final float worldHeight;
+    private QuadTree spatialIndex;
 
     public NavMesh(float worldWidth, float worldHeight) {
         this.worldWidth = worldWidth;
         this.worldHeight = worldHeight;
         this.triangles = new ArrayList<>();
+        this.spatialIndex = new QuadTree(0, new Rectangle(0, 0, worldWidth, worldHeight));
     }
 
     /**
-     * Adds a triangle to the mesh.
+     * Adds a triangle to the mesh and spatial index.
      */
     public void addTriangle(NavMeshTriangle triangle) {
         triangles.add(triangle);
+        spatialIndex.insert(triangle);
     }
 
     /**
-     * Builds neighbor connections between triangles.
+     * Builds neighbor connections between triangles using vertex hashing.
      * Call this after all triangles have been added.
+     * Optimized from O(n²) to O(n) using vertex-based lookup.
      */
     public void buildConnections() {
+        long startTime = System.currentTimeMillis();
         System.out.println("NavMesh: Building connections between " + triangles.size() + " triangles...");
 
-        for (int i = 0; i < triangles.size(); i++) {
-            NavMeshTriangle tri1 = triangles.get(i);
+        int connectionsChecked = 0;
+        int connectionsFound = 0;
 
-            for (int j = i + 1; j < triangles.size(); j++) {
-                NavMeshTriangle tri2 = triangles.get(j);
+        // Build a map of vertices to triangles that use them
+        // Two triangles share an edge if they share exactly 2 vertices
+        Map<String, List<NavMeshTriangle>> vertexToTriangles = new HashMap<>();
+
+        for (NavMeshTriangle tri : triangles) {
+            Vector2[] vertices = {tri.a, tri.b, tri.c};
+            for (Vector2 v : vertices) {
+                String key = vertexKey(v);
+                vertexToTriangles.computeIfAbsent(key, k -> new ArrayList<>()).add(tri);
+            }
+        }
+
+        // For each triangle, check only triangles that share at least one vertex
+        for (NavMeshTriangle tri1 : triangles) {
+            // Use a set to avoid checking the same triangle multiple times
+            Set<NavMeshTriangle> candidates = new HashSet<>();
+
+            // Add all triangles that share any vertex
+            Vector2[] vertices = {tri1.a, tri1.b, tri1.c};
+            for (Vector2 v : vertices) {
+                String key = vertexKey(v);
+                List<NavMeshTriangle> sharing = vertexToTriangles.get(key);
+                if (sharing != null) {
+                    candidates.addAll(sharing);
+                }
+            }
+
+            for (NavMeshTriangle tri2 : candidates) {
+                // Skip self and already-connected neighbors
+                if (tri1 == tri2 || tri1.neighbors.contains(tri2)) {
+                    continue;
+                }
+
+                connectionsChecked++;
 
                 if (sharesEdge(tri1, tri2)) {
                     tri1.addNeighbor(tri2);
                     tri2.addNeighbor(tri1);
+                    connectionsFound++;
                 }
             }
         }
 
-        System.out.println("NavMesh: Connections built");
+        long buildTime = System.currentTimeMillis() - startTime;
+        System.out.println("NavMesh: Connections built in " + buildTime + "ms " +
+                          "(" + connectionsChecked + " checks, " + connectionsFound + " connections found)");
+    }
+
+    /**
+     * Creates a hash key for a vertex (rounded to 0.1 precision).
+     */
+    private String vertexKey(Vector2 v) {
+        int x = Math.round(v.x * 10);
+        int y = Math.round(v.y * 10);
+        return x + "," + y;
     }
 
     /**
@@ -78,10 +129,15 @@ public class NavMesh {
     }
 
     /**
-     * Finds the triangle containing a point.
+     * Finds the triangle containing a point using spatial indexing.
+     * Optimized from O(n) to O(log n) using QuadTree.
      */
     public NavMeshTriangle findTriangle(float x, float y) {
-        for (NavMeshTriangle triangle : triangles) {
+        // Query spatial index for candidate triangles
+        List<NavMeshTriangle> candidates = spatialIndex.retrieve(new ArrayList<>(), x, y);
+
+        // Check only nearby triangles
+        for (NavMeshTriangle triangle : candidates) {
             if (triangle.contains(x, y)) {
                 return triangle;
             }

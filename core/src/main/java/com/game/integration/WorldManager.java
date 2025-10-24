@@ -41,8 +41,10 @@ public class WorldManager {
         float worldWidthPixels = worldWidth * TILE_SIZE;
         float worldHeightPixels = worldHeight * TILE_SIZE;
 
-        // Sample distance of 32 pixels (2 tiles) - creates reasonable triangle density
+        // Sample distance - larger values = fewer triangles but less detailed paths
         float sampleDistance = 10;
+
+        long startTime = System.currentTimeMillis();
 
         this.navMesh = NavMeshBuilder.build(
             worldWidthPixels,
@@ -51,7 +53,9 @@ public class WorldManager {
             sampleDistance
         );
 
-        System.out.println("WorldManager: NavMesh built with " + navMesh.getTriangles().size() + " triangles");
+        long buildTime = System.currentTimeMillis() - startTime;
+        System.out.println("WorldManager: NavMesh built with " + navMesh.getTriangles().size() +
+                          " triangles in " + buildTime + "ms");
     }
 
 
