@@ -1,7 +1,6 @@
 package com.game.main;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -586,8 +585,7 @@ public class GameScreen implements Screen {
 
         // Render enemy colliders
         for (GameObject obj : world.getGameObjects()) {
-            if (obj instanceof EnemyEntity) {
-                EnemyEntity enemy = (EnemyEntity) obj;
+            if (obj instanceof EnemyEntity enemy) {
 
                 // Environment collider (cyan) - feet
                 shapeRenderer.setColor(0, 1, 1, 1);
@@ -632,8 +630,7 @@ public class GameScreen implements Screen {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         for (GameObject obj : world.getGameObjects()) {
-            if (obj instanceof EnemyEntity) {
-                EnemyEntity enemy = (EnemyEntity) obj;
+            if (obj instanceof EnemyEntity enemy) {
 
                 // Access current path via a getter we'll need to add
                 Array<Vector2> path = enemy.getCurrentPath();
@@ -664,8 +661,7 @@ public class GameScreen implements Screen {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
         for (GameObject obj : world.getGameObjects()) {
-            if (obj instanceof EnemyEntity) {
-                EnemyEntity enemy = (EnemyEntity) obj;
+            if (obj instanceof EnemyEntity enemy) {
                 Array<Vector2> path = enemy.getCurrentPath();
                 int waypointIndex = enemy.getCurrentWaypointIndex();
 

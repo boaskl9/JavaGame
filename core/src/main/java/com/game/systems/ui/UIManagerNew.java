@@ -5,7 +5,6 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.game.integration.WorldItemManager;
@@ -177,8 +176,7 @@ public class UIManagerNew {
 
         // Position equipment to left of inventory
         float equipmentX = inventoryX - equipmentWindow.getWidth() - spacing;
-        float equipmentY = inventoryY;
-        equipmentWindow.setPosition(equipmentX, equipmentY);
+        equipmentWindow.setPosition(equipmentX, inventoryY);
     }
 
     private void setupDragAndDropListener() {

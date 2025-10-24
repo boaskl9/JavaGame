@@ -118,9 +118,6 @@ public class PlayerInventory {
             }
         }
 
-        // Try to add the empty bag itself to inventory
-        // TODO: This will need ItemStack support for bags (when we make bags as items)
-        // For now, just return the bag in itemsToDrop list (will need special handling)
 
         return itemsToDrop;
     }
