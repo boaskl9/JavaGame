@@ -31,6 +31,7 @@ public class UIManagerNew {
     private BottomHUD bottomHUD;
     private ContainerWindow inventoryWindow;
     private EquipmentWindow equipmentWindow;
+    private ItemBrowserWindow itemBrowserWindow;
     private Map<BagInstance, ContainerWindow> bagWindows;
     private Map<BagInstance, Integer> bagSlotIndices; // Track which slot each bag is in
     private boolean inventoryOpen;
@@ -184,12 +185,24 @@ public class UIManagerNew {
         dragAndDrop.setDropListener(new ItemDragAndDropSystem.ItemDropListener() {
             @Override
             public boolean onItemDrop(ItemSlotUI sourceSlot, ItemSlotUI targetSlot) {
-                return handleItemTransfer(sourceSlot, targetSlot);
+                boolean success = handleItemTransfer(sourceSlot, targetSlot);
+
+                // Refresh browser window after successful transfer from browser
+                if (success && itemBrowserWindow != null && itemBrowserWindow.isVisible()) {
+                    itemBrowserWindow.refreshBrowserSlots();
+                }
+
+                return success;
             }
 
             @Override
             public void onItemDropToWorld(ItemSlotUI sourceSlot) {
                 handleItemDropToWorld(sourceSlot);
+
+                // Refresh browser window after dropping to world
+                if (itemBrowserWindow != null && itemBrowserWindow.isVisible()) {
+                    itemBrowserWindow.refreshBrowserSlots();
+                }
             }
         });
     }
@@ -215,6 +228,9 @@ public class UIManagerNew {
             return false;
         }
 
+        // Check if source is from browser (has null container)
+        boolean isFromBrowser = sourceSlot.getContainerRef() == null;
+
         // Special handling for EQUIPMENT slots
         if (sourceSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT ||
             targetSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT) {
@@ -236,7 +252,11 @@ public class UIManagerNew {
             // Move to empty slot
             targetSlot.setItemStack(sourceStack);
             sourceSlot.setItemStack(null);
-            updateBackingData(sourceSlot, null);
+
+            // Only update backing data if not from browser
+            if (!isFromBrowser) {
+                updateBackingData(sourceSlot, null);
+            }
             updateBackingData(targetSlot, sourceStack);
             refreshAllWindows();
             return true;
@@ -247,13 +267,18 @@ public class UIManagerNew {
                 sourceStack.setQuantity(overflow);
             } else {
                 sourceSlot.setItemStack(null);
-                updateBackingData(sourceSlot, null);
+                if (!isFromBrowser) {
+                    updateBackingData(sourceSlot, null);
+                }
             }
             updateBackingData(targetSlot, targetStack);
             refreshAllWindows();
             return true;
         } else {
-            // Swap items
+            // Swap items (don't allow swapping FROM browser)
+            if (isFromBrowser) {
+                return false;
+            }
             targetSlot.setItemStack(sourceStack);
             sourceSlot.setItemStack(targetStack);
             updateBackingData(sourceSlot, targetStack);
@@ -653,9 +678,16 @@ public class UIManagerNew {
         ItemStack stack = sourceSlot.getItemStack();
         if (stack == null) return;
 
+        // Check if source is from browser (has null container)
+        boolean isFromBrowser = sourceSlot.getContainerRef() == null;
+
         // Remove from slot
         sourceSlot.setItemStack(null);
-        updateBackingData(sourceSlot, null);
+
+        // Only update backing data if not from browser
+        if (!isFromBrowser) {
+            updateBackingData(sourceSlot, null);
+        }
         refreshAllWindows();
 
         // Notify callback
@@ -1304,6 +1336,32 @@ public class UIManagerNew {
     public void updateHealthDisplay() {
         if (bottomHUD != null) {
             bottomHUD.updateHealthDisplay();
+        }
+    }
+
+    /**
+     * Toggles the item browser window (debug feature).
+     * Shows all registered items that can be spawned via drag & drop.
+     */
+    public void toggleItemBrowser() {
+        if (itemBrowserWindow == null) {
+            // Create item browser on first use
+            itemBrowserWindow = new ItemBrowserWindow(dragAndDrop, worldItemManager, skin);
+            itemBrowserWindow.centerOnScreen();
+            stage.addActor(itemBrowserWindow);
+            itemBrowserWindow.setVisible(true);
+            itemBrowserWindow.toFront();
+            System.out.println("UIManagerNew: Item browser window created and opened");
+        } else {
+            // Toggle visibility
+            boolean newVisibility = !itemBrowserWindow.isVisible();
+            itemBrowserWindow.setVisible(newVisibility);
+            if (newVisibility) {
+                itemBrowserWindow.toFront();
+                System.out.println("UIManagerNew: Item browser window opened");
+            } else {
+                System.out.println("UIManagerNew: Item browser window closed");
+            }
         }
     }
 }

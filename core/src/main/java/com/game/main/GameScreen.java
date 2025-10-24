@@ -764,4 +764,10 @@ public class GameScreen implements Screen {
         if (currentMap != null) currentMap.dispose();
         if (uiManager != null) uiManager.dispose();
     }
+
+    // ==================== GETTERS ====================
+
+    public UIManagerNew getUiManager() {
+        return uiManager;
+    }
 }

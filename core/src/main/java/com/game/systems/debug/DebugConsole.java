@@ -205,8 +205,12 @@ public class DebugConsole extends Window {
                     break;
                 case "setmaxhealth":
                     executeSetMaxHealth(parts);
+                    break;
                 case "debug":
                     executeDebug(parts);
+                    break;
+                case "items":
+                    executeItems();
                     break;
                 default:
                     error("Unknown command: " + command);
@@ -237,6 +241,8 @@ public class DebugConsole extends Window {
         log("  /debug <feature> - Toggle debug view");
         log("      Features: colliders, navmesh, fps, all, none");
         log("      Example: /debug colliders");
+        log("  /items - Open item browser window");
+        log("      Drag items to inventory or world to spawn");
         log("  /clear - Clear console output");
         log("  /help - Show this help");
     }
@@ -426,6 +432,12 @@ public class DebugConsole extends Window {
             boolean enabled = debugManager.isEnabled(feature);
             log("Debug '" + feature + "': " + (enabled ? "ENABLED" : "DISABLED"));
         }
+    }
+
+    private void executeItems() {
+        gameScreen.getUiManager().toggleItemBrowser();
+        log("Item browser window toggled");
+        log("Drag items to inventory or world to spawn them");
     }
 
     // ==================== LOGGING ====================
