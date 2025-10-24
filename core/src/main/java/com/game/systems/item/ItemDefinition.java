@@ -1,5 +1,7 @@
 package com.game.systems.item;
 
+import com.game.systems.inventory.EquipmentSlot;
+
 /**
  * Immutable definition of an item type.
  * This is pure data with no game-specific logic, making it fully reusable.
@@ -13,14 +15,21 @@ public class ItemDefinition {
     private final String iconPath;
     private final boolean consumable;
     private final Integer bagSize; // Number of slots if this is a bag item, null otherwise
+    private final EquipmentSlot equipmentSlot; // Which equipment slot this item goes in (null if not equippable)
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable) {
-        this(id, name, description, type, maxStackSize, iconPath, consumable, null);
+        this(id, name, description, type, maxStackSize, iconPath, consumable, null, null);
     }
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable, Integer bagSize) {
+        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, null);
+    }
+
+    public ItemDefinition(String id, String name, String description, ItemType type,
+                         int maxStackSize, String iconPath, boolean consumable,
+                         Integer bagSize, EquipmentSlot equipmentSlot) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -29,6 +38,7 @@ public class ItemDefinition {
         this.iconPath = iconPath;
         this.consumable = consumable;
         this.bagSize = bagSize;
+        this.equipmentSlot = equipmentSlot;
     }
 
     public String getId() {
@@ -69,6 +79,14 @@ public class ItemDefinition {
 
     public boolean isBag() {
         return bagSize != null;
+    }
+
+    public EquipmentSlot getEquipmentSlot() {
+        return equipmentSlot;
+    }
+
+    public boolean isEquippable() {
+        return equipmentSlot != null;
     }
 
     @Override

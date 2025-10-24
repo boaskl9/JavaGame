@@ -34,8 +34,9 @@ public class InputManager {
         bind(InputAction.MOVE_LEFT, Input.Keys.A);
         bind(InputAction.MOVE_RIGHT, Input.Keys.D);
 
-        // Inventory
+        // Inventory & Equipment
         bind(InputAction.OPEN_INVENTORY, Input.Keys.B);
+        bind(InputAction.OPEN_EQUIPMENT, Input.Keys.I);
 
         // UI
         bind(InputAction.OPEN_SETTINGS, Input.Keys.ESCAPE);

@@ -13,6 +13,7 @@ public enum InputAction {
 
     // Inventory
     OPEN_INVENTORY,
+    OPEN_EQUIPMENT,
 
     // UI
     OPEN_SETTINGS,

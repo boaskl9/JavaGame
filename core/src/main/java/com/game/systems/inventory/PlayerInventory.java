@@ -7,13 +7,14 @@ import java.util.List;
 
 /**
  * Manages the player's complete inventory system.
- * Includes default inventory slots and bag slots.
+ * Includes default inventory slots, bag slots, and equipment slots.
  * Handles bag equipping/unequipping with proper item redistribution.
  */
 public class PlayerInventory {
     private final InventoryContainer defaultInventory;
     private final List<BagInstance> bagSlots;
     private final int maxBagSlots;
+    private final PlayerEquipment equipment;
 
     public PlayerInventory() {
         this(InventoryConfig.DEFAULT_INVENTORY_SIZE, InventoryConfig.MAX_BAG_SLOTS);
@@ -23,6 +24,7 @@ public class PlayerInventory {
         this.defaultInventory = new InventoryContainer(defaultSlots);
         this.maxBagSlots = maxBagSlots;
         this.bagSlots = new ArrayList<>(maxBagSlots);
+        this.equipment = new PlayerEquipment();
 
         // Initialize bag slots as empty
         for (int i = 0; i < maxBagSlots; i++) {
@@ -265,6 +267,10 @@ public class PlayerInventory {
 
     public int getMaxBagSlots() {
         return maxBagSlots;
+    }
+
+    public PlayerEquipment getEquipment() {
+        return equipment;
     }
 
     /**

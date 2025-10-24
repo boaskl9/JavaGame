@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.game.integration.WorldItemManager;
+import com.game.systems.inventory.EquipmentSlot;
 
 /**
  * Registers test items for debugging and development.
@@ -88,6 +89,91 @@ public class TestItems {
             true
         );
         ItemRegistry.register(potion);
+
+        // ===== EQUIPMENT ITEMS =====
+
+        // Helmet
+        ItemDefinition ironHelmet = new ItemDefinition(
+            "iron_helmet",
+            "Iron Helmet",
+            "A sturdy iron helmet that protects your head.",
+            ItemType.ARMOR,
+            1, // Not stackable
+            "assets/Items/Equipment/iron_helmet.png",
+            false,
+            null, // Not a bag
+            EquipmentSlot.HEAD
+        );
+        ItemRegistry.register(ironHelmet);
+
+        // Body armor
+        ItemDefinition leatherChest = new ItemDefinition(
+            "leather_chest",
+            "Leather Tunic",
+            "A comfortable leather tunic.",
+            ItemType.ARMOR,
+            1,
+            null,
+            false,
+            null,
+            EquipmentSlot.BODY
+        );
+        ItemRegistry.register(leatherChest);
+
+        // Amulet
+        ItemDefinition goldAmulet = new ItemDefinition(
+            "gold_amulet",
+            "Gold Amulet",
+            "A beautiful gold amulet.",
+            ItemType.ARMOR,
+            1,
+            null,
+            false,
+            null,
+            EquipmentSlot.AMULET
+        );
+        ItemRegistry.register(goldAmulet);
+
+        // Rings
+        ItemDefinition rubyRing = new ItemDefinition(
+            "ruby_ring",
+            "Ruby Ring",
+            "A ring with a glowing ruby gem.",
+            ItemType.ARMOR,
+            1,
+            null,
+            false,
+            null,
+            EquipmentSlot.RING_1 // Can go in either ring slot
+        );
+        ItemRegistry.register(rubyRing);
+
+        ItemDefinition emeraldRing = new ItemDefinition(
+            "emerald_ring",
+            "Emerald Ring",
+            "A ring with a brilliant emerald.",
+            ItemType.ARMOR,
+            1,
+            null,
+            false,
+            null,
+            EquipmentSlot.RING_2
+        );
+        ItemRegistry.register(emeraldRing);
+
+        // Weapon
+        ItemDefinition woodenSword = new ItemDefinition(
+            "wooden_sword",
+            "Wooden Sword",
+            "A simple wooden training sword.",
+            ItemType.WEAPON,
+            1,
+            "assets/Items/Weapons/Sword/Sprite.png",
+            false,
+            null,
+            EquipmentSlot.WEAPON
+        );
+        ItemRegistry.register(woodenSword);
 
         System.out.println("Registered " + ItemRegistry.size() + " test items");
     }

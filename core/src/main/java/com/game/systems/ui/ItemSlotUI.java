@@ -36,7 +36,8 @@ public class ItemSlotUI extends Image {
     public enum SlotType {
         DEFAULT_INVENTORY,
         BAG_INVENTORY,
-        BAG_EQUIPMENT
+        BAG_EQUIPMENT,
+        EQUIPMENT
     }
 
     public interface SlotHoverListener {

@@ -19,7 +19,7 @@ public class ItemActionHelper {
      */
     public static String getPrimaryAction(ItemType type, ItemDefinition itemDef, ItemSlotUI.SlotType slotType) {
         // Check if item is in an equipment slot - if so, primary action is to unequip
-        if (slotType == ItemSlotUI.SlotType.BAG_EQUIPMENT) {
+        if (slotType == ItemSlotUI.SlotType.BAG_EQUIPMENT || slotType == ItemSlotUI.SlotType.EQUIPMENT) {
             return "Unequip";
         }
 

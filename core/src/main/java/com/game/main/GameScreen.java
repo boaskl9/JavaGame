@@ -219,13 +219,22 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Open inventory
+        // Open inventory (B key - bags only)
         if (inputManager.isJustPressed(InputAction.OPEN_INVENTORY)) {
             if (uiManager != null) {
                 uiManager.toggleInventory();
 
                 // If inventory is closed, restore input to stage (for HUD)
                 // If open, input processor stays on stage (for dragging)
+                // Stage always handles input when UI exists
+            }
+        }
+
+        // Open equipment + inventory (I key - both)
+        if (inputManager.isJustPressed(InputAction.OPEN_EQUIPMENT)) {
+            if (uiManager != null) {
+                uiManager.toggleEquipmentAndInventory();
+
                 // Stage always handles input when UI exists
             }
         }

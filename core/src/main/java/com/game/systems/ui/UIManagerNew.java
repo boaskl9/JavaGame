@@ -30,6 +30,7 @@ public class UIManagerNew {
 
     private BottomHUD bottomHUD;
     private ContainerWindow inventoryWindow;
+    private EquipmentWindow equipmentWindow;
     private Map<BagInstance, ContainerWindow> bagWindows;
     private Map<BagInstance, Integer> bagSlotIndices; // Track which slot each bag is in
     private boolean inventoryOpen;
@@ -110,6 +111,12 @@ public class UIManagerNew {
         inventoryWindow.setVisible(false);
         stage.addActor(inventoryWindow);
 
+        // Create equipment window (hidden by default)
+        equipmentWindow = new EquipmentWindow(playerInventory, dragAndDrop, skin);
+        equipmentWindow.setVisible(false);
+        equipmentWindow.padTop(20);
+        stage.addActor(equipmentWindow);
+
         // Add tooltip and context menu to stage (they manage their own visibility)
         stage.addActor(tooltip);
         stage.addActor(contextMenu);
@@ -156,6 +163,23 @@ public class UIManagerNew {
         inventoryWindow.setPosition(windowX, windowY);
     }
 
+    private void positionEquipmentAndInventoryWindows() {
+        // Position equipment on left, inventory on right (side-by-side)
+        float hudHeight = 60;
+        float padding = 10;
+        float spacing = 10;
+
+        // Position inventory at bottom right
+        float inventoryX = Gdx.graphics.getWidth() - inventoryWindow.getWidth() - padding;
+        float inventoryY = hudHeight + padding;
+        inventoryWindow.setPosition(inventoryX, inventoryY);
+
+        // Position equipment to left of inventory
+        float equipmentX = inventoryX - equipmentWindow.getWidth() - spacing;
+        float equipmentY = inventoryY;
+        equipmentWindow.setPosition(equipmentX, equipmentY);
+    }
+
     private void setupDragAndDropListener() {
         dragAndDrop.setDropListener(new ItemDragAndDropSystem.ItemDropListener() {
             @Override
@@ -189,6 +213,12 @@ public class UIManagerNew {
 
         if (sourceStack == null) {
             return false;
+        }
+
+        // Special handling for EQUIPMENT slots
+        if (sourceSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT ||
+            targetSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT) {
+            return handleEquipmentTransfer(sourceSlot, targetSlot);
         }
 
         // Special handling for dragging FROM bag equipment slots (unequipping)
@@ -420,6 +450,97 @@ public class UIManagerNew {
         return false;
     }
 
+    /**
+     * Handles equipment slot transfers (equipping/unequipping).
+     */
+    private boolean handleEquipmentTransfer(ItemSlotUI sourceSlot, ItemSlotUI targetSlot) {
+        ItemStack sourceStack = sourceSlot.getItemStack();
+        ItemStack targetStack = targetSlot.getItemStack();
+
+        // Case 1: Dragging FROM equipment TO inventory (unequipping)
+        if (sourceSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT &&
+            targetSlot.getSlotType() != ItemSlotUI.SlotType.EQUIPMENT) {
+
+            // Get equipment slot type
+            com.game.systems.inventory.EquipmentSlot equipSlot =
+                com.game.systems.inventory.EquipmentSlot.values()[sourceSlot.getSlotIndex()];
+
+            // Unequip the item
+            playerInventory.getEquipment().unequipItem(equipSlot);
+
+            // Handle target slot
+            if (targetStack == null) {
+                // Move to empty inventory slot
+                targetSlot.setItemStack(sourceStack);
+                updateBackingData(targetSlot, sourceStack);
+            } else if (targetStack.canMergeWith(sourceStack)) {
+                // This shouldn't happen for equipment (non-stackable) but handle it
+                return false;
+            } else {
+                // Swap with inventory item
+                targetSlot.setItemStack(sourceStack);
+                updateBackingData(targetSlot, sourceStack);
+            }
+
+            refreshAllWindows();
+            return true;
+        }
+
+        // Case 2: Dragging FROM inventory TO equipment (equipping)
+        if (sourceSlot.getSlotType() != ItemSlotUI.SlotType.EQUIPMENT &&
+            targetSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT) {
+
+            // Get equipment slot type
+            com.game.systems.inventory.EquipmentSlot equipSlot =
+                com.game.systems.inventory.EquipmentSlot.values()[targetSlot.getSlotIndex()];
+
+            // Validate item can be equipped in this slot
+            if (!playerInventory.getEquipment().canEquip(sourceStack, equipSlot)) {
+                System.out.println("Cannot equip: Item type doesn't match slot");
+                return false;
+            }
+
+            // Unequip old item (if any)
+            ItemStack oldEquipped = playerInventory.getEquipment().equipItem(equipSlot, sourceStack);
+
+            // Remove item from source inventory slot
+            sourceSlot.setItemStack(oldEquipped); // Put old equipped item back in source slot
+            updateBackingData(sourceSlot, oldEquipped);
+
+            refreshAllWindows();
+            return true;
+        }
+
+        // Case 3: Dragging between two equipment slots (swap)
+        if (sourceSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT &&
+            targetSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT) {
+
+            com.game.systems.inventory.EquipmentSlot sourceEquipSlot =
+                com.game.systems.inventory.EquipmentSlot.values()[sourceSlot.getSlotIndex()];
+            com.game.systems.inventory.EquipmentSlot targetEquipSlot =
+                com.game.systems.inventory.EquipmentSlot.values()[targetSlot.getSlotIndex()];
+
+            // Validate both items can go in swapped slots
+            if (sourceStack != null && !playerInventory.getEquipment().canEquip(sourceStack, targetEquipSlot)) {
+                System.out.println("Cannot swap: Source item doesn't fit target slot");
+                return false;
+            }
+            if (targetStack != null && !playerInventory.getEquipment().canEquip(targetStack, sourceEquipSlot)) {
+                System.out.println("Cannot swap: Target item doesn't fit source slot");
+                return false;
+            }
+
+            // Perform the swap
+            playerInventory.getEquipment().equipItem(sourceEquipSlot, targetStack);
+            playerInventory.getEquipment().equipItem(targetEquipSlot, sourceStack);
+
+            refreshAllWindows();
+            return true;
+        }
+
+        return false;
+    }
+
     private void updateBackingData(ItemSlotUI slot, ItemStack newStack) {
         int slotIndex = slot.getSlotIndex();
 
@@ -429,6 +550,12 @@ public class UIManagerNew {
                 // Both use InventoryContainer now (unified approach)
                 InventoryContainer container = (InventoryContainer) slot.getContainerRef();
                 container.setItem(slotIndex, newStack);
+                break;
+
+            case EQUIPMENT:
+                // Equipment is handled in handleEquipmentTransfer()
+                // This case should not be reached directly
+                System.out.println("Warning: updateBackingData called for EQUIPMENT slot");
                 break;
 
             case BAG_EQUIPMENT:
@@ -494,6 +621,34 @@ public class UIManagerNew {
             return;
         }
 
+        // Special handling for equipment slots (armor, weapons, etc.)
+        if (sourceSlot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT) {
+            ItemStack stack = sourceSlot.getItemStack();
+            if (stack == null) {
+                System.out.println("Cannot drop: No item in equipment slot");
+                return;
+            }
+
+            // Get equipment slot type and unequip
+            com.game.systems.inventory.EquipmentSlot equipSlot =
+                com.game.systems.inventory.EquipmentSlot.values()[sourceSlot.getSlotIndex()];
+            playerInventory.getEquipment().unequipItem(equipSlot);
+
+            // Clear the equipment slot display
+            sourceSlot.setItemStack(null);
+            sourceSlot.setItemIcon(null);
+
+            refreshAllWindows();
+
+            // Notify callback to drop the item
+            if (itemDropCallback != null) {
+                itemDropCallback.onDropItemToWorld(stack);
+            }
+
+            System.out.println("Dropped equipped " + stack.getDefinition().getName() + " to world");
+            return;
+        }
+
         // Normal item drop handling
         ItemStack stack = sourceSlot.getItemStack();
         if (stack == null) return;
@@ -526,7 +681,7 @@ public class UIManagerNew {
                 break;
 
             case "Equip":
-                // Try to equip the item (bags, armor, etc.)
+                // Try to equip the item (bags, armor, weapons, etc.)
                 if (stack.getDefinition().isBag()) {
                     // Find first empty bag slot
                     for (int i = 0; i < playerInventory.getMaxBagSlots(); i++) {
@@ -540,8 +695,22 @@ public class UIManagerNew {
                         }
                     }
                     System.out.println("Context menu: No empty bag slots available");
+                } else if (stack.getDefinition().isEquippable()) {
+                    // Handle armor/weapon equipping
+                    com.game.systems.inventory.EquipmentSlot equipSlot =
+                        playerInventory.getEquipment().findSlotFor(stack);
+
+                    if (equipSlot != null) {
+                        // Find the equipment slot UI
+                        ItemSlotUI targetSlot = equipmentWindow.getSlot(equipSlot);
+                        if (handleEquipmentTransfer(slot, targetSlot)) {
+                            System.out.println("Context menu: Equipped " + stack.getDefinition().getName() +
+                                             " to " + equipSlot.getDisplayName());
+                            return;
+                        }
+                    }
+                    System.out.println("Context menu: Cannot equip - no suitable equipment slot");
                 }
-                // Future: Handle armor/weapon equipping here
                 break;
 
             case "Unequip":
@@ -562,6 +731,23 @@ public class UIManagerNew {
                         }
                     }
                     System.out.println("Context menu: No empty inventory slots to unequip bag");
+                } else if (slot.getSlotType() == ItemSlotUI.SlotType.EQUIPMENT) {
+                    // Unequip armor/weapon from equipment slot
+                    InventoryContainer defaultInventory = playerInventory.getDefaultInventory();
+                    ItemSlotUI[] inventorySlots = inventoryWindow.getSlots();
+                    for (int i = 0; i < defaultInventory.getSize(); i++) {
+                        if (defaultInventory.getItem(i) == null) {
+                            // Find empty inventory slot and move equipment there
+                            ItemSlotUI targetSlot = inventorySlots[i];
+                            if (handleEquipmentTransfer(slot, targetSlot)) {
+                                System.out.println("Context menu: Unequipped " +
+                                                 stack.getDefinition().getName() +
+                                                 " to inventory slot " + i);
+                                return;
+                            }
+                        }
+                    }
+                    System.out.println("Context menu: No empty inventory slots to unequip equipment");
                 } else {
                     System.out.println("Context menu: Cannot unequip - item not in equipment slot");
                 }
@@ -667,16 +853,21 @@ public class UIManagerNew {
         return null;
     }
 
+    /**
+     * Toggles just the inventory window (bags only).
+     * Opened with 'B' key.
+     */
     public void toggleInventory() {
         inventoryOpen = !inventoryOpen;
         inventoryWindow.setVisible(inventoryOpen);
+        equipmentWindow.setVisible(false); // Don't show equipment
 
         System.out.println("UIManagerNew: Inventory toggled. Open = " + inventoryOpen);
         System.out.println("UIManagerNew: Window visible = " + inventoryWindow.isVisible());
         System.out.println("UIManagerNew: Window position = (" + inventoryWindow.getX() + ", " + inventoryWindow.getY() + ")");
 
         if (inventoryOpen) {
-            // Reset inventory window to default position
+            // Position inventory window normally
             positionInventoryWindow();
 
             // Open bag windows for equipped bags FIRST (before refreshing)
@@ -685,9 +876,48 @@ public class UIManagerNew {
             // Now refresh all windows (including the newly opened bag windows)
             refreshAllWindows();
 
-            // Bring window to front
+            // Bring windows to front
             inventoryWindow.toFront();
-            System.out.println("UIManagerNew: Window brought to front");
+            System.out.println("UIManagerNew: Inventory window brought to front");
+        } else {
+            // Close all bag windows
+            closeAllBagWindows();
+        }
+
+        // Always set input processor when UI exists (for HUD)
+        // Stage handles both HUD and inventory window
+        Gdx.input.setInputProcessor(stage);
+        System.out.println("UIManagerNew: Input processor set to stage");
+        System.out.println("UIManagerNew: Current input processor = " + Gdx.input.getInputProcessor());
+    }
+
+    /**
+     * Toggles both inventory and equipment windows together.
+     * Opened with 'I' key.
+     */
+    public void toggleEquipmentAndInventory() {
+        inventoryOpen = !inventoryOpen;
+        inventoryWindow.setVisible(inventoryOpen);
+        equipmentWindow.setVisible(inventoryOpen);
+
+        System.out.println("UIManagerNew: Equipment and Inventory toggled. Open = " + inventoryOpen);
+        System.out.println("UIManagerNew: Window visible = " + inventoryWindow.isVisible());
+        System.out.println("UIManagerNew: Window position = (" + inventoryWindow.getX() + ", " + inventoryWindow.getY() + ")");
+
+        if (inventoryOpen) {
+            // Position equipment window to left of inventory
+            positionEquipmentAndInventoryWindows();
+
+            // Open bag windows for equipped bags FIRST (before refreshing)
+            openBagWindows();
+
+            // Now refresh all windows (including the newly opened bag windows)
+            refreshAllWindows();
+
+            // Bring windows to front
+            equipmentWindow.toFront();
+            inventoryWindow.toFront();
+            System.out.println("UIManagerNew: Windows brought to front");
         } else {
             // Close all bag windows
             closeAllBagWindows();
@@ -911,11 +1141,24 @@ public class UIManagerNew {
 
     public void refreshAllWindows() {
         refreshContainerWindowWithIcons(inventoryWindow);
+        refreshEquipmentWindowWithIcons();
         refreshBottomHUDWithIcons();
 
         // Refresh all bag windows
         for (ContainerWindow window : bagWindows.values()) {
             refreshContainerWindowWithIcons(window);
+        }
+    }
+
+    /**
+     * Refreshes the equipment window with current equipped items.
+     */
+    private void refreshEquipmentWindowWithIcons() {
+        equipmentWindow.refresh(worldItemManager);
+
+        // Set up listeners for equipment slots
+        for (ItemSlotUI slot : equipmentWindow.getSlots()) {
+            setupSlotListener(slot);
         }
     }
 
