@@ -28,5 +28,6 @@ public enum InputAction {
     DEBUG_SPAWN_SLIME,
     DEBUG_SPAWN_FROG,
     DEBUG_SPAWN_CAT,
-    DEBUG_TOGGLE
+    DEBUG_TOGGLE,
+    DEBUG_CONSOLE
 }

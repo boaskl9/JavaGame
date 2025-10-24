@@ -2,13 +2,24 @@ package com.game.components;
 
 import com.game.systems.entity.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Component that manages entity health.
  * Health is represented in quarter-heart increments (4 HP = 1 full heart).
  */
 public class HealthComponent implements Component {
+    /**
+     * Listener interface for health changes.
+     */
+    public interface HealthListener {
+        void onHealthChanged(int currentHealth, int maxHealth);
+    }
+
     private int currentHealth;
     private int maxHealth;
+    private final List<HealthListener> listeners = new ArrayList<>();
 
     /**
      * Creates a health component.
@@ -35,6 +46,31 @@ public class HealthComponent implements Component {
     }
 
     /**
+     * Adds a listener to be notified of health changes.
+     */
+    public void addListener(HealthListener listener) {
+        if (!listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+    }
+
+    /**
+     * Removes a listener.
+     */
+    public void removeListener(HealthListener listener) {
+        listeners.remove(listener);
+    }
+
+    /**
+     * Notifies all listeners of a health change.
+     */
+    private void notifyHealthChanged() {
+        for (HealthListener listener : listeners) {
+            listener.onHealthChanged(currentHealth, maxHealth);
+        }
+    }
+
+    /**
      * Damages the entity.
      * @param amount Amount of damage (4 = 1 full heart, 1 = quarter heart)
      * @return true if entity died from this damage
@@ -44,6 +80,7 @@ public class HealthComponent implements Component {
         if (currentHealth < 0) {
             currentHealth = 0;
         }
+        notifyHealthChanged();
         return currentHealth == 0;
     }
 
@@ -56,6 +93,7 @@ public class HealthComponent implements Component {
         if (currentHealth > maxHealth) {
             currentHealth = maxHealth;
         }
+        notifyHealthChanged();
     }
 
     /**
@@ -63,6 +101,7 @@ public class HealthComponent implements Component {
      */
     public void setHealth(int health) {
         this.currentHealth = Math.max(0, Math.min(health, maxHealth));
+        notifyHealthChanged();
     }
 
     /**
@@ -73,6 +112,7 @@ public class HealthComponent implements Component {
         if (currentHealth > maxHealth) {
             currentHealth = maxHealth;
         }
+        notifyHealthChanged();
     }
 
     public int getCurrentHealth() {

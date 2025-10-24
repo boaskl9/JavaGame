@@ -151,7 +151,25 @@ public class BottomHUD extends Table {
      * Sets the player's health component to display.
      */
     public void setPlayerHealth(HealthComponent health) {
+        // Remove listener from old health component if exists
+        if (this.playerHealth != null) {
+            this.playerHealth.removeListener(this::onHealthChanged);
+        }
+
         this.playerHealth = health;
+
+        // Add listener to new health component
+        if (this.playerHealth != null) {
+            this.playerHealth.addListener(this::onHealthChanged);
+        }
+
+        updateHealthDisplay();
+    }
+
+    /**
+     * Called when player health changes.
+     */
+    private void onHealthChanged(int currentHealth, int maxHealth) {
         updateHealthDisplay();
     }
 

@@ -1,6 +1,7 @@
 package com.game.main;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -41,6 +42,8 @@ import com.game.systems.item.TestItems;
 import com.game.systems.level.LevelData;
 import com.game.systems.level.TiledMapParser;
 import com.game.systems.ui.UIManagerNew;
+import com.game.systems.debug.DebugConsole;
+import com.game.systems.debug.DebugManager;
 
 /**
  * Refactored GameScreen using the new decoupled architecture.
@@ -59,14 +62,17 @@ public class GameScreen implements Screen {
     private OrthographicCamera uiCamera;
     private Viewport viewport;
 
-    private WorldManager world;
-    private WorldItemManager worldItemManager;
-    private PlayerEntity player;
+    public WorldManager world;
+    public WorldItemManager worldItemManager;
+    public PlayerEntity player;
     private TiledMap currentMap;
     private OrthogonalTiledMapRenderer mapRenderer;
     private YSortRenderer ySortRenderer;
     private UIManagerNew uiManager;
     private InputManager inputManager;
+
+    private DebugManager debugManager;
+    private DebugConsole debugConsole;
 
     private GatewayEntity pendingGateway = null;
 
@@ -89,6 +95,7 @@ public class GameScreen implements Screen {
         // Initialize systems
         worldItemManager = new WorldItemManager();
         inputManager = new InputManager();
+        debugManager = new DebugManager();
 
         // Register test items
         TestItems.registerTestItems();
@@ -106,19 +113,34 @@ public class GameScreen implements Screen {
             pendingGateway = null;
         }
 
-        // Update input
+        // Check for debug console toggle (always check this first)
         inputManager.update();
-
-        // Handle input actions
-        handleInputActions();
-
-        // Check for debug toggle
-        if (inputManager.isJustPressed(InputAction.DEBUG_TOGGLE)) {
-            debugMode = !debugMode;
-            if (ySortRenderer != null) {
-                ySortRenderer.setDebugMode(debugMode);
+        if (inputManager.isJustPressed(InputAction.DEBUG_CONSOLE)) {
+            if (debugConsole != null) {
+                debugConsole.toggle();
             }
-            System.out.println("Debug mode: " + debugMode);
+        }
+
+        // Only process game input when console is NOT open
+        boolean consoleOpen = debugConsole != null && debugConsole.isVisible();
+
+        // Disable player movement when console is open
+        if (player != null) {
+            player.setInputEnabled(!consoleOpen);
+        }
+
+        if (!consoleOpen) {
+            // Handle input actions
+            handleInputActions();
+
+            // Check for debug toggle
+            if (inputManager.isJustPressed(InputAction.DEBUG_TOGGLE)) {
+                debugMode = !debugMode;
+                if (ySortRenderer != null) {
+                    ySortRenderer.setDebugMode(debugMode);
+                }
+                System.out.println("Debug mode: " + debugMode);
+            }
         }
 
         // Clear screen
@@ -175,9 +197,13 @@ public class GameScreen implements Screen {
         }
 
         // Render debug
-        if (debugMode) {
+        if (debugMode || debugManager.isEnabled("colliders")) {
             renderCollisionDebug();
+        }
+        if (debugMode || debugManager.isEnabled("navmesh")) {
             renderNavMeshDebug();
+        }
+        if (debugMode || debugManager.isEnabled("fps")) {
             renderDebugStats();
         }
     }
@@ -435,6 +461,13 @@ public class GameScreen implements Screen {
 
             // Set player health for HUD display
             uiManager.setPlayerHealth(player.getHealthComponent());
+
+            // Initialize debug console
+            debugConsole = new DebugConsole(uiManager.getSkin(), this, debugManager);
+            debugConsole.setSize(400, 600);
+            debugConsole.setPosition(10, VIEWPORT_HEIGHT - 70);
+            debugConsole.padTop(20);
+            uiManager.getStage().addActor(debugConsole);
 
             // Set input processor to stage (for HUD and all UI interactions)
             Gdx.input.setInputProcessor(uiManager.getStage());

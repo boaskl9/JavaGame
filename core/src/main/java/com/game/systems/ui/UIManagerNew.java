@@ -768,6 +768,10 @@ public class UIManagerNew {
         return stage;
     }
 
+    public Skin getSkin() {
+        return skin;
+    }
+
     public GameSettings getGameSettings() {
         return gameSettings;
     }

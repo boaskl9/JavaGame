@@ -28,6 +28,7 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     private WorldManager world;
     private int lastDirectionAngle = 180; // Down
+    private boolean inputEnabled = true;
 
     // Component references (cached for performance)
     private Transform transform;
@@ -107,25 +108,29 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     private void handleInput() {
         Vector2 inputVelocity = new Vector2();
-        boolean isRunning = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
 
-        if (Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.UP)) {
-            inputVelocity.y += 1;
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN)) {
-            inputVelocity.y -= 1;
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
-            inputVelocity.x -= 1;
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
-            inputVelocity.x += 1;
-        }
+        // Only process input if enabled
+        if (inputEnabled) {
+            boolean isRunning = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
 
-        // Apply speed
-        if (inputVelocity.len() > 0) {
-            float speed = isRunning ? RUN_SPEED : WALK_SPEED;
-            inputVelocity.nor().scl(speed);
+            if (Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.UP)) {
+                inputVelocity.y += 1;
+            }
+            if (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN)) {
+                inputVelocity.y -= 1;
+            }
+            if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
+                inputVelocity.x -= 1;
+            }
+            if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
+                inputVelocity.x += 1;
+            }
+
+            // Apply speed
+            if (inputVelocity.len() > 0) {
+                float speed = isRunning ? RUN_SPEED : WALK_SPEED;
+                inputVelocity.nor().scl(speed);
+            }
         }
 
         velocity.setVelocity(inputVelocity);
@@ -225,5 +230,16 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     public HealthComponent getHealthComponent() {
         return health;
+    }
+
+    /**
+     * Enable or disable player input (for UI dialogs, console, etc.)
+     */
+    public void setInputEnabled(boolean enabled) {
+        this.inputEnabled = enabled;
+    }
+
+    public boolean isInputEnabled() {
+        return inputEnabled;
     }
 }

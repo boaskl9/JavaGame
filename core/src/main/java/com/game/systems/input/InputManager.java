@@ -52,6 +52,7 @@ public class InputManager {
         bind(InputAction.DEBUG_SPAWN_FROG, Input.Keys.NUM_6);
         bind(InputAction.DEBUG_SPAWN_CAT, Input.Keys.NUM_7);
         bind(InputAction.DEBUG_TOGGLE, Input.Keys.F3);
+        bind(InputAction.DEBUG_CONSOLE, Input.Keys.F4);
     }
 
     /**
