@@ -1346,7 +1346,19 @@ public class UIManagerNew {
     public void toggleItemBrowser() {
         if (itemBrowserWindow == null) {
             // Create item browser on first use
-            itemBrowserWindow = new ItemBrowserWindow(dragAndDrop, worldItemManager, skin);
+            itemBrowserWindow = new ItemBrowserWindow(dragAndDrop, worldItemManager, tooltip, skin);
+
+            // Set up spawn listener for double-click
+            itemBrowserWindow.setSpawnListener(new ItemBrowserWindow.ItemSpawnListener() {
+                @Override
+                public void onItemSpawn(ItemStack itemStack) {
+                    // Spawn item to world at player position
+                    if (itemDropCallback != null) {
+                        itemDropCallback.onDropItemToWorld(itemStack);
+                    }
+                }
+            });
+
             itemBrowserWindow.centerOnScreen();
             stage.addActor(itemBrowserWindow);
             itemBrowserWindow.setVisible(true);

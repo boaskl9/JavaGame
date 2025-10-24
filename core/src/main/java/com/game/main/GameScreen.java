@@ -465,7 +465,7 @@ public class GameScreen implements Screen {
             uiManager.setItemDropCallback(itemStack -> {
                 // Drop item at player position
                 Vector2 playerPos = player.getTransform().getPosition();
-                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 3f);
+                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
             });
 
             // Set player health for HUD display

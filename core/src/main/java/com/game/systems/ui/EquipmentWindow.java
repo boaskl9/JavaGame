@@ -22,6 +22,7 @@ public class EquipmentWindow extends Window {
 
     public EquipmentWindow(PlayerInventory playerInventory, ItemDragAndDropSystem dragAndDrop, Skin skin) {
         super("Equipment", skin);
+        this.padTop(20);
 
         this.playerInventory = playerInventory;
         this.dragAndDrop = dragAndDrop;

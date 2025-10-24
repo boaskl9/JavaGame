@@ -73,7 +73,7 @@ public class TestItems {
             "A small stone. Useful for crafting.",
             ItemType.MATERIAL,
             99,
-            null, // No texture for now
+            "assets/Items/Resource/Rock.png",
             false
         );
         ItemRegistry.register(stone);
@@ -85,7 +85,7 @@ public class TestItems {
             "Restores health when consumed.",
             ItemType.CONSUMABLE,
             10,
-            null,
+            "assets/Items/Potion/LifePot.png",
             true
         );
         ItemRegistry.register(potion);
@@ -106,19 +106,6 @@ public class TestItems {
         );
         ItemRegistry.register(ironHelmet);
 
-        // Body armor
-        ItemDefinition leatherChest = new ItemDefinition(
-            "leather_chest",
-            "Leather Tunic",
-            "A comfortable leather tunic.",
-            ItemType.ARMOR,
-            1,
-            null,
-            false,
-            null,
-            EquipmentSlot.BODY
-        );
-        ItemRegistry.register(leatherChest);
 
         // Amulet
         ItemDefinition goldAmulet = new ItemDefinition(
@@ -127,7 +114,7 @@ public class TestItems {
             "A beautiful gold amulet.",
             ItemType.ARMOR,
             1,
-            null,
+            "assets/Items/Equipment/gold_amulet.png",
             false,
             null,
             EquipmentSlot.AMULET
@@ -141,7 +128,7 @@ public class TestItems {
             "A ring with a glowing ruby gem.",
             ItemType.ARMOR,
             1,
-            null,
+            "assets/Items/Equipment/ruby_ring.png",
             false,
             null,
             EquipmentSlot.RING_1 // Can go in either ring slot
@@ -154,7 +141,7 @@ public class TestItems {
             "A ring with a brilliant emerald.",
             ItemType.ARMOR,
             1,
-            null,
+            "assets/Items/Equipment/emerald_ring.png",
             false,
             null,
             EquipmentSlot.RING_2

@@ -1566,8 +1566,13 @@ FX/Smoke/SmokeCircular/SpriteSheet.png
 Items/Action/Hit.png
 Items/Action/Interact.png
 Items/AllPreview.png
+Items/Equipment/amulet.aseprite
+Items/Equipment/emerald_ring.png
+Items/Equipment/gold_amulet.png
 Items/Equipment/iron_helmet.aseprite
 Items/Equipment/iron_helmet.png
+Items/Equipment/ring.aseprite
+Items/Equipment/ruby_ring.png
 Items/Food/Beaf.png
 Items/Food/Calamari.png
 Items/Food/Fish.png
