@@ -203,6 +203,8 @@ public class DebugConsole extends Window {
                 case "heal":
                     executeHeal(parts);
                     break;
+                case "setmaxhealth":
+                    executeSetMaxHealth(parts);
                 case "debug":
                     executeDebug(parts);
                     break;
@@ -230,6 +232,8 @@ public class DebugConsole extends Window {
         log("      Example: /damage 4");
         log("  /heal <amount> - Heal player");
         log("      Example: /heal 8");
+        log("  /setMaxHealth <amount> - Set max health of player");
+        log("      Example: /setMaxHealth 16");
         log("  /debug <feature> - Toggle debug view");
         log("      Features: colliders, navmesh, fps, all, none");
         log("      Example: /debug colliders");
@@ -381,6 +385,25 @@ public class DebugConsole extends Window {
             String combined = heartStr + (hearts > 0 && quarters > 0 ? " and " : "") + quarterStr;
 
             log("Player healed for " + actualHealed + " HP (" + combined + ")");
+            log("Current health: " + health.getCurrentHealth() + "/" + health.getMaxHealth() + " HP");
+        } catch (NumberFormatException e) {
+            error("Invalid amount: " + parts[1]);
+        }
+    }
+
+    private void executeSetMaxHealth(String[] parts) {
+        if (parts.length < 2) {
+            error("Usage: /heal <amount>");
+            return;
+        }
+
+        try {
+            int amount = Integer.parseInt(parts[1]);
+
+            HealthComponent health = gameScreen.player.getHealthComponent();
+            health.setMaxHealth(amount);
+
+            log("Player max health set to " + amount);
             log("Current health: " + health.getCurrentHealth() + "/" + health.getMaxHealth() + " HP");
         } catch (NumberFormatException e) {
             error("Invalid amount: " + parts[1]);
