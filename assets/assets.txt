@@ -1567,6 +1567,8 @@ Items/Action/Hit.png
 Items/Action/Interact.png
 Items/AllPreview.png
 Items/Equipment/amulet.aseprite
+Items/Equipment/chainmail.aseprite
+Items/Equipment/chainmail.png
 Items/Equipment/emerald_ring.png
 Items/Equipment/gold_amulet.png
 Items/Equipment/iron_helmet.aseprite
@@ -1725,6 +1727,7 @@ Tiled/Projects/TilesetDesert.tsx
 Tiled/Projects/TilesetElement.tsx
 Tiled/Projects/TilesetFloor.tsx
 Tiled/Projects/TilesetNature.tsx
+javaGamePallet.aseprite
 libgdx.png
 path finding stuck.png
 ui/Arrow.png

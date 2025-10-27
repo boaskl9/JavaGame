@@ -114,7 +114,6 @@ public class UIManagerNew {
         // Create equipment window (hidden by default)
         equipmentWindow = new EquipmentWindow(playerInventory, dragAndDrop, skin);
         equipmentWindow.setVisible(false);
-        equipmentWindow.padTop(20);
         stage.addActor(equipmentWindow);
 
         // Add tooltip and context menu to stage (they manage their own visibility)

@@ -3,7 +3,7 @@
  <image source="../../assets/Backgrounds/Tilesets/TilesetFloor.png" width="352" height="417"/>
  <tile id="0">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="6">
    <object id="7" x="0" y="0" width="8" height="16"/>
@@ -21,7 +21,7 @@
  </tile>
  <tile id="2">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
    <object id="1" x="0" y="0" width="16" height="8"/>
@@ -87,7 +87,7 @@
  </tile>
  <tile id="10">
   <properties>
-   <property name="walkable" type="bool" value="true"/>
+   <property name="walkable" type="bool" value="false"/>
   </properties>
  </tile>
  <tile id="11">
@@ -188,7 +188,7 @@
  </tile>
  <tile id="23">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="24">
@@ -252,7 +252,7 @@
  </tile>
  <tile id="32">
   <properties>
-   <property name="walkable" type="bool" value="true"/>
+   <property name="walkable" type="bool" value="false"/>
   </properties>
  </tile>
  <tile id="33">
@@ -334,7 +334,7 @@
  </tile>
  <tile id="44">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
    <object id="1" x="0" y="8" width="16" height="8"/>
@@ -351,7 +351,7 @@
  </tile>
  <tile id="46">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
    <object id="1" x="8" y="0" width="8" height="16"/>
@@ -500,7 +500,7 @@
  </tile>
  <tile id="66">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
    <object id="1" x="0" y="0" width="16" height="4"/>
@@ -510,7 +510,7 @@
  </tile>
  <tile id="67">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
    <object id="1" x="0" y="0" width="16" height="4"/>
@@ -519,7 +519,7 @@
  </tile>
  <tile id="68">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="3">
    <object id="3" x="0" y="0" width="16" height="4"/>
@@ -529,7 +529,7 @@
  </tile>
  <tile id="69">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
   <objectgroup draworder="index" id="2">
    <object id="1" x="0" y="0" width="4" height="16"/>
@@ -681,12 +681,12 @@
  </tile>
  <tile id="88">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="89">
   <properties>
-   <property name="walkable" type="bool" value="false"/>
+   <property name="walkable" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="90">
@@ -729,12 +729,12 @@
  </tile>
  <tile id="97">
   <properties>
-   <property name="walkable" type="bool" value="true"/>
+   <property name="walkable" type="bool" value="false"/>
   </properties>
  </tile>
  <tile id="98">
   <properties>
-   <property name="walkable" type="bool" value="true"/>
+   <property name="walkable" type="bool" value="false"/>
   </properties>
  </tile>
  <tile id="99">

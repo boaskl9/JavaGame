@@ -1,2 +1,0 @@
-A [[UI]] component.
-
