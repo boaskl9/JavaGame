@@ -126,9 +126,20 @@ public class WeaponRenderComponent implements Component {
         float dirX = (float) Math.cos(angleRad);
         float dirY = (float) Math.sin(angleRad);
 
-        // Weapon handle is at the entity center (where hitbox starts)
-        float weaponHandleX = entityCenterX;
-        float weaponHandleY = entityCenterY;
+        // Calculate perpendicular vector for centering sprite on attack line
+        float perpX = -dirY;
+        float perpY = dirX;
+
+        // Weapon starts offset from entity center in the attack direction
+        float forwardOffset = 6f; // Distance from player center to weapon start
+        float spriteHalfWidth = weaponWidth / 2f;
+
+        float weaponHandleX = entityCenterX
+            + dirX * forwardOffset                    // Move forward in attack direction
+            + perpX * (pivotX + spriteHalfWidth);     // Center perpendicular to attack
+        float weaponHandleY = entityCenterY
+            + dirY * forwardOffset
+            + perpY * (pivotX + spriteHalfWidth);
 
         // Render weapon sprite extending from handle in the direction of the hitbox
         batch.draw(

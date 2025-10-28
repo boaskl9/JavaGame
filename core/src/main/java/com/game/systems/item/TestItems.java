@@ -157,10 +157,10 @@ public class TestItems {
             WeaponType.SWORD,
             5,      // damage
             1.2f,   // attackSpeed (1.2 attacks per second)
-            32f,    // range (pixels)
+            50f,    // range (pixels)
             100f,   // knockback force
             0,  // windup duration
-            2f,   // swing duration
+            0.4f,   // swing duration
             0.15f,  // recovery duration
             220f,   // swing arc (degrees)
             0.5f    // movement multiplier (50% speed while attacking)
@@ -171,12 +171,12 @@ public class TestItems {
             "A simple wooden training sword. Balanced attack speed and damage.",
             ItemType.WEAPON,
             1,
-            "assets/Items/Weapons/Sword/Sprite.png",
+            "assets/Items/Weapons/Sword3/longsword.png",
             false,
             null,
             EquipmentSlot.WEAPON,
             woodenSwordStats,
-            "assets/Items/Weapons/Sword/Sprite.png"
+            "assets/Items/Weapons/Sword3/longsword.png"
         );
         ItemRegistry.register(woodenSword);
 

@@ -1714,6 +1714,8 @@ Items/Weapons/Sword/Sprite.png
 Items/Weapons/Sword/SpriteInHand.png
 Items/Weapons/Sword2/Sprite.png
 Items/Weapons/Sword2/SpriteInHand.png
+Items/Weapons/Sword3/longsword.aseprite
+Items/Weapons/Sword3/longsword.png
 Items/Weapons/Whip/Sprite.png
 Items/Weapons/Whip/SpriteInHand.png
 Maps/Rules/autotiles_rules.tmx
