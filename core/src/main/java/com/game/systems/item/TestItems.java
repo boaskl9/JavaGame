@@ -158,7 +158,7 @@ public class TestItems {
             5,      // damage
             1.2f,   // attackSpeed (1.2 attacks per second)
             50f,    // range (pixels)
-            100f,   // knockback force
+            500,   // knockback force
             0,  // windup duration
             0.4f,   // swing duration
             0.15f,  // recovery duration

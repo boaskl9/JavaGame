@@ -132,6 +132,9 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     @Override
     public void update(float delta) {
+        // Update velocity component (handles knockback decay)
+        velocity.update(delta);
+
         handleInput();
         handleAttack();
 

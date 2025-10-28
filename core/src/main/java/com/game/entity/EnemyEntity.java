@@ -88,6 +88,9 @@ public abstract class EnemyEntity extends Entity {
             return;
         }
 
+        // Update velocity component (handles knockback decay)
+        velocity.update(delta);
+
         // Update AI behavior
         updateAI(delta);
 
