@@ -2,6 +2,7 @@ package com.game.entity;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
@@ -96,18 +97,19 @@ public class DamageNumberEntity extends GameObject {
         font.setColor(renderColor);
 
         // Scale text slightly based on lifetime (start larger, shrink)
-        float scale = 1.2f - (lifeTimer / LIFETIME) * 0.4f; // 1.2 -> 0.8
+        float scale = 0.5f - (lifeTimer / LIFETIME) * 0.4f; // 1.2 -> 0.8
         font.getData().setScale(scale);
 
-        // Render text centered on position
-        String text = damageText;
-        float textX = transform.getX() - font.getRegion().getRegionWidth() * scale / 2f;
-        float textY = transform.getY() + font.getLineHeight() * scale / 2f;
+        // Render text centered on position using GlyphLayout for accurate measurement
+        GlyphLayout layout = new GlyphLayout(font, damageText);
+        float textX = transform.getX() - layout.width / 2f;
+        float textY = transform.getY() + layout.height / 2f;
 
-        font.draw(batch, text, textX, textY);
+        font.draw(batch, damageText, textX, textY);
 
-        // Reset font scale
+        // Reset font scale and color to avoid affecting other text
         font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
     }
 
     /**

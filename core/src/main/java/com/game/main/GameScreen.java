@@ -54,6 +54,7 @@ public class GameScreen implements Screen {
 
     private SpriteBatch batch;
     private BitmapFont debugFont;
+    private BitmapFont damageFont; // Separate font for damage numbers
     private boolean debugMode = false;
     private ShapeRenderer shapeRenderer;
 
@@ -93,6 +94,10 @@ public class GameScreen implements Screen {
         debugFont = new BitmapFont();
         debugFont.setColor(1, 1, 0, 1);
         debugFont.getData().setScale(0.5f);
+
+        // Separate font for damage numbers to avoid interfering with debug text
+        damageFont = new BitmapFont();
+        damageFont.setColor(1, 1, 1, 1);
 
         // Initialize systems
         worldItemManager = new WorldItemManager();
@@ -345,7 +350,7 @@ public class GameScreen implements Screen {
         // Set damage number callback for enemy
         if (enemy != null) {
             enemy.setDamageNumberCallback((x, y, damage) -> {
-                com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, debugFont);
+                com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, damageFont);
                 damageNumbers.add(damageNumber);
             });
             world.addGameObject(enemy);
@@ -490,7 +495,7 @@ public class GameScreen implements Screen {
 
         // Set damage number callback
         player.setDamageNumberCallback((x, y, damage) -> {
-            com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, debugFont);
+            com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, damageFont);
             damageNumbers.add(damageNumber);
         });
 
@@ -829,6 +834,7 @@ public class GameScreen implements Screen {
         batch.dispose();
         shapeRenderer.dispose();
         debugFont.dispose();
+        damageFont.dispose();
         if (mapRenderer != null) mapRenderer.dispose();
         if (currentMap != null) currentMap.dispose();
         if (uiManager != null) uiManager.dispose();
