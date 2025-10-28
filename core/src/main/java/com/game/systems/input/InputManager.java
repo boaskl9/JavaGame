@@ -12,11 +12,13 @@ import java.util.Map;
  */
 public class InputManager {
     private final Map<InputAction, Integer> keyBindings;
+    private final Map<InputAction, Integer> mouseBindings;
     private final Map<InputAction, Boolean> actionPressed;
     private final Map<InputAction, Boolean> actionJustPressed;
 
     public InputManager() {
         this.keyBindings = new HashMap<>();
+        this.mouseBindings = new HashMap<>();
         this.actionPressed = new HashMap<>();
         this.actionJustPressed = new HashMap<>();
 
@@ -44,6 +46,9 @@ public class InputManager {
         // Interaction
         bind(InputAction.INTERACT, Input.Keys.E);
 
+        // Combat
+        bindMouse(InputAction.ATTACK_PRIMARY, Input.Buttons.LEFT);
+
         // Debug
         bind(InputAction.DEBUG_SPAWN_ITEM, Input.Keys.NUM_1);
         bind(InputAction.DEBUG_SPAWN_BAG, Input.Keys.NUM_2);
@@ -54,6 +59,7 @@ public class InputManager {
         bind(InputAction.DEBUG_SPAWN_CAT, Input.Keys.NUM_7);
         bind(InputAction.DEBUG_TOGGLE, Input.Keys.F3);
         bind(InputAction.DEBUG_CONSOLE, Input.Keys.F4);
+        bind(InputAction.DEBUG_ITEMS, Input.Keys.F5);
     }
 
     /**
@@ -66,18 +72,36 @@ public class InputManager {
     }
 
     /**
+     * Binds an action to a mouse button.
+     * @param action The input action
+     * @param buttonCode The mouse button code (from Input.Buttons)
+     */
+    public void bindMouse(InputAction action, int buttonCode) {
+        mouseBindings.put(action, buttonCode);
+    }
+
+    /**
      * Updates input state. Should be called once per frame.
      */
     public void update() {
         for (InputAction action : InputAction.values()) {
-            Integer keyCode = keyBindings.get(action);
-            if (keyCode != null) {
-                boolean wasPressed = actionPressed.getOrDefault(action, false);
-                boolean isPressed = Gdx.input.isKeyPressed(keyCode);
+            boolean wasPressed = actionPressed.getOrDefault(action, false);
+            boolean isPressed = false;
 
-                actionPressed.put(action, isPressed);
-                actionJustPressed.put(action, isPressed && !wasPressed);
+            // Check keyboard binding
+            Integer keyCode = keyBindings.get(action);
+            if (keyCode != null && Gdx.input.isKeyPressed(keyCode)) {
+                isPressed = true;
             }
+
+            // Check mouse button binding
+            Integer buttonCode = mouseBindings.get(action);
+            if (buttonCode != null && Gdx.input.isButtonPressed(buttonCode)) {
+                isPressed = true;
+            }
+
+            actionPressed.put(action, isPressed);
+            actionJustPressed.put(action, isPressed && !wasPressed);
         }
     }
 

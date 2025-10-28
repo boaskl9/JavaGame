@@ -21,6 +21,9 @@ public enum InputAction {
     // Interaction
     INTERACT,
 
+    // Combat
+    ATTACK_PRIMARY,
+
     // Debug
     DEBUG_SPAWN_ITEM,
     DEBUG_SPAWN_BAG,
@@ -30,5 +33,5 @@ public enum InputAction {
     DEBUG_SPAWN_FROG,
     DEBUG_SPAWN_CAT,
     DEBUG_TOGGLE,
-    DEBUG_CONSOLE
+    DEBUG_ITEMS, DEBUG_CONSOLE
 }

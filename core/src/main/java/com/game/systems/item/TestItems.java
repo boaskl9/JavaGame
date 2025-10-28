@@ -4,6 +4,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.game.integration.WorldItemManager;
+import com.game.systems.combat.WeaponStats;
+import com.game.systems.combat.WeaponType;
 import com.game.systems.inventory.EquipmentSlot;
 
 /**
@@ -148,19 +150,115 @@ public class TestItems {
         );
         ItemRegistry.register(emeraldRing);
 
-        // Weapon
+        // ===== WEAPONS =====
+
+        // Wooden Sword - Balanced arc swing weapon
+        WeaponStats woodenSwordStats = new WeaponStats(
+            WeaponType.SWORD,
+            5,      // damage
+            1.2f,   // attackSpeed (1.2 attacks per second)
+            32f,    // range (pixels)
+            100f,   // knockback force
+            0.15f,  // windup duration
+            0.3f,   // swing duration
+            0.15f,  // recovery duration
+            120f,   // swing arc (degrees)
+            0.5f    // movement multiplier (50% speed while attacking)
+        );
         ItemDefinition woodenSword = new ItemDefinition(
             "wooden_sword",
             "Wooden Sword",
-            "A simple wooden training sword.",
+            "A simple wooden training sword. Balanced attack speed and damage.",
             ItemType.WEAPON,
             1,
             "assets/Items/Weapons/Sword/Sprite.png",
             false,
             null,
-            EquipmentSlot.WEAPON
+            EquipmentSlot.WEAPON,
+            woodenSwordStats
         );
         ItemRegistry.register(woodenSword);
+
+        // Spear - Long range thrust weapon
+        WeaponStats spearStats = new WeaponStats(
+            WeaponType.SPEAR,
+            4,      // damage (lower than sword)
+            1.5f,   // attackSpeed (faster than sword)
+            48f,    // range (much longer reach)
+            60f,    // knockback (less than sword)
+            0.1f,   // windup duration (quick)
+            0.2f,   // swing duration (fast thrust)
+            0.1f,   // recovery duration (quick recovery)
+            30f,    // swing arc (narrow - thrust attack)
+            0.7f    // movement multiplier (less penalty, can move better)
+        );
+        ItemDefinition spear = new ItemDefinition(
+            "spear",
+            "Wooden Spear",
+            "A long spear with excellent reach. Fast thrust attacks.",
+            ItemType.WEAPON,
+            1,
+            "assets/Items/Weapons/Sword/Sprite.png", // TODO: use spear sprite
+            false,
+            null,
+            EquipmentSlot.WEAPON,
+            spearStats
+        );
+        ItemRegistry.register(spear);
+
+        // War Hammer - Heavy slam weapon
+        WeaponStats hammerStats = new WeaponStats(
+            WeaponType.HAMMER,
+            12,     // damage (very high)
+            0.6f,   // attackSpeed (slow - 1 attack per 1.67 seconds)
+            28f,    // range (short)
+            200f,   // knockback (huge!)
+            0.3f,   // windup duration (slow windup)
+            0.4f,   // swing duration (heavy swing)
+            0.3f,   // recovery duration (slow recovery)
+            150f,   // swing arc (wide area)
+            0.2f    // movement multiplier (very slow while attacking)
+        );
+        ItemDefinition hammer = new ItemDefinition(
+            "war_hammer",
+            "War Hammer",
+            "A massive war hammer. Slow but devastating. Area-of-effect damage.",
+            ItemType.WEAPON,
+            1,
+            "assets/Items/Weapons/Sword/Sprite.png", // TODO: use hammer sprite
+            false,
+            null,
+            EquipmentSlot.WEAPON,
+            hammerStats
+        );
+        ItemRegistry.register(hammer);
+
+        // Dagger - Fast, low damage weapon
+        WeaponStats daggerStats = new WeaponStats(
+            WeaponType.DAGGER,
+            3,      // damage (low)
+            2.5f,   // attackSpeed (very fast)
+            20f,    // range (very short)
+            40f,    // knockback (minimal)
+            0.05f,  // windup duration (nearly instant)
+            0.15f,  // swing duration
+            0.05f,  // recovery duration (quick recovery)
+            90f,    // swing arc
+            0.8f    // movement multiplier (minimal penalty)
+        );
+        ItemDefinition dagger = new ItemDefinition(
+            "dagger",
+            "Iron Dagger",
+            "A quick iron dagger. Fast attacks with low damage.",
+            ItemType.WEAPON,
+            1,
+            "assets/Items/Weapons/Sword/Sprite.png", // TODO: use dagger sprite
+            false,
+            null,
+            EquipmentSlot.WEAPON,
+            daggerStats
+        );
+        ItemRegistry.register(dagger);
 
         System.out.println("Registered " + ItemRegistry.size() + " test items");
     }

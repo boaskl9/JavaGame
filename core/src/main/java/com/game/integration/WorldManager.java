@@ -7,8 +7,7 @@ import com.game.components.RenderComponent;
 import com.game.systems.collision.SpatialQuery;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
-import com.game.systems.pathfinding.NavMesh;
-import com.game.systems.pathfinding.NavMeshBuilder;
+import com.game.systems.pathfinding.GridPathfinder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +23,8 @@ public class WorldManager {
 
     private List<GameObject> gameObjects;
     private SpatialQuery collisionSystem;
-    private NavMesh navMesh;
+    private GridPathfinder gridPathfinder;
+    private com.badlogic.gdx.maps.tiled.TiledMap tiledMap;
 
     public WorldManager(int width, int height) {
         this.worldWidth = width;
@@ -34,28 +34,19 @@ public class WorldManager {
     }
 
     /**
-     * Builds the navigation mesh for pathfinding.
-     * Should be called after collision system is set up.
+     * Builds the grid pathfinder for pathfinding.
+     * Should be called after collision system is set up and TiledMap is loaded.
      */
-    public void buildNavMesh() {
+    public void buildGridPathfinder(com.badlogic.gdx.maps.tiled.TiledMap tiledMap) {
+        this.tiledMap = tiledMap;
         float worldWidthPixels = worldWidth * TILE_SIZE;
         float worldHeightPixels = worldHeight * TILE_SIZE;
 
-        // Sample distance - larger values = fewer triangles but less detailed paths
-        float sampleDistance = 10;
+        // Grid cell size - 8x8 pixels for very fine-grained pathfinding
+        int cellSize = 8;
 
-        long startTime = System.currentTimeMillis();
-
-        this.navMesh = NavMeshBuilder.build(
-            worldWidthPixels,
-            worldHeightPixels,
-            collisionSystem,
-            sampleDistance
-        );
-
-        long buildTime = System.currentTimeMillis() - startTime;
-        System.out.println("WorldManager: NavMesh built with " + navMesh.getTriangles().size() +
-                          " triangles in " + buildTime + "ms");
+        this.gridPathfinder = new GridPathfinder(worldWidthPixels, worldHeightPixels, cellSize);
+        this.gridPathfinder.buildFromTiledMap(tiledMap, collisionSystem);
     }
 
 
@@ -148,7 +139,7 @@ public class WorldManager {
         return new ArrayList<>(gameObjects);
     }
 
-    public NavMesh getNavMesh() {
-        return navMesh;
+    public GridPathfinder getGridPathfinder() {
+        return gridPathfinder;
     }
 }

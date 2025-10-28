@@ -1,5 +1,6 @@
 package com.game.systems.item;
 
+import com.game.systems.combat.WeaponStats;
 import com.game.systems.inventory.EquipmentSlot;
 
 /**
@@ -16,20 +17,27 @@ public class ItemDefinition {
     private final boolean consumable;
     private final Integer bagSize; // Number of slots if this is a bag item, null otherwise
     private final EquipmentSlot equipmentSlot; // Which equipment slot this item goes in (null if not equippable)
+    private final WeaponStats weaponStats; // Combat stats for weapons (null if not a weapon)
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable) {
-        this(id, name, description, type, maxStackSize, iconPath, consumable, null, null);
+        this(id, name, description, type, maxStackSize, iconPath, consumable, null, null, null);
     }
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable, Integer bagSize) {
-        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, null);
+        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, null, null);
     }
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable,
                          Integer bagSize, EquipmentSlot equipmentSlot) {
+        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, equipmentSlot, null);
+    }
+
+    public ItemDefinition(String id, String name, String description, ItemType type,
+                         int maxStackSize, String iconPath, boolean consumable,
+                         Integer bagSize, EquipmentSlot equipmentSlot, WeaponStats weaponStats) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -39,6 +47,7 @@ public class ItemDefinition {
         this.consumable = consumable;
         this.bagSize = bagSize;
         this.equipmentSlot = equipmentSlot;
+        this.weaponStats = weaponStats;
     }
 
     public String getId() {
@@ -87,6 +96,14 @@ public class ItemDefinition {
 
     public boolean isEquippable() {
         return equipmentSlot != null;
+    }
+
+    public WeaponStats getWeaponStats() {
+        return weaponStats;
+    }
+
+    public boolean isWeapon() {
+        return weaponStats != null;
     }
 
     @Override

@@ -6,10 +6,12 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.game.components.AIComponent;
 import com.game.components.AnimationComponent;
+import com.game.components.AttackComponent;
 import com.game.components.ColliderComponent;
 import com.game.components.RenderComponent;
 import com.game.components.VelocityComponent;
 import com.game.integration.WorldManager;
+import com.game.systems.combat.WeaponStats;
 import com.game.systems.entity.Entity;
 import com.game.systems.entity.Transform;
 
@@ -30,8 +32,12 @@ public abstract class EnemyEntity extends Entity {
     protected ColliderComponent environmentCollider;  // For walls, obstacles (feet only)
     protected ColliderComponent combatCollider;       // For player attacks, projectiles (full body)
     protected AIComponent ai;
+    protected AttackComponent attackComponent;
 
     protected int lastDirectionAngle = 180; // Down
+
+    // Damage number callback
+    private DamageNumberCallback damageNumberCallback;
 
     // Pathfinding
     protected Array<Vector2> currentPath;
@@ -70,6 +76,10 @@ public abstract class EnemyEntity extends Entity {
         // AI component
         ai = new AIComponent();
         addComponent(ai);
+
+        // Attack component
+        attackComponent = new AttackComponent();
+        addComponent(attackComponent);
     }
 
     @Override
@@ -221,7 +231,7 @@ public abstract class EnemyEntity extends Entity {
         }
 
         // Update pathfinding periodically
-        if (world.getNavMesh() != null) {
+        if (world.getGridPathfinder() != null) {
             pathfindingUpdateTimer += delta;
             if (pathfindingUpdateTimer >= PATHFINDING_UPDATE_INTERVAL || currentPath == null) {
                 pathfindingUpdateTimer = 0f;
@@ -259,7 +269,7 @@ public abstract class EnemyEntity extends Entity {
                 velocity.setVelocity(0, 0);
             }
         } else {
-            // No NavMesh - fall back to direct movement
+            // No GridPathfinder - fall back to direct movement
             Vector2 direction = new Vector2(
                 target.getTransform().getX() - transform.getX(),
                 target.getTransform().getY() - transform.getY()
@@ -270,10 +280,10 @@ public abstract class EnemyEntity extends Entity {
     }
 
     /**
-     * Updates the path to the target using NavMesh.
+     * Updates the path to the target using GridPathfinder.
      */
     protected void updatePath() {
-        if (target == null || world.getNavMesh() == null) {
+        if (target == null || world.getGridPathfinder() == null) {
             currentPath = null;
             return;
         }
@@ -282,7 +292,7 @@ public abstract class EnemyEntity extends Entity {
         Vector2 startPos = getFeetPosition();
         Vector2 targetPos = getTargetFeetPosition();
 
-        currentPath = world.getNavMesh().findPath(startPos, targetPos);
+        currentPath = world.getGridPathfinder().findPath(startPos, targetPos);
 
         currentWaypointIndex = 0;
 
@@ -355,14 +365,92 @@ public abstract class EnemyEntity extends Entity {
     }
 
     /**
-     * Performs an attack. Override in subclasses for custom attack behavior.
+     * Performs an attack using the unified attack system.
      */
     protected void performAttack(float delta) {
-        // Override in subclasses
-        // For now, just wait a bit before going back to chase
-        if (ai.getStateTimer() > 1.0f) {
+        // Start attack on first frame of ATTACK state
+        if (ai.getStateTimer() < delta) {
+            // Calculate attack direction toward player
+            if (target != null) {
+                Transform targetTransform = target.getComponent(Transform.class);
+                if (targetTransform != null) {
+                    float enemyCenterX = transform.getX() + SIZE / 2f;
+                    float enemyCenterY = transform.getY() + SIZE / 2f;
+                    float playerCenterX = targetTransform.getX() + SIZE / 2f;
+                    float playerCenterY = targetTransform.getY() + SIZE / 2f;
+
+                    float attackAngle = com.game.systems.combat.CombatUtils.calculateAngle(
+                        enemyCenterX, enemyCenterY,
+                        playerCenterX, playerCenterY
+                    );
+
+                    WeaponStats weapon = getWeaponStats();
+                    attackComponent.startAttack(weapon, attackAngle);
+                }
+            }
+        }
+
+        // Apply movement penalty while attacking
+        if (attackComponent.isAttacking() && attackComponent.getCurrentWeapon() != null) {
+            // Slow down or stop during attack
+            float movementMultiplier = attackComponent.getCurrentWeapon().getMovementMultiplier();
+            velocity.setVelocity(velocity.getVelocity().scl(movementMultiplier));
+        }
+
+        // Update attack system (checks for hits during ACTIVE phase)
+        if (attackComponent.isAttacking()) {
+            java.util.List<com.game.systems.entity.GameObject> targets = new java.util.ArrayList<>();
+            if (target != null) {
+                targets.add(target);
+            }
+
+            com.game.systems.combat.AttackSystem.updateAttack(
+                this,
+                attackComponent,
+                targets,
+                this::spawnDamageNumber
+            );
+        }
+
+        // Return to chase when attack is complete
+        if (!attackComponent.isAttacking() && ai.getStateTimer() > 0.2f) {
             ai.setState(AIComponent.AIState.CHASE);
         }
+    }
+
+    /**
+     * Spawns a damage number at the specified position.
+     */
+    private void spawnDamageNumber(float x, float y, int damage) {
+        if (damageNumberCallback == null) return;
+        damageNumberCallback.spawnDamageNumber(x, y, damage);
+    }
+
+    /**
+     * Gets the attack damage for this enemy. Override in subclasses.
+     */
+    protected int getAttackDamage() {
+        return 2; // Default enemy damage
+    }
+
+    /**
+     * Gets the weapon stats for this enemy's attack.
+     * Override in subclasses to customize weapon behavior.
+     */
+    protected WeaponStats getWeaponStats() {
+        // Default enemy weapon: simple melee attack
+        return new WeaponStats(
+            com.game.systems.combat.WeaponType.DAGGER, // Fast attack type
+            getAttackDamage(),  // Damage
+            1.0f,               // 1 attack per second
+            ai.getAttackRange(), // Range from AI component
+            80f,                // Knockback
+            0.2f,               // Windup duration
+            0.15f,              // Swing duration
+            0.15f,              // Recovery duration
+            120f,               // 120-degree arc
+            0.3f                // 30% movement speed while attacking
+        );
     }
 
     /**
@@ -493,5 +581,19 @@ public abstract class EnemyEntity extends Entity {
 
     public int getCurrentWaypointIndex() {
         return currentWaypointIndex;
+    }
+
+    /**
+     * Sets the damage number callback for spawning floating damage numbers.
+     */
+    public void setDamageNumberCallback(DamageNumberCallback callback) {
+        this.damageNumberCallback = callback;
+    }
+
+    /**
+     * Callback interface for spawning damage numbers.
+     */
+    public interface DamageNumberCallback {
+        void spawnDamageNumber(float x, float y, int damage);
     }
 }

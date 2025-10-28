@@ -75,6 +75,9 @@ public class GameScreen implements Screen {
 
     private GatewayEntity pendingGateway = null;
 
+    // Damage numbers
+    private java.util.List<com.game.entity.DamageNumberEntity> damageNumbers;
+
     public GameScreen() {
         // Create cameras
         camera = new OrthographicCamera();
@@ -95,6 +98,7 @@ public class GameScreen implements Screen {
         worldItemManager = new WorldItemManager();
         inputManager = new InputManager();
         debugManager = new DebugManager();
+        damageNumbers = new java.util.ArrayList<>();
 
         // Register test items
         TestItems.registerTestItems();
@@ -118,6 +122,9 @@ public class GameScreen implements Screen {
             if (debugConsole != null) {
                 debugConsole.toggle();
             }
+        }
+        else if (inputManager.isJustPressed(InputAction.DEBUG_ITEMS)) {
+            uiManager.toggleItemBrowser();
         }
 
         // Only process game input when console is NOT open
@@ -148,6 +155,12 @@ public class GameScreen implements Screen {
 
         // Update world
         world.update(delta);
+
+        // Update damage numbers
+        damageNumbers.removeIf(dn -> {
+            dn.update(delta);
+            return !dn.isAlive();
+        });
 
         // Update world items
         worldItemManager.update(delta);
@@ -188,6 +201,14 @@ public class GameScreen implements Screen {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         worldItemManager.render(batch);
+        batch.end();
+
+        // Render damage numbers
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (com.game.entity.DamageNumberEntity damageNumber : damageNumbers) {
+            damageNumber.render(batch);
+        }
         batch.end();
 
         // Render UI
@@ -299,28 +320,35 @@ public class GameScreen implements Screen {
         camera.unproject(mousePos);
 
         // Create enemy based on type
+        EnemyEntity enemy = null;
         switch (enemyType.toLowerCase()) {
             case "slime":
-                LizardEnemy slime = new LizardEnemy(world, mousePos.x, mousePos.y);
-                world.addGameObject(slime);
+                enemy = new LizardEnemy(world, mousePos.x, mousePos.y);
                 System.out.println("Spawned Slime at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
                 break;
 
             case "frog":
-                Axolot frog = new Axolot(world, mousePos.x, mousePos.y);
-                world.addGameObject(frog);
+                enemy = new Axolot(world, mousePos.x, mousePos.y);
                 System.out.println("Spawned Frog at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
                 break;
 
             case "cat":
-                CatEnemy cat = new CatEnemy(world, mousePos.x, mousePos.y);
-                world.addGameObject(cat);
+                enemy = new CatEnemy(world, mousePos.x, mousePos.y);
                 System.out.println("Spawned Cat at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
                 break;
 
             default:
                 System.out.println("Unknown enemy type: " + enemyType);
                 break;
+        }
+
+        // Set damage number callback for enemy
+        if (enemy != null) {
+            enemy.setDamageNumberCallback((x, y, damage) -> {
+                com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, debugFont);
+                damageNumbers.add(damageNumber);
+            });
+            world.addGameObject(enemy);
         }
     }
 
@@ -419,8 +447,8 @@ public class GameScreen implements Screen {
         world.setCollisionSystem(collisionSystem);
         System.out.println("Loaded " + collisionSystem.getShapeCount() + " collision shapes");
 
-        // Build navigation mesh for pathfinding
-        world.buildNavMesh();
+        // Build grid pathfinder for pathfinding
+        world.buildGridPathfinder(currentMap);
 
         // Get spawn position - with proper fallback logic
         LevelData.SpawnPoint spawn;
@@ -456,6 +484,16 @@ public class GameScreen implements Screen {
             player.setWorld(world);
             player.getTransform().setPosition(spawnX, spawnY);
         }
+
+        // Set camera for mouse position tracking (needed for attack direction)
+        player.setCamera(camera);
+
+        // Set damage number callback
+        player.setDamageNumberCallback((x, y, damage) -> {
+            com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, debugFont);
+            damageNumbers.add(damageNumber);
+        });
+
         world.addGameObject(player);
 
         // Initialize UI manager
@@ -581,6 +619,13 @@ public class GameScreen implements Screen {
                 Rectangle combatBounds = combatCollider.getBounds(player);
                 shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
             }
+
+            // Attack hitbox (red, semi-transparent) - only when attacking
+            Rectangle attackHitbox = player.getAttackHitbox();
+            if (attackHitbox != null) {
+                shapeRenderer.setColor(1, 0, 0, 0.5f);
+                shapeRenderer.rect(attackHitbox.x, attackHitbox.y, attackHitbox.width, attackHitbox.height);
+            }
         }
 
         // Render enemy colliders
@@ -609,19 +654,27 @@ public class GameScreen implements Screen {
     }
 
     private void renderNavMeshDebug() {
-        if (world.getNavMesh() == null) return;
+        if (world.getGridPathfinder() == null) return;
 
         shapeRenderer.setProjectionMatrix(camera.combined);
 
-        // Render NavMesh triangles
+        // Render grid pathfinder (only unwalkable cells for performance)
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        shapeRenderer.setColor(0, 0.5f, 1, 0.3f); // Blue, semi-transparent
+        shapeRenderer.setColor(1, 0, 0, 0.15f); // Red outline, very transparent
 
-        for (com.game.systems.pathfinding.NavMeshTriangle triangle : world.getNavMesh().getTriangles()) {
-            // Draw triangle edges
-            shapeRenderer.line(triangle.a, triangle.b);
-            shapeRenderer.line(triangle.b, triangle.c);
-            shapeRenderer.line(triangle.c, triangle.a);
+        com.game.systems.pathfinding.GridPathfinder pathfinder = world.getGridPathfinder();
+        boolean[][] grid = pathfinder.getWalkableGrid();
+        int cellSize = pathfinder.getCellSize();
+
+        // Only render unwalkable cells (more visible and faster)
+        for (int x = 0; x < pathfinder.getGridWidth(); x++) {
+            for (int y = 0; y < pathfinder.getGridHeight(); y++) {
+                if (!grid[x][y]) { // Unwalkable
+                    float worldX = x * cellSize;
+                    float worldY = y * cellSize;
+                    shapeRenderer.rect(worldX, worldY, cellSize, cellSize);
+                }
+            }
         }
 
         shapeRenderer.end();

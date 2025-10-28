@@ -3,8 +3,11 @@ package com.game.entity;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.game.components.AnimationComponent;
+import com.game.components.AttackComponent;
 import com.game.components.ColliderComponent;
 import com.game.components.HealthComponent;
 import com.game.components.ItemMagnetComponent;
@@ -12,9 +15,15 @@ import com.game.components.RenderComponent;
 import com.game.components.VelocityComponent;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
+import com.game.systems.combat.CombatUtils;
+import com.game.systems.combat.WeaponStats;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
+import com.game.systems.inventory.EquipmentSlot;
 import com.game.systems.inventory.PlayerInventory;
+import com.game.systems.item.ItemStack;
+
+import java.util.List;
 
 /**
  * Player entity built using the new component-based architecture.
@@ -38,9 +47,19 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     private ColliderComponent combatCollider;       // For enemies, projectiles (full body)
     private ItemMagnetComponent itemMagnet;
     private HealthComponent health;
+    private AttackComponent attackComponent;
 
     // Inventory
     private PlayerInventory inventory;
+
+    // Camera reference for mouse position tracking
+    private com.badlogic.gdx.graphics.Camera camera;
+
+    // Damage number callback
+    private DamageNumberCallback damageNumberCallback;
+
+    // Debug: Store last attack hitbox for visualization
+    private Rectangle lastAttackHitbox;
 
     public PlayerEntity(WorldManager world, float x, float y) {
         super(DEFAULT_MAX_HEALTH);
@@ -76,6 +95,10 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         health = new HealthComponent(12);
         addComponent(health);
 
+        // Add attack component
+        attackComponent = new AttackComponent();
+        addComponent(attackComponent);
+
         // Initialize inventory
         inventory = new PlayerInventory();
 
@@ -94,11 +117,41 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         AnimationBuilder.loadFourDirectional(animation.getAnimator(), "walk", walkTexture, 4, 0.22f);
         AnimationBuilder.loadFourDirectional(animation.getAnimator(), "run", walkTexture, 4, 0.1f);
         AnimationBuilder.loadFourDirectional(animation.getAnimator(), "idle", idleTexture, 1, 0.3f);
+
+        // Load attack animation (slash effect)
+        String attackPath = String.format("Actor/Characters/%s/SeparateAnim/Attack.png", spriteClass);
+        Texture attackTexture = new Texture(Gdx.files.internal(attackPath));
+        AnimationBuilder.loadFourDirectional(animation.getAnimator(), "attack", attackTexture, 1, 0.5f);
     }
 
     @Override
     public void update(float delta) {
         handleInput();
+        handleAttack();
+
+        // Update attack system (checks for hits during ACTIVE phase)
+        if (attackComponent.isAttacking()) {
+            com.game.systems.combat.AttackSystem.updateAttack(
+                this,
+                attackComponent,
+                world.getGameObjects(),
+                this::spawnDamageNumber
+            );
+
+            // Update attack hitbox for debug rendering
+            if (attackComponent.getCurrentWeapon() != null) {
+                com.game.systems.combat.AttackStrategy strategy =
+                    com.game.systems.combat.AttackSystem.getStrategy(
+                        attackComponent.getCurrentWeapon().getType()
+                    );
+                lastAttackHitbox = strategy.getHitbox(this, attackComponent,
+                                                      attackComponent.getCurrentWeapon());
+            }
+        } else {
+            // Clear attack hitbox when not attacking
+            lastAttackHitbox = null;
+        }
+
         updateAnimation();
         applyMovement(delta);
 
@@ -130,28 +183,90 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
             if (inputVelocity.len() > 0) {
                 float speed = isRunning ? RUN_SPEED : WALK_SPEED;
                 inputVelocity.nor().scl(speed);
+
+                // Apply movement penalty while attacking
+                if (attackComponent.isAttacking() && attackComponent.getCurrentWeapon() != null) {
+                    float movementMultiplier = attackComponent.getCurrentWeapon().getMovementMultiplier();
+                    inputVelocity.scl(movementMultiplier);
+                }
             }
         }
 
         velocity.setVelocity(inputVelocity);
     }
 
+    private void handleAttack() {
+        // Check for attack input (left mouse button)
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && inputEnabled) {
+            performAttack();
+        }
+    }
+
+    private void performAttack() {
+        // Check if can attack
+        if (!attackComponent.canAttack()) {
+            return;
+        }
+
+        // Get equipped weapon
+        ItemStack weaponStack = inventory.getEquipment().getEquipped(EquipmentSlot.WEAPON);
+        if (weaponStack == null || weaponStack.getDefinition().getWeaponStats() == null) {
+            return; // No weapon equipped
+        }
+
+        WeaponStats weapon = weaponStack.getDefinition().getWeaponStats();
+
+        // Get mouse position in world coordinates
+        Vector2 mouseWorld = getMouseWorldPosition();
+        if (mouseWorld == null) return;
+
+        // Calculate attack direction
+        float playerCenterX = transform.getX() + SIZE / 2f;
+        float playerCenterY = transform.getY() + SIZE / 2f;
+        float attackAngle = com.game.systems.combat.CombatUtils.calculateAngle(
+            playerCenterX, playerCenterY, mouseWorld.x, mouseWorld.y
+        );
+
+        // Start attack (damage will be applied by AttackSystem during ACTIVE phase)
+        attackComponent.startAttack(weapon, attackAngle);
+    }
+
+    private Vector2 getMouseWorldPosition() {
+        if (camera == null) return null;
+
+        // Convert screen coordinates to world coordinates
+        Vector3 screenCoords = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+        Vector3 worldCoords = camera.unproject(screenCoords);
+
+        return new Vector2(worldCoords.x, worldCoords.y);
+    }
+
     private void updateAnimation() {
         Vector2 vel = velocity.getVelocity();
         String state;
         boolean isRunning = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
+        int animationAngle = lastDirectionAngle;
 
-        if (vel.len() > 0) {
+        // Check if attacking
+        if (attackComponent.isAttacking()) {
+            state = "attack";
+            // Use attack direction for animation
+            animationAngle = com.game.systems.combat.CombatUtils.getDirectionalAngle(
+                attackComponent.getAttackDirection()
+            );
+        } else if (vel.len() > 0) {
             state = isRunning ? "run" : "walk";
             lastDirectionAngle = getDirectionAngle(vel);
+            animationAngle = lastDirectionAngle;
         } else {
             state = "idle";
+            animationAngle = lastDirectionAngle;
         }
 
         // Determine if we should flip horizontally (for right-facing)
-        boolean flip = lastDirectionAngle == 270;
+        boolean flip = animationAngle == 270;
 
-        animation.setState(state, lastDirectionAngle, flip);
+        animation.setState(state, animationAngle, flip);
     }
 
     private int getDirectionAngle(Vector2 direction) {
@@ -241,5 +356,47 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     public boolean isInputEnabled() {
         return inputEnabled;
+    }
+
+    /**
+     * Set the camera for mouse position tracking (needed for attack direction).
+     */
+    public void setCamera(com.badlogic.gdx.graphics.Camera camera) {
+        this.camera = camera;
+    }
+
+    public AttackComponent getAttackComponent() {
+        return attackComponent;
+    }
+
+    /**
+     * Gets the current attack hitbox for debug rendering.
+     * Returns null when not attacking.
+     */
+    public Rectangle getAttackHitbox() {
+        return lastAttackHitbox;
+    }
+
+    /**
+     * Spawns a damage number at the specified position.
+     * This method signature matches AttackSystem.DamageCallback.
+     */
+    private void spawnDamageNumber(float x, float y, int damage) {
+        if (damageNumberCallback == null) return;
+        damageNumberCallback.spawnDamageNumber(x, y, damage);
+    }
+
+    /**
+     * Sets the damage number callback for spawning floating damage numbers.
+     */
+    public void setDamageNumberCallback(DamageNumberCallback callback) {
+        this.damageNumberCallback = callback;
+    }
+
+    /**
+     * Callback interface for spawning damage numbers.
+     */
+    public interface DamageNumberCallback {
+        void spawnDamageNumber(float x, float y, int damage);
     }
 }
