@@ -159,10 +159,10 @@ public class TestItems {
             1.2f,   // attackSpeed (1.2 attacks per second)
             32f,    // range (pixels)
             100f,   // knockback force
-            0.15f,  // windup duration
-            0.3f,   // swing duration
+            0,  // windup duration
+            2f,   // swing duration
             0.15f,  // recovery duration
-            120f,   // swing arc (degrees)
+            220f,   // swing arc (degrees)
             0.5f    // movement multiplier (50% speed while attacking)
         );
         ItemDefinition woodenSword = new ItemDefinition(
@@ -175,7 +175,8 @@ public class TestItems {
             false,
             null,
             EquipmentSlot.WEAPON,
-            woodenSwordStats
+            woodenSwordStats,
+            "assets/Items/Weapons/Sword/Sprite.png"
         );
         ItemRegistry.register(woodenSword);
 
@@ -186,7 +187,7 @@ public class TestItems {
             1.5f,   // attackSpeed (faster than sword)
             48f,    // range (much longer reach)
             60f,    // knockback (less than sword)
-            0.1f,   // windup duration (quick)
+            0.0f,   // windup duration (quick)
             0.2f,   // swing duration (fast thrust)
             0.1f,   // recovery duration (quick recovery)
             30f,    // swing arc (narrow - thrust attack)
@@ -198,11 +199,12 @@ public class TestItems {
             "A long spear with excellent reach. Fast thrust attacks.",
             ItemType.WEAPON,
             1,
-            "assets/Items/Weapons/Sword/Sprite.png", // TODO: use spear sprite
+            "assets/Items/Weapons/Lance/Sprite.png",
             false,
             null,
             EquipmentSlot.WEAPON,
-            spearStats
+            spearStats,
+            "assets/Items/Weapons/Lance/Sprite.png"
         );
         ItemRegistry.register(spear);
 
@@ -213,7 +215,7 @@ public class TestItems {
             0.6f,   // attackSpeed (slow - 1 attack per 1.67 seconds)
             28f,    // range (short)
             200f,   // knockback (huge!)
-            0.3f,   // windup duration (slow windup)
+            0.0f,   // windup duration (slow windup)
             0.4f,   // swing duration (heavy swing)
             0.3f,   // recovery duration (slow recovery)
             150f,   // swing arc (wide area)
@@ -225,11 +227,12 @@ public class TestItems {
             "A massive war hammer. Slow but devastating. Area-of-effect damage.",
             ItemType.WEAPON,
             1,
-            "assets/Items/Weapons/Sword/Sprite.png", // TODO: use hammer sprite
+            "assets/Items/Weapons/Hammer/Sprite.png",
             false,
             null,
             EquipmentSlot.WEAPON,
-            hammerStats
+            hammerStats,
+            "assets/Items/Weapons/Hammer/SpriteInHand.png"
         );
         ItemRegistry.register(hammer);
 
@@ -240,7 +243,7 @@ public class TestItems {
             2.5f,   // attackSpeed (very fast)
             20f,    // range (very short)
             40f,    // knockback (minimal)
-            0.05f,  // windup duration (nearly instant)
+            0f,  // windup duration (nearly instant)
             0.15f,  // swing duration
             0.05f,  // recovery duration (quick recovery)
             90f,    // swing arc
@@ -252,11 +255,12 @@ public class TestItems {
             "A quick iron dagger. Fast attacks with low damage.",
             ItemType.WEAPON,
             1,
-            "assets/Items/Weapons/Sword/Sprite.png", // TODO: use dagger sprite
+            "assets/Items/Weapons/Sword2/Sprite.png",
             false,
             null,
             EquipmentSlot.WEAPON,
-            daggerStats
+            daggerStats,
+            "assets/Items/Weapons/Sword2/SpriteInHand.png"
         );
         ItemRegistry.register(dagger);
 

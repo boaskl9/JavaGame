@@ -13,6 +13,7 @@ import com.game.components.HealthComponent;
 import com.game.components.ItemMagnetComponent;
 import com.game.components.RenderComponent;
 import com.game.components.VelocityComponent;
+import com.game.components.WeaponRenderComponent;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
 import com.game.systems.combat.CombatUtils;
@@ -48,6 +49,7 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     private ItemMagnetComponent itemMagnet;
     private HealthComponent health;
     private AttackComponent attackComponent;
+    private WeaponRenderComponent weaponRenderer;
 
     // Inventory
     private PlayerInventory inventory;
@@ -98,6 +100,10 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         // Add attack component
         attackComponent = new AttackComponent();
         addComponent(attackComponent);
+
+        // Add weapon renderer (for animated weapons)
+        weaponRenderer = new WeaponRenderComponent();
+        addComponent(weaponRenderer);
 
         // Initialize inventory
         inventory = new PlayerInventory();
@@ -367,6 +373,34 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     public AttackComponent getAttackComponent() {
         return attackComponent;
+    }
+
+    public WeaponRenderComponent getWeaponRenderer() {
+        return weaponRenderer;
+    }
+
+    /**
+     * Updates the weapon sprite based on equipped weapon.
+     * Call this when equipment changes.
+     */
+    public void updateWeaponSprite() {
+        ItemStack weaponStack = inventory.getEquipment().getEquipped(EquipmentSlot.WEAPON);
+
+        if (weaponStack != null && weaponStack.getDefinition().getWeaponSpritePath() != null) {
+            // Load and set weapon sprite
+            String spritePath = weaponStack.getDefinition().getWeaponSpritePath();
+            try {
+                Texture weaponTexture = new Texture(Gdx.files.internal(spritePath));
+                weaponRenderer.setWeaponSprite(weaponTexture);
+                // Pivot point is auto-calculated based on sprite size
+            } catch (Exception e) {
+                System.err.println("Failed to load weapon sprite: " + spritePath);
+                e.printStackTrace();
+            }
+        } else {
+            // No weapon equipped, clear sprite
+            weaponRenderer.setWeaponSprite(null);
+        }
     }
 
     /**

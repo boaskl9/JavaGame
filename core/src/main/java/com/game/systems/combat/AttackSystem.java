@@ -26,9 +26,9 @@ public class AttackSystem {
         ArcSwingStrategy arcSwing = new ArcSwingStrategy();
         strategies.put(WeaponType.SWORD, arcSwing);
         strategies.put(WeaponType.AXE, arcSwing);
-        strategies.put(WeaponType.DAGGER, arcSwing);
         strategies.put(WeaponType.WHIP, arcSwing);
 
+        strategies.put(WeaponType.DAGGER, new StabStrategy());
         strategies.put(WeaponType.SPEAR, new SpearThrustStrategy());
         strategies.put(WeaponType.HAMMER, new HammerSlamStrategy());
         strategies.put(WeaponType.STAFF, new SpearThrustStrategy()); // Staff uses thrust-like attacks

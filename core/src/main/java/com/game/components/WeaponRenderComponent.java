@@ -33,21 +33,28 @@ public class WeaponRenderComponent implements Component {
         this.weaponHeight = 16f;
         this.attachOffsetX = 0f;
         this.attachOffsetY = 0f;
-        this.pivotX = 2f;  // Default: pivot near left edge (handle)
+        this.pivotX = 2;  // Default: pivot near left edge (handle)
         this.pivotY = 8f;  // Default: pivot at vertical center
     }
 
     /**
      * Sets the weapon sprite to render.
+     * Automatically uses the texture's actual dimensions.
      *
      * @param texture The weapon texture
-     * @param width Width to render
-     * @param height Height to render
      */
-    public void setWeaponSprite(Texture texture, float width, float height) {
+    public void setWeaponSprite(Texture texture) {
         this.weaponTexture = texture;
-        this.weaponWidth = width;
-        this.weaponHeight = height;
+        if (texture != null) {
+            this.weaponWidth = texture.getWidth();
+            this.weaponHeight = texture.getHeight();
+            // Default pivot point at bottom center (handle of weapon)
+            this.pivotX = 0;
+            this.pivotY = 0; // Near bottom edge (handle)
+        } else {
+            this.weaponWidth = 0;
+            this.weaponHeight = 0;
+        }
     }
 
     /**
@@ -74,6 +81,8 @@ public class WeaponRenderComponent implements Component {
 
     /**
      * Renders the weapon sprite.
+     * Only shows weapon during attack phases (WINDUP, ACTIVE, RECOVERY).
+     * Uses the same positioning calculations as the hitbox for perfect alignment.
      *
      * @param batch SpriteBatch to render with
      * @param gameObject The entity this component belongs to
@@ -86,42 +95,59 @@ public class WeaponRenderComponent implements Component {
         Transform transform = gameObject.getComponent(Transform.class);
         AttackComponent attackComponent = gameObject.getComponent(AttackComponent.class);
 
-        if (transform == null) {
+        if (transform == null || attackComponent == null) {
             return;
         }
 
-        // Calculate weapon rotation
-        float weaponAngle = 0f;
-        if (attackComponent != null && attackComponent.isAttacking()) {
-            weaponAngle = attackComponent.getAbsoluteWeaponAngle();
+        // Only render weapon during attack animation (not during IDLE or COOLDOWN)
+        if (!attackComponent.isAttacking()) {
+            return;
         }
 
-        // Calculate weapon position (entity center + attachment offset)
+        if (attackComponent.getCurrentWeapon() == null) {
+            return;
+        }
+
+        // Get attack strategy
+        com.game.systems.combat.AttackStrategy strategy =
+            com.game.systems.combat.AttackSystem.getStrategy(attackComponent.getCurrentWeapon().getType());
+
+        // Use the EXACT same calculations as the hitbox
+        float baseAngle = attackComponent.getAttackDirection();
+        float angleOffset = strategy.getWeaponAngleOffset(attackComponent, attackComponent.getCurrentWeapon());
+        float weaponAngle = baseAngle + angleOffset;
+
+        // Calculate entity center (same as hitbox)
         float entityCenterX = transform.getX() + 8f; // Assuming 16x16 entity
         float entityCenterY = transform.getY() + 8f;
 
-        float weaponX = entityCenterX + attachOffsetX;
-        float weaponY = entityCenterY + attachOffsetY;
+        // Calculate direction vector (same as hitbox)
+        float angleRad = (float) Math.toRadians(weaponAngle);
+        float dirX = (float) Math.cos(angleRad);
+        float dirY = (float) Math.sin(angleRad);
 
-        // Render weapon with rotation
-        // LibGDX draws from bottom-left, rotates around origin (in sprite space)
+        // Weapon handle is at the entity center (where hitbox starts)
+        float weaponHandleX = entityCenterX;
+        float weaponHandleY = entityCenterY;
+
+        // Render weapon sprite extending from handle in the direction of the hitbox
         batch.draw(
             weaponTexture,
-            weaponX - pivotX,  // Position adjusted for pivot
-            weaponY - pivotY,
-            pivotX,            // Origin X (rotation point in sprite space)
-            pivotY,            // Origin Y
-            weaponWidth,       // Width
-            weaponHeight,      // Height
-            1f,                // Scale X
-            1f,                // Scale Y
-            weaponAngle,       // Rotation in degrees
-            0,                 // Source X
-            0,                 // Source Y
-            (int) weaponWidth, // Source width
-            (int) weaponHeight,// Source height
-            false,             // Flip X
-            false              // Flip Y
+            weaponHandleX - pivotX,  // Position adjusted for pivot
+            weaponHandleY - pivotY,
+            pivotX,                  // Origin X (rotation point in sprite space = handle)
+            pivotY,                  // Origin Y
+            weaponWidth,             // Width
+            weaponHeight,            // Height
+            1f,                      // Scale X
+            1f,                      // Scale Y
+            weaponAngle - 90,        // Rotation (-90 because sprite default points up)
+            0,                       // Source X
+            0,                       // Source Y
+            (int) weaponWidth,       // Source width
+            (int) weaponHeight,      // Source height
+            false,                   // Flip X
+            false                    // Flip Y
         );
     }
 

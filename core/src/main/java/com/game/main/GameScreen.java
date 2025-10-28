@@ -508,6 +508,9 @@ public class GameScreen implements Screen {
             // Set player health for HUD display
             uiManager.setPlayerHealth(player.getHealthComponent());
 
+            // Set player reference for equipment updates (weapon sprite rendering)
+            uiManager.setPlayer(player);
+
             // Initialize debug console
             debugConsole = new DebugConsole(uiManager.getSkin(), this, debugManager);
             debugConsole.setSize(400, 600);
@@ -621,10 +624,20 @@ public class GameScreen implements Screen {
             }
 
             // Attack hitbox (red, semi-transparent) - only when attacking
-            Rectangle attackHitbox = player.getAttackHitbox();
-            if (attackHitbox != null) {
+            com.game.components.AttackComponent attackComp = player.getAttackComponent();
+            if (attackComp != null && attackComp.isAttacking() && attackComp.getCurrentWeapon() != null) {
                 shapeRenderer.setColor(1, 0, 0, 0.5f);
-                shapeRenderer.rect(attackHitbox.x, attackHitbox.y, attackHitbox.width, attackHitbox.height);
+
+                // Get attack strategy and render polygon
+                com.game.systems.combat.AttackStrategy strategy =
+                    com.game.systems.combat.AttackSystem.getStrategy(attackComp.getCurrentWeapon().getType());
+
+                float[] polygon = strategy.getHitboxPolygon(player, attackComp, attackComp.getCurrentWeapon());
+                if (polygon != null && polygon.length == 8) {
+                    // Draw the 4-sided polygon
+                    shapeRenderer.triangle(polygon[0], polygon[1], polygon[2], polygon[3], polygon[4], polygon[5]);
+                    shapeRenderer.triangle(polygon[0], polygon[1], polygon[4], polygon[5], polygon[6], polygon[7]);
+                }
             }
         }
 
@@ -752,9 +765,16 @@ public class GameScreen implements Screen {
      * Render a single entity. Called by Y-sort renderer.
      */
     private void renderEntity(SpriteBatch batch, GameObject gameObject) {
+        // Render character
         RenderComponent renderComp = gameObject.getComponent(RenderComponent.class);
         if (renderComp != null) {
             renderComp.render(batch, gameObject);
+        }
+
+        // Render weapon on top of character (if equipped and attacking)
+        com.game.components.WeaponRenderComponent weaponRender = gameObject.getComponent(com.game.components.WeaponRenderComponent.class);
+        if (weaponRender != null) {
+            weaponRender.render(batch, gameObject);
         }
     }
 

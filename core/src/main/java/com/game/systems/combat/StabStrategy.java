@@ -10,12 +10,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Attack strategy for thrust/poke attacks.
- * Used by spears, rapiers, and similar weapons that attack in a straight line.
+ * Attack strategy for quick stab/jab attacks.
+ * Used by daggers and similar fast, precise weapons.
  *
- * Creates a narrow rectangular hitbox extending from the attacker.
+ * Creates a small, precise hitbox with a quick forward motion.
  */
-public class SpearThrustStrategy implements AttackStrategy {
+public class StabStrategy implements AttackStrategy {
 
     @Override
     public List<GameObject> executeAttack(GameObject attacker,
@@ -34,8 +34,8 @@ public class SpearThrustStrategy implements AttackStrategy {
         float angleOffset = getWeaponAngleOffset(attackComponent, weapon);
         float weaponAngle = baseAngle + angleOffset;
 
-        // Create thrust hitbox (narrow rectangle extending from attacker)
-        Rectangle thrustBox = createThrustHitbox(attackerTransform, weaponAngle, weapon.getRange());
+        // Create small stab hitbox
+        Rectangle stabBox = createStabHitbox(attackerTransform, weaponAngle, weapon.getRange());
 
         // Check each potential target
         for (GameObject target : potentialTargets) {
@@ -47,8 +47,8 @@ public class SpearThrustStrategy implements AttackStrategy {
 
             Rectangle targetBounds = targetCollider.getBounds(target);
 
-            // Check if target overlaps with thrust hitbox
-            if (thrustBox.overlaps(targetBounds)) {
+            // Check if target overlaps with stab hitbox
+            if (stabBox.overlaps(targetBounds)) {
                 hitEntities.add(target);
                 attackComponent.markEntityHit(target);
             }
@@ -69,30 +69,32 @@ public class SpearThrustStrategy implements AttackStrategy {
         float baseAngle = attackComponent.getAttackDirection();
         float angleOffset = getWeaponAngleOffset(attackComponent, weapon);
         float weaponAngle = baseAngle + angleOffset;
-        return createThrustHitbox(attackerTransform, weaponAngle, weapon.getRange());
+        return createStabHitbox(attackerTransform, weaponAngle, weapon.getRange());
     }
 
     @Override
     public float getWeaponAngleOffset(AttackComponent attackComponent, WeaponStats weapon) {
-        // Thrust attacks don't change angle much - the weapon points forward throughout
-        // We can add subtle angle changes for visual variety
+        // Stab attacks have minimal angle change, just a quick jab
         AttackComponent.AttackPhase phase = attackComponent.getPhase();
         float progress = attackComponent.getPhaseProgress();
 
         switch (phase) {
             case WINDUP:
-                // Slightly lower the weapon during windup
-                return -5f * progress; // Dip down 5 degrees
+                // Minimal pullback, slight downward angle
+                return -10f * progress; // Pull down 10 degrees
 
             case ACTIVE:
-                // Return to forward position during thrust
-                return -5f * (1f - progress); // Return from -5° to 0°
+                // Quick snap back to forward and slightly up for emphasis
+                return -10f + 15f * progress; // Move from -10° to +5°
 
             case RECOVERY:
+                // Return to neutral
+                return 5f * (1f - progress); // Return from +5° to 0°
+
             case COOLDOWN:
             case IDLE:
             default:
-                return 0f; // Weapon at rest, pointing forward
+                return 0f; // Weapon at rest
         }
     }
 
@@ -100,36 +102,35 @@ public class SpearThrustStrategy implements AttackStrategy {
     public float[] getHitboxPolygon(GameObject attacker,
                                     AttackComponent attackComponent,
                                     WeaponStats weapon) {
-        // TODO: Implement rotating polygon for spear
+        // TODO: Implement rotating polygon for dagger
         return null;
     }
 
     @Override
     public String getName() {
-        return "SpearThrust";
+        return "Stab";
     }
 
     /**
-     * Creates a narrow rectangular hitbox extending from the attacker.
+     * Creates a small, precise hitbox for stab attacks.
      */
-    private Rectangle createThrustHitbox(Transform attackerTransform, float weaponAngle, float range) {
+    private Rectangle createStabHitbox(Transform attackerTransform, float weaponAngle, float range) {
         float angleRad = (float) Math.toRadians(weaponAngle);
 
-        float attackerCenterX = attackerTransform.getX() + 8f; // Assuming 16x16 sprite
+        float attackerCenterX = attackerTransform.getX() + 8f;
         float attackerCenterY = attackerTransform.getY() + 8f;
 
         float dirX = (float) Math.cos(angleRad);
         float dirY = (float) Math.sin(angleRad);
 
-        // Thrust hitbox is narrow (8 pixels wide) and extends forward
-        float thrustWidth = range;
-        float thrustHeight = 8f; // Narrow hitbox
+        // Stab hitbox is small and precise
+        float stabWidth = range;
+        float stabHeight = 6f; // Very narrow hitbox
 
-        // Calculate rotated hitbox corners (approximate with axis-aligned box for simplicity)
-        // Position hitbox extending from attacker in thrust direction
-        float hitboxX = attackerCenterX + dirX * (thrustWidth / 2f + 4f) - thrustWidth / 2f;
-        float hitboxY = attackerCenterY + dirY * (thrustWidth / 2f + 4f) - thrustHeight / 2f;
+        // Position hitbox extending from attacker
+        float hitboxX = attackerCenterX + dirX * (stabWidth / 2f + 4f) - stabWidth / 2f;
+        float hitboxY = attackerCenterY + dirY * (stabWidth / 2f + 4f) - stabHeight / 2f;
 
-        return new Rectangle(hitboxX, hitboxY, thrustWidth, thrustHeight);
+        return new Rectangle(hitboxX, hitboxY, stabWidth, stabHeight);
     }
 }

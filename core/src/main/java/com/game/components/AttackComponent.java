@@ -29,11 +29,6 @@ public class AttackComponent implements Component {
     private float attackDirection; // Base attack direction in degrees (0=right, 90=up, etc.)
     private WeaponStats currentWeapon;
 
-    // Arc attack tracking
-    private float arcStartAngle;   // Where arc swing starts (relative to attack direction)
-    private float arcEndAngle;     // Where arc swing ends
-    private float currentArcAngle; // Current angle during swing
-
     // Hit tracking - prevents hitting same entity multiple times in one attack
     private Set<GameObject> hitEntities;
 
@@ -43,9 +38,6 @@ public class AttackComponent implements Component {
         this.attackDirection = 0f;
         this.currentWeapon = null;
         this.hitEntities = new HashSet<>();
-        this.arcStartAngle = 0f;
-        this.arcEndAngle = 0f;
-        this.currentArcAngle = 0f;
     }
 
     /**
@@ -66,25 +58,14 @@ public class AttackComponent implements Component {
 
         switch (phase) {
             case WINDUP:
-                // Update arc angle during windup (weapon pulls back)
-                float windupProgress = Math.min(1f, phaseTimer / currentWeapon.getWindupDuration());
-                // During windup, weapon moves from rest (0) to start position (negative arc)
-                currentArcAngle = arcStartAngle * windupProgress;
-
                 if (phaseTimer >= currentWeapon.getWindupDuration()) {
                     // Transition to active phase
                     phase = AttackPhase.ACTIVE;
                     phaseTimer = 0f;
-                    currentArcAngle = arcStartAngle;
                 }
                 break;
 
             case ACTIVE:
-                // Update arc angle during active swing
-                float activeProgress = Math.min(1f, phaseTimer / currentWeapon.getSwingDuration());
-                // Swing from start angle to end angle
-                currentArcAngle = arcStartAngle + (arcEndAngle - arcStartAngle) * activeProgress;
-
                 if (phaseTimer >= currentWeapon.getSwingDuration()) {
                     // Transition to recovery
                     phase = AttackPhase.RECOVERY;
@@ -93,11 +74,6 @@ public class AttackComponent implements Component {
                 break;
 
             case RECOVERY:
-                // Update arc angle during recovery (weapon returns to rest)
-                float recoveryProgress = Math.min(1f, phaseTimer / currentWeapon.getRecoveryDuration());
-                // Return from end angle back to 0 (rest position)
-                currentArcAngle = arcEndAngle * (1f - recoveryProgress);
-
                 if (phaseTimer >= currentWeapon.getRecoveryDuration()) {
                     // Transition to cooldown
                     phase = AttackPhase.COOLDOWN;
@@ -130,12 +106,6 @@ public class AttackComponent implements Component {
         this.phase = AttackPhase.WINDUP;
         this.phaseTimer = 0f;
         this.hitEntities.clear();
-
-        // Calculate arc angles based on weapon
-        float halfArc = weapon.getSwingArc() / 2f;
-        this.arcStartAngle = -halfArc;  // Start at -60° (for 120° arc)
-        this.arcEndAngle = halfArc;     // End at +60°
-        this.currentArcAngle = 0f;
 
         return true;
     }
@@ -184,15 +154,6 @@ public class AttackComponent implements Component {
         phase = AttackPhase.IDLE;
         phaseTimer = 0f;
         hitEntities.clear();
-        currentArcAngle = 0f;
-    }
-
-    /**
-     * Gets the absolute angle of the weapon in world space.
-     * This is the base attack direction + current arc offset.
-     */
-    public float getAbsoluteWeaponAngle() {
-        return attackDirection + currentArcAngle;
     }
 
     /**
@@ -238,18 +199,6 @@ public class AttackComponent implements Component {
 
     public WeaponStats getCurrentWeapon() {
         return currentWeapon;
-    }
-
-    public float getCurrentArcAngle() {
-        return currentArcAngle;
-    }
-
-    public float getArcStartAngle() {
-        return arcStartAngle;
-    }
-
-    public float getArcEndAngle() {
-        return arcEndAngle;
     }
 
     public float getCooldownPercent() {

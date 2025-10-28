@@ -24,6 +24,7 @@ public class UIManagerNew {
     private Stage stage;
     private Skin skin;
     private PlayerInventory playerInventory;
+    private com.game.entity.PlayerEntity player; // Reference to player for equipment updates
     private ItemDragAndDropSystem dragAndDrop;
     private WorldItemManager worldItemManager;
 
@@ -50,6 +51,7 @@ public class UIManagerNew {
     public UIManagerNew(PlayerInventory playerInventory, WorldItemManager worldItemManager) {
         this.playerInventory = playerInventory;
         this.worldItemManager = worldItemManager;
+        this.player = null; // Set later via setPlayer()
         this.bagWindows = new HashMap<>();
         this.bagSlotIndices = new HashMap<>();
         this.inventoryOpen = false;
@@ -1050,6 +1052,17 @@ public class UIManagerNew {
     }
 
     /**
+     * Sets the player reference for equipment updates.
+     */
+    public void setPlayer(com.game.entity.PlayerEntity player) {
+        this.player = player;
+        // Update weapon sprite on initial setup
+        if (player != null) {
+            player.updateWeaponSprite();
+        }
+    }
+
+    /**
      * Opens bag windows for all equipped bags.
      */
     private void openBagWindows() {
@@ -1176,6 +1189,11 @@ public class UIManagerNew {
         // Refresh all bag windows
         for (ContainerWindow window : bagWindows.values()) {
             refreshContainerWindowWithIcons(window);
+        }
+
+        // Update weapon sprite when equipment changes
+        if (player != null) {
+            player.updateWeaponSprite();
         }
     }
 

@@ -18,26 +18,34 @@ public class ItemDefinition {
     private final Integer bagSize; // Number of slots if this is a bag item, null otherwise
     private final EquipmentSlot equipmentSlot; // Which equipment slot this item goes in (null if not equippable)
     private final WeaponStats weaponStats; // Combat stats for weapons (null if not a weapon)
+    private final String weaponSpritePath; // Path to SpriteInHand.png for weapon rendering (null if not a weapon)
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable) {
-        this(id, name, description, type, maxStackSize, iconPath, consumable, null, null, null);
+        this(id, name, description, type, maxStackSize, iconPath, consumable, null, null, null, null);
     }
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable, Integer bagSize) {
-        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, null, null);
+        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, null, null, null);
     }
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable,
                          Integer bagSize, EquipmentSlot equipmentSlot) {
-        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, equipmentSlot, null);
+        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, equipmentSlot, null, null);
     }
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable,
                          Integer bagSize, EquipmentSlot equipmentSlot, WeaponStats weaponStats) {
+        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, equipmentSlot, weaponStats, null);
+    }
+
+    public ItemDefinition(String id, String name, String description, ItemType type,
+                         int maxStackSize, String iconPath, boolean consumable,
+                         Integer bagSize, EquipmentSlot equipmentSlot, WeaponStats weaponStats,
+                         String weaponSpritePath) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -48,6 +56,7 @@ public class ItemDefinition {
         this.bagSize = bagSize;
         this.equipmentSlot = equipmentSlot;
         this.weaponStats = weaponStats;
+        this.weaponSpritePath = weaponSpritePath;
     }
 
     public String getId() {
@@ -100,6 +109,10 @@ public class ItemDefinition {
 
     public WeaponStats getWeaponStats() {
         return weaponStats;
+    }
+
+    public String getWeaponSpritePath() {
+        return weaponSpritePath;
     }
 
     public boolean isWeapon() {

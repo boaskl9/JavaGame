@@ -1,1 +1,4 @@
 the game should have a world with various areas locked off, where a specific mechanic, will upon unlock, allow the player to access the areas. This can be an ability to cut down specific trees, place staircases to go into basements, or maybe the ability to jump to higher ledges.
+
+
+[[Ideas about dungeons]]
