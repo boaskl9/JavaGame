@@ -14,6 +14,7 @@ import com.game.components.ItemMagnetComponent;
 import com.game.components.RenderComponent;
 import com.game.components.VelocityComponent;
 import com.game.components.WeaponRenderComponent;
+import com.game.integration.WorldItemManager;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
 import com.game.systems.combat.WeaponStats;
@@ -21,6 +22,7 @@ import com.game.systems.entity.Transform;
 import com.game.systems.inventory.EquipmentSlot;
 import com.game.systems.inventory.PlayerInventory;
 import com.game.systems.item.ItemStack;
+import com.game.systems.loot.LootSystem;
 
 /**
  * Player entity built using the new component-based architecture.
@@ -31,6 +33,8 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     private static final float RUN_SPEED = 160f;
     private static final int SIZE = 16;
     private static final int DEFAULT_MAX_HEALTH = 100;
+
+    private static PlayerEntity instance;
 
     private WorldManager world;
     private int lastDirectionAngle = 180; // Down
@@ -58,6 +62,26 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     // Debug: Store last attack hitbox for visualization
     private Rectangle lastAttackHitbox;
+
+    public static void initialize(WorldManager worldItemManager, float spawnX, float spawnY) {
+        if (instance != null) {
+            System.err.println("Player already initialized! Replacing existing instance.");
+        }
+        instance = new PlayerEntity(worldItemManager, spawnX, spawnY);
+    }
+
+    /**
+     * Gets the singleton instance.
+     * Throws exception if not initialized.
+     *
+     * @return The LootSystem instance
+     */
+    public static PlayerEntity getInstance() {
+        if (instance == null) {
+            throw new IllegalStateException("LootSystem not initialized! Call LootSystem.initialize() first.");
+        }
+        return instance;
+    }
 
     public PlayerEntity(WorldManager world, float x, float y) {
         super(DEFAULT_MAX_HEALTH);

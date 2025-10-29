@@ -523,7 +523,9 @@ public class GameScreen implements Screen {
 
         // Create or update player
         if (player == null) {
-            player = new PlayerEntity(world, spawnX, spawnY);
+            com.game.systems.entity.entities.PlayerEntity.initialize(world, spawnX, spawnY);
+            player = com.game.systems.entity.entities.PlayerEntity.getInstance();
+                //new PlayerEntity(world, spawnX, spawnY);
         } else {
             player.setWorld(world);
             player.getTransform().setPosition(spawnX, spawnY);

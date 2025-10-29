@@ -47,8 +47,6 @@ public class ItemPickupEntity extends WorldObject {
         addComponent(new Transform(x, y));
         addComponent(new VelocityComponent());
 
-        // TODO: Load texture based on item definition's iconPath
-        // For now, texture is null - will need to be set externally
     }
 
     @Override
@@ -69,7 +67,8 @@ public class ItemPickupEntity extends WorldObject {
                 velocity.setVelocity(0, 0);
             }
         }
-        else if (velocity != null && transform != null) {
+        else if (velocity != null && transform != null
+                && com.game.systems.entity.entities.PlayerEntity.getInstance().getInventory().hasSpace(itemStack)) {
             transform.translate(
                 velocity.getVelocity().x * delta,
                 velocity.getVelocity().y * delta
