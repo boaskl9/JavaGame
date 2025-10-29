@@ -51,6 +51,7 @@ button_disabled
   xy: 38, 12
   size: 16, 8
   orig: 16, 8
+  split: 2,2,2,2
   offset: 0, 0
   index: -1
 button_hover
@@ -58,6 +59,7 @@ button_hover
   xy: 56, 34
   size: 16, 8
   orig: 16, 8
+  split: 2,2,2,2
   offset: 0, 0
   index: -1
 button_normal
@@ -65,6 +67,7 @@ button_normal
   xy: 74, 48
   size: 16, 8
   orig: 16, 8
+  split: 2,2,2,2
   offset: 0, 0
   index: -1
 button_pressed
@@ -72,6 +75,7 @@ button_pressed
   xy: 92, 62
   size: 16, 8
   orig: 16, 8
+  split: 2,2,2,2
   offset: 0, 0
   index: -1
 button_unchecked
@@ -265,6 +269,7 @@ slider_progress
   xy: 20, 20
   size: 16, 16
   orig: 16, 16
+  split: 4, 4, 4, 4
   offset: 0, 0
   index: -1
 slider_progress_hover
@@ -272,6 +277,7 @@ slider_progress_hover
   xy: 20, 2
   size: 16, 16
   orig: 16, 16
+  split: 4, 4, 4, 4
   offset: 0, 0
   index: -1
 tab

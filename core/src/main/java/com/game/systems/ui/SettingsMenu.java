@@ -48,7 +48,7 @@ public class SettingsMenu extends Window {
         contentTable.defaults().pad(5);
 
         // Title
-        Label titleLabel = new Label("Game Settings", skin, "title");
+        Label titleLabel = new Label("Game Settings", skin, "default");
         contentTable.add(titleLabel).colspan(3).center().padBottom(10).row();
 
         // Camera Scale Setting
