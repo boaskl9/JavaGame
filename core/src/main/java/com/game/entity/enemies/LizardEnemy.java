@@ -2,7 +2,6 @@ package com.game.entity.enemies;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.math.MathUtils;
 import com.game.components.AIComponent;
 import com.game.entity.EnemyEntity;
 import com.game.integration.WorldManager;
@@ -10,34 +9,27 @@ import com.game.systems.animation.AnimationBuilder;
 import com.game.systems.loot.LootTableComponent;
 
 /**
- * Slime enemy - a very basic enemy type.
+ * Lizard enemy - a very basic enemy type.
  * Low health, slow movement, but can split into smaller slimes on death (future feature).
  * Uses the Frog sprite as a placeholder.
  */
 public class LizardEnemy extends EnemyEntity {
-    private static final int SLIME_MAX_HEALTH = 15;
-    private static final float SLIME_SPEED = 30f;
-    private static final float SLIME_DETECTION_RANGE = 60f;
-    private static final float SLIME_ATTACK_RANGE = 16f;
-
-    private boolean canSplit;
+    private static final int LIZARD_MAX_HEALTH = 15;
+    private static final float LIZARD_SPEED = 30f;
+    private static final float LIZARD_DETECTION_RANGE = 60f;
+    private static final float LIZARD_ATTACK_RANGE = 16f;
 
     public LizardEnemy(WorldManager world, float x, float y) {
-        this(world, x, y, true);
-    }
-
-    public LizardEnemy(WorldManager world, float x, float y, boolean canSplit) {
-        super(world, SLIME_MAX_HEALTH, x, y);
-        this.canSplit = canSplit;
+        super(world, LIZARD_MAX_HEALTH, x, y);
 
         // Configure AI - slimes are slow and dumb
-        ai.setMoveSpeed(SLIME_SPEED);
-        ai.setDetectionRange(SLIME_DETECTION_RANGE);
-        ai.setAttackRange(SLIME_ATTACK_RANGE);
+        ai.setMoveSpeed(LIZARD_SPEED);
+        ai.setDetectionRange(LIZARD_DETECTION_RANGE);
+        ai.setAttackRange(LIZARD_ATTACK_RANGE);
         ai.setWanderInterval(2.5f);
         ai.setIdleTime(1.5f);
 
-        // Slimes start in wander state
+        // Lizards start in wander state
         ai.setState(AIComponent.AIState.WANDER);
         pickRandomWanderDirection();
 
@@ -69,10 +61,10 @@ public class LizardEnemy extends EnemyEntity {
 
     @Override
     protected void performAttack(float delta) {
-        // Slime's simple attack - just bumps into the player
+        // Lizard's simple attack - just bumps into the player
         if (ai.getStateTimer() > 0.8f) {
             // TODO: Deal damage when combat system is ready
-            System.out.println("Slime bumps the player!");
+            System.out.println("Lizard bumps the player!");
             ai.setState(AIComponent.AIState.CHASE);
         }
     }
@@ -80,13 +72,5 @@ public class LizardEnemy extends EnemyEntity {
     @Override
     protected void onDeath() {
         super.onDeath();
-
-        // Future feature: split into smaller slimes
-        if (canSplit && MathUtils.randomBoolean(0.5f)) {
-            System.out.println("Slime would split into smaller slimes here!");
-            // TODO: Spawn 2-3 smaller slimes when spawning system is ready
-        }
-
-        // TODO: Drop slime gel item
     }
 }

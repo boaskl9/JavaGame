@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.game.entity.EnemyEntity;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
+import com.game.systems.loot.LootTableComponent;
 
 /**
  * axolotl enemy - a weak, fast-moving enemy that jumps around.
@@ -25,6 +26,12 @@ public class Axolot extends EnemyEntity {
         ai.setAttackRange(AXOLOTL_ATTACK_RANGE);
         ai.setWanderInterval(1.5f);
         ai.setIdleTime(0.8f);          // Short idle time
+
+        // Add loot table
+        LootTableComponent lootTable = new LootTableComponent()
+            .addDrop("ruby_ring", 0.8f, 1, 3)         // 80% chance for 1-3 stones// 50% chance for 1-2 wood
+            .addDrop("health_potion", 0.15f, 1);  // 15% chance for 1 health potion
+        addComponent(lootTable);
 
         // Load animations
         loadAnimations();
