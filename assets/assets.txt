@@ -1720,6 +1720,7 @@ Items/Weapons/Whip/Sprite.png
 Items/Weapons/Whip/SpriteInHand.png
 Maps/Rules/autotiles_rules.tmx
 Maps/StartArea.tmx
+Maps/WestArea.tmx
 Maps/glade.tmx
 Maps/house1.tmx
 Maps/prototype..tmx

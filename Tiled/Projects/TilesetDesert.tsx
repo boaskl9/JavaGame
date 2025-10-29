@@ -185,16 +185,25 @@
   <properties>
    <property name="renderOnTop" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="2" y="7" width="14" height="9"/>
+  </objectgroup>
  </tile>
  <tile id="64">
   <properties>
    <property name="renderOnTop" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="7" width="16" height="9"/>
+  </objectgroup>
  </tile>
  <tile id="65">
   <properties>
    <property name="renderOnTop" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="7" width="14" height="9"/>
+  </objectgroup>
  </tile>
  <tile id="80">
   <objectgroup draworder="index" id="2">
@@ -208,6 +217,21 @@
    <object id="1" x="0" y="14" width="8" height="2"/>
    <object id="2" x="0" y="11" width="12" height="3"/>
    <object id="3" x="0" y="0" width="14" height="11"/>
+  </objectgroup>
+ </tile>
+ <tile id="83">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="2" y="0" width="14" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="84">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="14"/>
+  </objectgroup>
+ </tile>
+ <tile id="85">
+  <objectgroup draworder="index" id="4">
+   <object id="3" x="0" y="0" width="14" height="16"/>
   </objectgroup>
  </tile>
  <tile id="90">
@@ -260,6 +284,16 @@
    <property name="renderOnTop" type="bool" value="true"/>
   </properties>
  </tile>
+ <tile id="100">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="101">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="5" width="16" height="9"/>
+  </objectgroup>
+ </tile>
  <tile id="104">
   <properties>
    <property name="renderOnTop" type="bool" value="true"/>
@@ -300,6 +334,26 @@
    <property name="renderOnTop" type="bool" value="true"/>
   </properties>
  </tile>
+ <tile id="122">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="5" width="16" height="11"/>
+  </objectgroup>
+ </tile>
+ <tile id="123">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="5" width="16" height="11"/>
+  </objectgroup>
+ </tile>
+ <tile id="124">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="5" width="16" height="11"/>
+  </objectgroup>
+ </tile>
+ <tile id="125">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="5" width="16" height="11"/>
+  </objectgroup>
+ </tile>
  <tile id="134">
   <properties>
    <property name="renderOnTop" type="bool" value="true"/>
@@ -314,6 +368,26 @@
   <properties>
    <property name="renderOnTop" type="bool" value="true"/>
   </properties>
+ </tile>
+ <tile id="142">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="143">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="144">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="145">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="151">
   <properties>
@@ -340,6 +414,32 @@
    <property name="renderOnTop" type="bool" value="true"/>
   </properties>
  </tile>
+ <tile id="162">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="163">
+  <properties>
+   <property name="renderOnTop" type="bool" value="true"/>
+  </properties>
+  <objectgroup draworder="index" id="3">
+   <object id="2" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="164">
+  <properties>
+   <property name="renderOnTop" type="bool" value="true"/>
+  </properties>
+  <objectgroup draworder="index" id="3">
+   <object id="2" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="165">
+  <objectgroup draworder="index" id="3">
+   <object id="3" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
  <tile id="170">
   <properties>
    <property name="renderOnTop" type="bool" value="true"/>
@@ -364,6 +464,21 @@
   <properties>
    <property name="renderOnTop" type="bool" value="true"/>
   </properties>
+ </tile>
+ <tile id="182">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="183">
+  <properties>
+   <property name="renderOnTop" type="bool" value="true"/>
+  </properties>
+ </tile>
+ <tile id="184">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="12" width="16" height="3"/>
+  </objectgroup>
  </tile>
  <tile id="202">
   <properties>
