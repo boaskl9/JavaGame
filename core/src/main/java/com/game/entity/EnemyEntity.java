@@ -15,6 +15,9 @@ import com.game.systems.combat.WeaponStats;
 import com.game.systems.entity.Entity;
 import com.game.systems.entity.Transform;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Base class for all enemy entities.
  * Provides common enemy functionality like AI, movement, and combat.
@@ -36,6 +39,9 @@ public abstract class EnemyEntity extends Entity {
 
     protected int lastDirectionAngle = 180; // Down
 
+    // Tags for context-aware loot drops and other systems
+    private final Set<String> tags;
+
     // Damage number callback
     private DamageNumberCallback damageNumberCallback;
 
@@ -52,6 +58,7 @@ public abstract class EnemyEntity extends Entity {
     public EnemyEntity(WorldManager world, int maxHealth, float x, float y) {
         super(maxHealth);
         this.world = world;
+        this.tags = new HashSet<>();
 
         // Add core components
         transform = new Transform(x, y);
@@ -562,6 +569,11 @@ public abstract class EnemyEntity extends Entity {
         super.onDeath();
         System.out.println(getClass().getSimpleName() + " died at " + transform.getPosition());
 
+        // Generate and spawn loot drops
+        if (com.game.systems.loot.LootSystem.isInitialized()) {
+            com.game.systems.loot.LootSystem.getInstance().generateAndSpawnLoot(this, target);
+        }
+
         // Notify death callback to spawn animation and remove enemy
         if (deathCallback != null) {
             float centerX = transform.getX() + 8f;
@@ -621,5 +633,37 @@ public abstract class EnemyEntity extends Entity {
      */
     public interface DeathCallback {
         void onDeath(EnemyEntity enemy, float x, float y);
+    }
+
+    // Tag system methods for context-aware loot drops
+
+    /**
+     * Adds a tag to this enemy.
+     * Tags are used for context-aware loot drops and other systems.
+     * Example tags: "animal:cow", "undead:skeleton", "humanoid:goblin"
+     */
+    public void addTag(String tag) {
+        tags.add(tag);
+    }
+
+    /**
+     * Checks if this enemy has a specific tag.
+     */
+    public boolean hasTag(String tag) {
+        return tags.contains(tag);
+    }
+
+    /**
+     * Removes a tag from this enemy.
+     */
+    public void removeTag(String tag) {
+        tags.remove(tag);
+    }
+
+    /**
+     * Gets all tags on this enemy.
+     */
+    public Set<String> getTags() {
+        return new HashSet<>(tags);
     }
 }

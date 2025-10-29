@@ -7,6 +7,7 @@ import com.game.components.AIComponent;
 import com.game.entity.EnemyEntity;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
+import com.game.systems.loot.LootTableComponent;
 
 /**
  * Slime enemy - a very basic enemy type.
@@ -39,6 +40,17 @@ public class LizardEnemy extends EnemyEntity {
         // Slimes start in wander state
         ai.setState(AIComponent.AIState.WANDER);
         pickRandomWanderDirection();
+
+        // Add loot table
+        LootTableComponent lootTable = new LootTableComponent()
+            .addDrop("stone", 0.8f, 1, 3)         // 80% chance for 1-3 stones
+            .addDrop("wood", 0.5f, 1, 2)          // 50% chance for 1-2 wood
+            .addDrop("health_potion", 0.15f, 1);  // 15% chance for 1 health potion
+        addComponent(lootTable);
+
+        // Add tags for potential context-aware drops
+        addTag("monster:lizard");
+        addTag("reptile");
 
         // Load animations (using Frog as placeholder)
         loadAnimations();

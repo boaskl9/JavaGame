@@ -109,6 +109,9 @@ public class GameScreen implements Screen {
         damageNumbers = new java.util.ArrayList<>();
         deathAnimations = new java.util.ArrayList<>();
 
+        // Initialize LootSystem singleton
+        com.game.systems.loot.LootSystem.initialize(worldItemManager);
+
         // Register test items
         TestItems.registerTestItems();
         TestItems.loadTextures(worldItemManager);

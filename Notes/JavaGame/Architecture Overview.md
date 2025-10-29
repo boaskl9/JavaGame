@@ -33,8 +33,9 @@ core/src/main/java/com.game/
 │   ├── inventory/    # Inventory containers & bags
 │   ├── item/         # Item definitions & factory
 │   ├── level/        # Tiled map parser
+│   ├── loot/         # Loot drops, modifiers, loot tables
 │   └── ui/           # UIManagerNew + components
-├── components/        # ECS components (Transform, Render, Collider, Health, Attack, etc.)
+├── components/        # ECS components (Transform, Render, Collider, Health, Attack, LootTable, etc.)
 ├── entity/           # Concrete entities (Player, Enemy, NPC, ItemPickup, Gateway)
 ├── integration/      # WorldManager, WorldItemManager (glue layer)
 ├── rendering/        # YSortRenderer (depth sorting)
@@ -115,6 +116,22 @@ core/src/main/java/com.game/
 - **Knockback**: Applied to VelocityComponent with direction-based physics
 - **Death Handling**: onDeath() callback for enemies; supports death animations and loot drops
 
+### 10. Loot Drop System
+- **Architecture**: Component-based with dynamic runtime modifiers
+- **LootTableComponent**: Attached to enemies; defines base drops with chance/quantity ranges
+- **LootDrop**: Data class for individual drop definitions (itemId, chance, min/max quantity)
+- **LootContext**: Carries context information (enemy, player, modifiers) for intelligent drop decisions
+- **LootModifier Interface**: Applied by equipment/skills to modify drops dynamically
+- **Built-in Modifiers**:
+  - AddDropModifier: Adds new drops (e.g., coffee ring adds coffee)
+  - HideHarvesterModifier: Context-aware drops based on enemy tags (cow → cow_hide)
+  - ChanceMultiplierModifier: Increases drop chances (luck stat)
+  - QuantityMultiplierModifier: Increases quantities (greedy perk)
+- **Tag System**: Enemies have tags (e.g., "animal:cow") for context-aware modifier behavior
+- **LootSystem Manager**: Orchestrates drop generation; collects player modifiers, rolls drops, spawns items
+- **Integration**: Automatic on death via EnemyEntity.onDeath() → WorldItemManager for spawning
+- **Extensible**: Custom modifiers implement LootModifier interface; priority-based ordering
+
 ---
 
 ## Architecture Patterns
@@ -130,7 +147,7 @@ core/src/main/java/com.game/
 
 ## Planned Systems (Not Implemented)
 
-- **Loot Drops**: Monster death drops with loot tables, rarities, and randomization
+- **Equipment System**: Weapon/armor slots, stat bonuses, collecting modifiers for loot
 - **NPCs**: Base class exists, needs dialogue/quests/schedules
 - **Enemy Spawning**: Spawn logic, spawn points, waves
 - **Shops**: Buy/sell UI + economy
