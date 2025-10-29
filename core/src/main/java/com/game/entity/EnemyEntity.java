@@ -39,6 +39,9 @@ public abstract class EnemyEntity extends Entity {
     // Damage number callback
     private DamageNumberCallback damageNumberCallback;
 
+    // Death callback
+    private DeathCallback deathCallback;
+
     // Pathfinding
     protected Array<Vector2> currentPath;
     protected int currentWaypointIndex;
@@ -558,7 +561,13 @@ public abstract class EnemyEntity extends Entity {
     protected void onDeath() {
         super.onDeath();
         System.out.println(getClass().getSimpleName() + " died at " + transform.getPosition());
-        // Override in subclasses for death effects, drops, etc.
+
+        // Notify death callback to spawn animation and remove enemy
+        if (deathCallback != null) {
+            float centerX = transform.getX() + 8f;
+            float centerY = transform.getY() + 8f;
+            deathCallback.onDeath(this, centerX, centerY);
+        }
     }
 
     // Getters
@@ -594,9 +603,23 @@ public abstract class EnemyEntity extends Entity {
     }
 
     /**
+     * Sets the death callback for spawning death animations.
+     */
+    public void setDeathCallback(DeathCallback callback) {
+        this.deathCallback = callback;
+    }
+
+    /**
      * Callback interface for spawning damage numbers.
      */
     public interface DamageNumberCallback {
         void spawnDamageNumber(float x, float y, int damage);
+    }
+
+    /**
+     * Callback interface for handling enemy death.
+     */
+    public interface DeathCallback {
+        void onDeath(EnemyEntity enemy, float x, float y);
     }
 }

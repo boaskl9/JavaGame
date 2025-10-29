@@ -46,6 +46,7 @@ public class ArcSwingStrategy implements AttackStrategy {
         // Check each potential target
         for (GameObject target : potentialTargets) {
             if (target == attacker) continue; // Don't hit self
+            if (!target.isActive()) continue; // Skip inactive targets (dead enemies, etc.)
             if (attackComponent.hasHitEntity(target)) continue; // Already hit this attack
 
             // Get target collider and position

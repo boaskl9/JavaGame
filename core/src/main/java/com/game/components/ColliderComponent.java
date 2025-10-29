@@ -61,4 +61,13 @@ public class ColliderComponent implements Component {
     public float getOffsetY() {
         return offsetY;
     }
+
+    /**
+     * Sets the size of the collider.
+     * Useful for disabling collisions by setting to 0.
+     */
+    public void setSize(float width, float height) {
+        this.width = width;
+        this.height = height;
+    }
 }

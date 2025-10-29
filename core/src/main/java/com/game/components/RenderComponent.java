@@ -27,6 +27,9 @@ public class RenderComponent implements Component {
      * Render using an animation component.
      */
     public void render(SpriteBatch batch, GameObject gameObject) {
+        // Don't render inactive objects (e.g., dead enemies)
+        if (!gameObject.isActive()) return;
+
         Transform transform = gameObject.getComponent(Transform.class);
         AnimationComponent animComp = gameObject.getComponent(AnimationComponent.class);
 

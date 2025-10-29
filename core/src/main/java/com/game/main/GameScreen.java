@@ -79,6 +79,9 @@ public class GameScreen implements Screen {
     // Damage numbers
     private java.util.List<com.game.entity.DamageNumberEntity> damageNumbers;
 
+    // Death animations
+    private java.util.List<com.game.entity.DeathAnimationEntity> deathAnimations;
+
     public GameScreen() {
         // Create cameras
         camera = new OrthographicCamera();
@@ -104,6 +107,7 @@ public class GameScreen implements Screen {
         inputManager = new InputManager();
         debugManager = new DebugManager();
         damageNumbers = new java.util.ArrayList<>();
+        deathAnimations = new java.util.ArrayList<>();
 
         // Register test items
         TestItems.registerTestItems();
@@ -167,6 +171,12 @@ public class GameScreen implements Screen {
             return !dn.isAlive();
         });
 
+        // Update death animations
+        deathAnimations.removeIf(da -> {
+            da.update(delta);
+            return !da.isAlive();
+        });
+
         // Update world items
         worldItemManager.update(delta);
 
@@ -213,6 +223,14 @@ public class GameScreen implements Screen {
         batch.begin();
         for (com.game.entity.DamageNumberEntity damageNumber : damageNumbers) {
             damageNumber.render(batch);
+        }
+        batch.end();
+
+        // Render death animations
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (com.game.entity.DeathAnimationEntity deathAnimation : deathAnimations) {
+            deathAnimation.render(batch);
         }
         batch.end();
 
@@ -353,6 +371,22 @@ public class GameScreen implements Screen {
                 com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, damageFont);
                 damageNumbers.add(damageNumber);
             });
+
+            // Set death callback to spawn animation and disable hitbox
+            enemy.setDeathCallback((deadEnemy, x, y) -> {
+                // Spawn death animation
+                com.game.entity.DeathAnimationEntity deathAnimation = new com.game.entity.DeathAnimationEntity(x, y);
+                deathAnimations.add(deathAnimation);
+
+                // Disable combat collider so enemy can't be hit again
+                // Enemy stays in world but is inactive (already set by onDeath -> setActive(false))
+                com.game.components.ColliderComponent combatCollider = deadEnemy.getCombatCollider();
+                if (combatCollider != null) {
+                    // Mark collider as disabled by setting size to 0
+                    combatCollider.setSize(0, 0);
+                }
+            });
+
             world.addGameObject(enemy);
         }
     }
@@ -649,6 +683,8 @@ public class GameScreen implements Screen {
         // Render enemy colliders
         for (GameObject obj : world.getGameObjects()) {
             if (obj instanceof EnemyEntity enemy) {
+                // Skip inactive enemies (dead, etc.)
+                if (!enemy.isActive()) continue;
 
                 // Environment collider (cyan) - feet
                 shapeRenderer.setColor(0, 1, 1, 1);
@@ -702,6 +738,8 @@ public class GameScreen implements Screen {
 
         for (GameObject obj : world.getGameObjects()) {
             if (obj instanceof EnemyEntity enemy) {
+                // Skip inactive enemies (dead, etc.)
+                if (!enemy.isActive()) continue;
 
                 // Access current path via a getter we'll need to add
                 Array<Vector2> path = enemy.getCurrentPath();
@@ -733,6 +771,9 @@ public class GameScreen implements Screen {
 
         for (GameObject obj : world.getGameObjects()) {
             if (obj instanceof EnemyEntity enemy) {
+                // Skip inactive enemies (dead, etc.)
+                if (!enemy.isActive()) continue;
+
                 Array<Vector2> path = enemy.getCurrentPath();
                 int waypointIndex = enemy.getCurrentWaypointIndex();
 

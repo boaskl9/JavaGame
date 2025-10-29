@@ -40,6 +40,7 @@ public class StabStrategy implements AttackStrategy {
         // Check each potential target
         for (GameObject target : potentialTargets) {
             if (target == attacker) continue;
+            if (!target.isActive()) continue; // Skip inactive targets
             if (attackComponent.hasHitEntity(target)) continue;
 
             ColliderComponent targetCollider = target.getComponent(ColliderComponent.class);
