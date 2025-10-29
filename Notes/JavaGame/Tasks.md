@@ -4,4 +4,5 @@
 - [ ] More maps
 - [ ] Introduce [[cursor sprites]]
 - [ ] Overhaul UI visuals
-- [ ] Health system
+- [x] Health system
+- [ ] Loot table
