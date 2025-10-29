@@ -144,8 +144,42 @@ public class HammerSlamStrategy implements AttackStrategy {
     public float[] getHitboxPolygon(GameObject attacker,
                                     AttackComponent attackComponent,
                                     WeaponStats weapon) {
-        // TODO: Implement rotating polygon for hammer
-        return null;
+        Transform attackerTransform = attacker.getComponent(Transform.class);
+        if (attackerTransform == null) {
+            return null;
+        }
+
+        float attackerCenterX = attackerTransform.getX() + 8f;
+        float attackerCenterY = attackerTransform.getY() + 8f;
+
+        float baseAngle = attackComponent.getAttackDirection();
+        float angleOffset = getWeaponAngleOffset(attackComponent, weapon);
+        float weaponAngle = baseAngle + angleOffset;
+        float angleRad = (float) Math.toRadians(weaponAngle);
+
+        // Calculate impact point
+        AttackComponent.AttackPhase phase = attackComponent.getPhase();
+        float impactDistance = (phase == AttackComponent.AttackPhase.ACTIVE)
+            ? weapon.getRange() * 0.6f
+            : 0f; // Overhead during windup, no forward distance
+
+        float impactX = attackerCenterX + (float) Math.cos(angleRad) * impactDistance;
+        float impactY = attackerCenterY + (float) Math.sin(angleRad) * impactDistance;
+
+        // Area of effect radius
+        float aoeRadius = weapon.getRange() * 0.8f;
+
+        // Create octagon (8 vertices) to approximate a circle
+        int numVertices = 8;
+        float[] vertices = new float[numVertices * 2]; // x, y for each vertex
+
+        for (int i = 0; i < numVertices; i++) {
+            float angle = (float) (2 * Math.PI * i / numVertices);
+            vertices[i * 2] = impactX + (float) Math.cos(angle) * aoeRadius;
+            vertices[i * 2 + 1] = impactY + (float) Math.sin(angle) * aoeRadius;
+        }
+
+        return vertices;
     }
 
     @Override

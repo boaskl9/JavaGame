@@ -103,8 +103,52 @@ public class StabStrategy implements AttackStrategy {
     public float[] getHitboxPolygon(GameObject attacker,
                                     AttackComponent attackComponent,
                                     WeaponStats weapon) {
-        // TODO: Implement rotating polygon for dagger
-        return null;
+        Transform attackerTransform = attacker.getComponent(Transform.class);
+        if (attackerTransform == null) {
+            return null;
+        }
+
+        // Calculate the 4 corners of the rotated rectangle
+        float baseAngle = attackComponent.getAttackDirection();
+        float angleOffset = getWeaponAngleOffset(attackComponent, weapon);
+        float weaponAngle = baseAngle + angleOffset;
+        float angleRad = (float) Math.toRadians(weaponAngle);
+
+        float attackerCenterX = attackerTransform.getX() + 8f;
+        float attackerCenterY = attackerTransform.getY() + 8f;
+
+        float range = weapon.getRange();
+        float stabHeight = 6f; // Very narrow stab hitbox
+
+        // Calculate direction vectors
+        float dirX = (float) Math.cos(angleRad);
+        float dirY = (float) Math.sin(angleRad);
+        float perpX = -dirY; // Perpendicular vector (for width)
+        float perpY = dirX;
+
+        float halfHeight = stabHeight / 2f;
+
+        // Calculate 4 corners of the rotated rectangle
+        // Rectangle extends from attacker center outward in weapon direction
+
+        // Corner 1: Bottom-left (start, -width/2)
+        float x1 = attackerCenterX + perpX * -halfHeight;
+        float y1 = attackerCenterY + perpY * -halfHeight;
+
+        // Corner 2: Bottom-right (start, +width/2)
+        float x2 = attackerCenterX + perpX * halfHeight;
+        float y2 = attackerCenterY + perpY * halfHeight;
+
+        // Corner 3: Top-right (tip, +width/2)
+        float x3 = attackerCenterX + dirX * range + perpX * halfHeight;
+        float y3 = attackerCenterY + dirY * range + perpY * halfHeight;
+
+        // Corner 4: Top-left (tip, -width/2)
+        float x4 = attackerCenterX + dirX * range + perpX * -halfHeight;
+        float y4 = attackerCenterY + dirY * range + perpY * -halfHeight;
+
+        // Return as array: [x1, y1, x2, y2, x3, y3, x4, y4]
+        return new float[] { x1, y1, x2, y2, x3, y3, x4, y4 };
     }
 
     @Override
