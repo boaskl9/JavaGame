@@ -1,6 +1,5 @@
-package com.game.entity;
+package com.game.systems.entity.entities;
 
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;

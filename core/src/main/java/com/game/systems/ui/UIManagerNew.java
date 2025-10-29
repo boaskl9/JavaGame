@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.game.integration.WorldItemManager;
+import com.game.systems.entity.entities.PlayerEntity;
 import com.game.systems.inventory.InventoryContainer;
 import com.game.systems.inventory.PlayerInventory;
 import com.game.systems.inventory.BagInstance;
@@ -24,7 +25,7 @@ public class UIManagerNew {
     private Stage stage;
     private Skin skin;
     private PlayerInventory playerInventory;
-    private com.game.entity.PlayerEntity player; // Reference to player for equipment updates
+    private PlayerEntity player; // Reference to player for equipment updates
     private ItemDragAndDropSystem dragAndDrop;
     private WorldItemManager worldItemManager;
 
@@ -1054,7 +1055,7 @@ public class UIManagerNew {
     /**
      * Sets the player reference for equipment updates.
      */
-    public void setPlayer(com.game.entity.PlayerEntity player) {
+    public void setPlayer(PlayerEntity player) {
         this.player = player;
         // Update weapon sprite on initial setup
         if (player != null) {

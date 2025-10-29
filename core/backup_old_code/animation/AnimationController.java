@@ -1,9 +1,9 @@
-package com.game.entity.animation;
+package com.game.entities.animation;
 
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
-import com.game.entity.Player;
+import com.game.entities.Player;
 import com.badlogic.gdx.graphics.Texture;
 import java.util.HashMap;
 import java.util.Map;

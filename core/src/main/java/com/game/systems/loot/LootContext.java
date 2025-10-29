@@ -1,7 +1,7 @@
 package com.game.systems.loot;
 
-import com.game.entity.EnemyEntity;
-import com.game.entity.PlayerEntity;
+import com.game.systems.entity.entities.EnemyEntity;
+import com.game.systems.entity.entities.PlayerEntity;
 
 import java.util.ArrayList;
 import java.util.List;

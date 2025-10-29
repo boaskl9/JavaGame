@@ -1,9 +1,8 @@
-package com.game.entity;
+package com.game.systems.entity.entities;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.game.components.VelocityComponent;
-import com.game.systems.entity.Entity;
 import com.game.systems.entity.Transform;
 import com.game.systems.inventory.InventoryConfig;
 import com.game.systems.item.ItemStack;

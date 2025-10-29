@@ -97,8 +97,16 @@ public class LootTableComponent implements Component {
         List<LootModifier> modifiers = new ArrayList<>(context.getActiveModifiers());
         modifiers.sort(Comparator.comparingInt(LootModifier::getPriority).reversed());
 
+        for (LootDrop drop : effectiveDrops) {
+            System.out.println("Before: Drop table contains: " + drop.toString());
+        }
+
         for (LootModifier modifier : modifiers) {
             modifier.modify(effectiveDrops, context);
+        }
+
+        for (LootDrop drop : effectiveDrops) {
+            System.out.println("After: Drop table contains: " + drop.toString());
         }
 
         // Roll each drop

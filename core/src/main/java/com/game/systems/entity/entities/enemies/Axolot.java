@@ -1,8 +1,8 @@
-package com.game.entity.enemies;
+package com.game.systems.entity.entities.enemies;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
-import com.game.entity.EnemyEntity;
+import com.game.systems.entity.entities.EnemyEntity;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
 import com.game.systems.loot.LootTableComponent;

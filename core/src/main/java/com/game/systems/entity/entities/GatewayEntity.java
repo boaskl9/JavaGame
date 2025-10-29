@@ -1,4 +1,4 @@
-package com.game.entity;
+package com.game.systems.entity.entities;
 
 import com.game.components.ColliderComponent;
 import com.game.systems.entity.Transform;

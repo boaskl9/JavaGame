@@ -3,8 +3,8 @@ package com.game.world;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
-import com.game.entity.Entity;
-import com.game.entity.Gateway;
+import com.game.entities.Entity;
+import com.game.entities.Gateway;
 
 import java.util.ArrayList;
 import java.util.List;

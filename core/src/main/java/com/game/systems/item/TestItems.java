@@ -7,6 +7,7 @@ import com.game.integration.WorldItemManager;
 import com.game.systems.combat.WeaponStats;
 import com.game.systems.combat.WeaponType;
 import com.game.systems.inventory.EquipmentSlot;
+import com.game.systems.loot.QuantityMultiplierModifier;
 
 /**
  * Registers test items for debugging and development.
@@ -135,6 +136,7 @@ public class TestItems {
             null,
             EquipmentSlot.RING_1 // Can go in either ring slot
         );
+        rubyRing.setLootModifier(new QuantityMultiplierModifier(1.5f));
         ItemRegistry.register(rubyRing);
 
         ItemDefinition emeraldRing = new ItemDefinition(

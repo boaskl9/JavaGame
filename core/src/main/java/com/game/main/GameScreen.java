@@ -19,13 +19,15 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.game.components.ColliderComponent;
 import com.game.components.RenderComponent;
-import com.game.entity.EnemyEntity;
-import com.game.entity.GatewayEntity;
-import com.game.entity.ItemPickupEntity;
-import com.game.entity.PlayerEntity;
-import com.game.entity.enemies.LizardEnemy;
-import com.game.entity.enemies.Axolot;
-import com.game.entity.enemies.CatEnemy;
+import com.game.systems.entity.entities.EnemyEntity;
+import com.game.systems.entity.entities.GatewayEntity;
+import com.game.systems.entity.entities.ItemPickupEntity;
+import com.game.systems.entity.entities.PlayerEntity;
+import com.game.systems.entity.entities.DamageNumberEntity;
+import com.game.systems.entity.entities.DeathAnimationEntity;
+import com.game.systems.entity.entities.enemies.LizardEnemy;
+import com.game.systems.entity.entities.enemies.Axolot;
+import com.game.systems.entity.entities.enemies.CatEnemy;
 import com.game.integration.WorldItemManager;
 import com.game.integration.WorldManager;
 import com.game.rendering.YSortRenderer;
@@ -77,10 +79,10 @@ public class GameScreen implements Screen {
     private GatewayEntity pendingGateway = null;
 
     // Damage numbers
-    private java.util.List<com.game.entity.DamageNumberEntity> damageNumbers;
+    private java.util.List<DamageNumberEntity> damageNumbers;
 
     // Death animations
-    private java.util.List<com.game.entity.DeathAnimationEntity> deathAnimations;
+    private java.util.List<DeathAnimationEntity> deathAnimations;
 
     public GameScreen() {
         // Create cameras
@@ -224,7 +226,7 @@ public class GameScreen implements Screen {
         // Render damage numbers
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        for (com.game.entity.DamageNumberEntity damageNumber : damageNumbers) {
+        for (DamageNumberEntity damageNumber : damageNumbers) {
             damageNumber.render(batch);
         }
         batch.end();
@@ -232,7 +234,7 @@ public class GameScreen implements Screen {
         // Render death animations
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        for (com.game.entity.DeathAnimationEntity deathAnimation : deathAnimations) {
+        for (DeathAnimationEntity deathAnimation : deathAnimations) {
             deathAnimation.render(batch);
         }
         batch.end();
@@ -371,14 +373,14 @@ public class GameScreen implements Screen {
         // Set damage number callback for enemy
         if (enemy != null) {
             enemy.setDamageNumberCallback((x, y, damage) -> {
-                com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, damageFont);
+                DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
                 damageNumbers.add(damageNumber);
             });
 
             // Set death callback to spawn animation and disable hitbox
             enemy.setDeathCallback((deadEnemy, x, y) -> {
                 // Spawn death animation
-                com.game.entity.DeathAnimationEntity deathAnimation = new com.game.entity.DeathAnimationEntity(x, y);
+                DeathAnimationEntity deathAnimation = new DeathAnimationEntity(x, y);
                 deathAnimations.add(deathAnimation);
 
                 // Disable combat collider so enemy can't be hit again
@@ -532,7 +534,7 @@ public class GameScreen implements Screen {
 
         // Set damage number callback
         player.setDamageNumberCallback((x, y, damage) -> {
-            com.game.entity.DamageNumberEntity damageNumber = new com.game.entity.DamageNumberEntity(x, y, damage, damageFont);
+            DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
             damageNumbers.add(damageNumber);
         });
 

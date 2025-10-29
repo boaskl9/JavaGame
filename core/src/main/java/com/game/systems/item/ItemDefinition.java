@@ -2,6 +2,7 @@ package com.game.systems.item;
 
 import com.game.systems.combat.WeaponStats;
 import com.game.systems.inventory.EquipmentSlot;
+import com.game.systems.loot.LootModifier;
 
 /**
  * Immutable definition of an item type.
@@ -19,6 +20,16 @@ public class ItemDefinition {
     private final EquipmentSlot equipmentSlot; // Which equipment slot this item goes in (null if not equippable)
     private final WeaponStats weaponStats; // Combat stats for weapons (null if not a weapon)
     private final String weaponSpritePath; // Path to SpriteInHand.png for weapon rendering (null if not a weapon)
+
+    private LootModifier lootModifier;
+
+    public LootModifier getLootModifier() {
+        return lootModifier;
+    }
+
+    public void setLootModifier(LootModifier lootModifier) {
+        this.lootModifier = lootModifier;
+    }
 
     public ItemDefinition(String id, String name, String description, ItemType type,
                          int maxStackSize, String iconPath, boolean consumable) {

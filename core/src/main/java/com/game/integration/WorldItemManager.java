@@ -3,7 +3,7 @@ package com.game.integration;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
-import com.game.entity.ItemPickupEntity;
+import com.game.systems.entity.entities.ItemPickupEntity;
 import com.game.systems.inventory.InventoryConfig;
 import com.game.systems.item.ItemStack;
 

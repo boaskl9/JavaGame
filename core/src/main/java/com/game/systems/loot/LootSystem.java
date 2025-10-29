@@ -1,13 +1,16 @@
 package com.game.systems.loot;
 
-import com.game.entity.EnemyEntity;
-import com.game.entity.PlayerEntity;
+import com.game.systems.entity.entities.EnemyEntity;
+import com.game.systems.entity.entities.PlayerEntity;
 import com.game.integration.WorldItemManager;
 import com.game.systems.entity.Transform;
+import com.game.systems.inventory.EquipmentSlot;
+import com.game.systems.inventory.PlayerEquipment;
 import com.game.systems.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Singleton manager system that orchestrates loot drop generation.
@@ -120,10 +123,20 @@ public class LootSystem {
         }
 
         // TODO: Implement modifier collection from:
-        // - Equipped weapons (e.g., hide harvester)
-        // - Equipped accessories/trinkets (e.g., coffee ring)
         // - Active skills/buffs
         // - Player stats (e.g., luck modifier)
+        PlayerEquipment equipment = player.getInventory().getEquipment();
+
+        Map<EquipmentSlot, ItemStack> equippedItems = equipment.getAllEquipped();
+
+        for (var itemSlot : equippedItems.entrySet()) {
+            ItemStack item = itemSlot.getValue();
+
+            LootModifier mod = item.getDefinition().getLootModifier();
+            if (mod != null) {
+                modifiers.add(mod);
+            }
+        }
 
         // For now, return empty list
         return modifiers;

@@ -1,5 +1,7 @@
 package com.game.systems.item;
 
+import com.game.systems.loot.LootModifier;
+
 /**
  * Represents a stack of items (definition + quantity).
  * Mutable class for inventory management.
@@ -7,6 +9,7 @@ package com.game.systems.item;
 public class ItemStack {
     private final ItemDefinition definition;
     private int quantity;
+
 
     public ItemStack(ItemDefinition definition, int quantity) {
         if (definition == null) {

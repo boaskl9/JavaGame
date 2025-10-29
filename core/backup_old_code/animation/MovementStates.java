@@ -1,4 +1,4 @@
-package com.game.entity.animation;
+package com.game.entities.animation;
 
 public enum MovementStates
 {

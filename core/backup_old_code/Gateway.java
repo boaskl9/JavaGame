@@ -1,4 +1,4 @@
-package com.game.entity;
+package com.game.entities;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;

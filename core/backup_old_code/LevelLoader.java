@@ -7,8 +7,8 @@ import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
-import com.game.entity.Entity;
-import com.game.entity.Gateway;
+import com.game.entities.Entity;
+import com.game.entities.Gateway;
 import com.game.world.*;
 
 import java.util.ArrayList;

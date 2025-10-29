@@ -1,4 +1,4 @@
-package com.game.entity;
+package com.game.systems.entity.entities;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -16,15 +16,11 @@ import com.game.components.VelocityComponent;
 import com.game.components.WeaponRenderComponent;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
-import com.game.systems.combat.CombatUtils;
 import com.game.systems.combat.WeaponStats;
-import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
 import com.game.systems.inventory.EquipmentSlot;
 import com.game.systems.inventory.PlayerInventory;
 import com.game.systems.item.ItemStack;
-
-import java.util.List;
 
 /**
  * Player entity built using the new component-based architecture.
