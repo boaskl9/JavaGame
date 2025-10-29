@@ -28,13 +28,14 @@ core/src/main/java/com.game/
 │   ├── entity/       # Component-Entity System
 │   ├── animation/    # Sprite animation engine
 │   ├── collision/    # Spatial queries (SpatialQuery)
+│   ├── combat/       # Attack system, weapon stats, strategies
 │   ├── input/        # InputManager with rebindable keys
 │   ├── inventory/    # Inventory containers & bags
 │   ├── item/         # Item definitions & factory
 │   ├── level/        # Tiled map parser
 │   └── ui/           # UIManagerNew + components
-├── components/        # ECS components (Transform, Render, Collider, etc.)
-├── entity/           # Concrete entities (Player, NPC, ItemPickup, Gateway)
+├── components/        # ECS components (Transform, Render, Collider, Health, Attack, etc.)
+├── entity/           # Concrete entities (Player, Enemy, NPC, ItemPickup, Gateway)
 ├── integration/      # WorldManager, WorldItemManager (glue layer)
 ├── rendering/        # YSortRenderer (depth sorting)
 └── world/            # World object definitions
@@ -96,6 +97,24 @@ core/src/main/java/com.game/
 - **Components**: ContainerWindow (inventory), ItemSlotUI, drag-and-drop, ContextMenu, TooltipLabel, BottomHUD (quick bar)
 - Resolution-independent via ScreenViewport
 
+### 9. Combat System
+- **Architecture**: Strategy-based attack system with multi-phase timing
+- **WeaponStats**: Defines weapon damage, speed, range, knockback, and attack pattern timing (windup/swing/recovery)
+- **WeaponType**: 8 weapon types (SWORD, SPEAR, HAMMER, BOW, DAGGER, AXE, STAFF, WHIP) with unique behaviors
+- **AttackComponent**: Manages attack state machine with phases (IDLE → WINDUP → ACTIVE → RECOVERY → COOLDOWN)
+- **AttackSystem**: Unified system for all entity attacks; handles hit detection, damage, and knockback
+- **Attack Strategies**:
+  - ArcSwingStrategy: Sweeping arcs for swords, axes, whips
+  - SpearThrustStrategy: Forward thrusts for spears, staffs
+  - HammerSlamStrategy: Overhead slams
+  - StabStrategy: Quick stabs for daggers
+- **Hit Detection**: Arc-based and directional hitboxes; prevents multi-hitting via hit tracking
+- **CombatUtils**: Helper methods for angles, knockback, and hitbox calculations
+- **Health System**: Entity base class with health/damage/death; HealthComponent for UI integration
+- **Enemy AI**: State machine (IDLE/WANDER/CHASE/ATTACK/FLEE) with pathfinding, detection range, and attack range
+- **Knockback**: Applied to VelocityComponent with direction-based physics
+- **Death Handling**: onDeath() callback for enemies; supports death animations and loot drops
+
 ---
 
 ## Architecture Patterns
@@ -111,15 +130,16 @@ core/src/main/java/com.game/
 
 ## Planned Systems (Not Implemented)
 
-- **Combat**: Hitboxes exist, needs damage/stats/AI
+- **Loot Drops**: Monster death drops with loot tables, rarities, and randomization
 - **NPCs**: Base class exists, needs dialogue/quests/schedules
-- **Enemies**: AI, spawn logic, drops
+- **Enemy Spawning**: Spawn logic, spawn points, waves
 - **Shops**: Buy/sell UI + economy
 - **Dungeons**: Procedural generation, room templates
 - **Minigames**: Fishing, card game, others
 - **Perks/Skills**: Special items with unique mechanics that synergize
 - **Settings**: Options menu, keybinds UI, audio controls
 - **Day/Night Cycle**: 30-min timer, visual transitions
+- **Projectiles**: Ranged weapons (bows), enemy projectiles
 
 ---
 
