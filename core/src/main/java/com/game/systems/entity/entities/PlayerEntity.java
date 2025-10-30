@@ -32,7 +32,7 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     private static final float WALK_SPEED = 80f;
     private static final float RUN_SPEED = 160f;
     private static final int SIZE = 16;
-    private static final int DEFAULT_MAX_HEALTH = 12;  // 6 hearts = 12 HP (4 HP per heart)
+    private static final int DEFAULT_MAX_HEALTH = 28;
 
     private static PlayerEntity instance;
 

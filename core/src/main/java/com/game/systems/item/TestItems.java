@@ -271,14 +271,14 @@ public class TestItems {
         // Claw Attack - Fast, short-range swipes for enemies
         WeaponStats clawStats = new WeaponStats(
             WeaponType.CLAW,
-            3,      // damage (fast, low damage)
+            1,      // damage (fast, low damage)
             1.5f,   // attackSpeed (1.5 attacks/sec - fast)
-            20f,    // range (short - claws are close range)
-            60f,    // knockback (light)
-            0.1f,   // windup (quick)
-            0.3f,   // swing duration (fast swipe)
-            0.1f,   // recovery (quick)
-            60f,    // swing arc (short arc - half of sword's 120°)
+            55f,    // range (short - claws are close range)
+            360f,    // knockback (light)
+            0.3f,   // windup (quick)
+            0.25f,   // swing duration (fast swipe)
+            1f,   // recovery (quick)
+            0f,    // swing arc (short arc - half of sword's 120°)
             0.6f    // movement multiplier (can move while swiping)
         );
         ItemDefinition claw = new ItemDefinition(

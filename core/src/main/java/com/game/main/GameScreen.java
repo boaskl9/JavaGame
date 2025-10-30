@@ -17,6 +17,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.game.components.AttackComponent;
 import com.game.components.ColliderComponent;
 import com.game.components.RenderComponent;
 import com.game.systems.entity.entities.EnemyEntity;
@@ -707,6 +708,23 @@ public class GameScreen implements Screen {
                 if (combatCollider != null) {
                     Rectangle combatBounds = combatCollider.getBounds(enemy);
                     shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
+                }
+
+                // Attack hitbox (orange, semi-transparent) - only when attacking
+                AttackComponent attackComp = enemy.getComponent(AttackComponent.class);
+                if (attackComp != null && attackComp.isAttacking() && attackComp.getCurrentWeapon() != null) {
+                    shapeRenderer.setColor(1, 0.5f, 0, 0.5f);
+
+                    // Get attack strategy and render polygon
+                    com.game.systems.combat.AttackStrategy strategy =
+                        com.game.systems.combat.AttackSystem.getStrategy(attackComp.getCurrentWeapon().getType());
+
+                    float[] polygon = strategy.getHitboxPolygon(enemy, attackComp, attackComp.getCurrentWeapon());
+                    if (polygon != null && polygon.length == 8) {
+                        // Draw the 4-sided polygon
+                        shapeRenderer.triangle(polygon[0], polygon[1], polygon[2], polygon[3], polygon[4], polygon[5]);
+                        shapeRenderer.triangle(polygon[0], polygon[1], polygon[4], polygon[5], polygon[6], polygon[7]);
+                    }
                 }
             }
         }
