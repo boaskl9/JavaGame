@@ -70,14 +70,13 @@ public abstract class EnemyEntity extends Entity {
         addComponent(animation);
 
         // Environment collider - very small "point" at feet for smooth corner navigation
-        // 4x4 pixels at bottom center - small enough to slide around corners easily
+        // NOT added to components - accessed via field reference by collision system
         environmentCollider = new ColliderComponent(4f, 4f, SIZE * 0.375f, SIZE * 0.0625f);
-        addComponent(environmentCollider);
 
-        // Combat collider - full body, slightly smaller than sprite
-        // 12x12 pixels centered (75% of sprite size)
+        // Combat collider - full body, slightly smaller than sprite (75% of sprite size)
+        // This IS added to components so attack system can find it via getComponent()
         combatCollider = new ColliderComponent(SIZE * 0.75f, SIZE * 0.75f, SIZE * 0.125f, SIZE * 0.125f);
-        // Note: Combat collider not added as component yet (will be used for combat system later)
+        addComponent(combatCollider);
 
         RenderComponent render = new RenderComponent(SIZE, SIZE);
         addComponent(render);

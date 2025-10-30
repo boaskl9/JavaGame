@@ -3,9 +3,13 @@ package com.game.systems.entity.entities.enemies;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.game.components.AIComponent;
+import com.game.components.WeaponRenderComponent;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
+import com.game.systems.combat.WeaponStats;
+import com.game.systems.item.ItemDefinition;
+import com.game.systems.item.ItemRegistry;
 import com.game.systems.loot.LootTableComponent;
 
 /**
@@ -44,7 +48,19 @@ public class LizardEnemy extends EnemyEntity {
         addTag("monster:lizard");
         addTag("reptile");
 
-        // Load animations (using Frog as placeholder)
+        // Setup claw weapon rendering with 4-frame animation
+        WeaponRenderComponent weaponRender = new WeaponRenderComponent();
+        try {
+            Texture clawSheet = new Texture(Gdx.files.internal("assets/FX/SlashFx/Claw/SpriteSheet.png"));
+            weaponRender.setWeaponAnimationFrames(clawSheet, 4);  // 4 frames
+            weaponRender.setAttachmentPoint(8f, 8f);  // Centered on lizard
+            weaponRender.setPivotPoint(0f, 0f);       // Pivot at base of claw
+            addComponent(weaponRender);
+        } catch (Exception e) {
+            System.err.println("Failed to load claw animation for LizardEnemy: " + e.getMessage());
+        }
+
+        // Load animations (using Lizard sprite)
         loadAnimations();
     }
 
@@ -60,17 +76,14 @@ public class LizardEnemy extends EnemyEntity {
     }
 
     @Override
-    protected void performAttack(float delta) {
-        // Lizard's simple attack - just bumps into the player
-        if (ai.getStateTimer() > 0.8f) {
-            // TODO: Deal damage when combat system is ready
-            System.out.println("Lizard bumps the player!");
-            ai.setState(AIComponent.AIState.CHASE);
+    protected WeaponStats getWeaponStats() {
+        // Use claw weapon stats from the item registry
+        ItemDefinition clawDef = ItemRegistry.get("claw_attack");
+        if (clawDef != null && clawDef.getWeaponStats() != null) {
+            return clawDef.getWeaponStats();
         }
-    }
 
-    @Override
-    protected void onDeath() {
-        super.onDeath();
+        // Fallback to parent implementation if claw not found
+        return super.getWeaponStats();
     }
 }

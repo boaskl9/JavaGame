@@ -2,6 +2,7 @@ package com.game.components;
 
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.game.systems.entity.Component;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
@@ -15,6 +16,10 @@ public class WeaponRenderComponent implements Component {
     private Texture weaponTexture;
     private float weaponWidth;
     private float weaponHeight;
+
+    // Frame-based animation support (null for single-sprite weapons)
+    private TextureRegion[] animationFrames;
+    private boolean useFrameAnimation;
 
     // Weapon attachment point (offset from entity center)
     private float attachOffsetX;  // X offset from entity center to weapon handle
@@ -31,6 +36,8 @@ public class WeaponRenderComponent implements Component {
         this.weaponTexture = null;
         this.weaponWidth = 16f;
         this.weaponHeight = 16f;
+        this.animationFrames = null;
+        this.useFrameAnimation = false;
         this.attachOffsetX = 0f;
         this.attachOffsetY = 0f;
         this.pivotX = 2;  // Default: pivot near left edge (handle)
@@ -40,11 +47,15 @@ public class WeaponRenderComponent implements Component {
     /**
      * Sets the weapon sprite to render.
      * Automatically uses the texture's actual dimensions.
+     * For single-sprite (non-animated) weapons.
      *
      * @param texture The weapon texture
      */
     public void setWeaponSprite(Texture texture) {
         this.weaponTexture = texture;
+        this.animationFrames = null;
+        this.useFrameAnimation = false;
+
         if (texture != null) {
             this.weaponWidth = texture.getWidth();
             this.weaponHeight = texture.getHeight();
@@ -55,6 +66,46 @@ public class WeaponRenderComponent implements Component {
             this.weaponWidth = 0;
             this.weaponHeight = 0;
         }
+    }
+
+    /**
+     * Sets weapon animation from a sprite sheet with multiple frames.
+     * Used for weapons with frame-based attack animations (e.g., claw attacks).
+     * Frames should be arranged horizontally in the sprite sheet.
+     *
+     * @param spriteSheet The texture containing all animation frames
+     * @param frameCount Number of frames in the sprite sheet
+     */
+    public void setWeaponAnimationFrames(Texture spriteSheet, int frameCount) {
+        if (spriteSheet == null || frameCount <= 0) {
+            this.weaponTexture = null;
+            this.animationFrames = null;
+            this.useFrameAnimation = false;
+            return;
+        }
+
+        this.weaponTexture = spriteSheet;
+        this.useFrameAnimation = true;
+
+        int frameWidth = spriteSheet.getWidth() / frameCount;
+        int frameHeight = spriteSheet.getHeight();
+
+        this.weaponWidth = frameWidth;
+        this.weaponHeight = frameHeight;
+
+        // Create texture regions for each frame
+        this.animationFrames = new TextureRegion[frameCount];
+        for (int i = 0; i < frameCount; i++) {
+            this.animationFrames[i] = new TextureRegion(
+                spriteSheet,
+                i * frameWidth, 0,
+                frameWidth, frameHeight
+            );
+        }
+
+        // Default pivot point at handle
+        this.pivotX = 0;
+        this.pivotY = 0;
     }
 
     /**
@@ -83,6 +134,7 @@ public class WeaponRenderComponent implements Component {
      * Renders the weapon sprite.
      * Only shows weapon during attack phases (WINDUP, ACTIVE, RECOVERY).
      * Uses the same positioning calculations as the hitbox for perfect alignment.
+     * Supports both single-sprite and frame-based animation.
      *
      * @param batch SpriteBatch to render with
      * @param gameObject The entity this component belongs to
@@ -141,25 +193,90 @@ public class WeaponRenderComponent implements Component {
             + dirY * forwardOffset
             + perpY * (pivotX + spriteHalfWidth);
 
-        // Render weapon sprite extending from handle in the direction of the hitbox
-        batch.draw(
-            weaponTexture,
-            weaponHandleX - pivotX,  // Position adjusted for pivot
-            weaponHandleY - pivotY,
-            pivotX,                  // Origin X (rotation point in sprite space = handle)
-            pivotY,                  // Origin Y
-            weaponWidth,             // Width
-            weaponHeight,            // Height
-            1f,                      // Scale X
-            1f,                      // Scale Y
-            weaponAngle - 90,        // Rotation (-90 because sprite default points up)
-            0,                       // Source X
-            0,                       // Source Y
-            (int) weaponWidth,       // Source width
-            (int) weaponHeight,      // Source height
-            false,                   // Flip X
-            false                    // Flip Y
-        );
+        // Select appropriate frame or texture for rendering
+        if (useFrameAnimation && animationFrames != null) {
+            // Frame-based animation - select frame based on attack phase
+            int frameIndex = selectAnimationFrame(attackComponent);
+            TextureRegion currentFrame = animationFrames[frameIndex];
+
+            // TextureRegion.draw has different signature than Texture.draw
+            // Note: No flip parameters - flip the region beforehand if needed
+            batch.draw(
+                currentFrame,
+                weaponHandleX - pivotX,  // Position adjusted for pivot
+                weaponHandleY - pivotY,
+                pivotX,                  // Origin X (rotation point in sprite space = handle)
+                pivotY,                  // Origin Y
+                weaponWidth,             // Width
+                weaponHeight,            // Height
+                1f,                      // Scale X
+                1f,                      // Scale Y
+                weaponAngle - 90         // Rotation (-90 because sprite default points up)
+            );
+        } else {
+            // Single-sprite rendering (existing behavior)
+            batch.draw(
+                weaponTexture,
+                weaponHandleX - pivotX,  // Position adjusted for pivot
+                weaponHandleY - pivotY,
+                pivotX,                  // Origin X (rotation point in sprite space = handle)
+                pivotY,                  // Origin Y
+                weaponWidth,             // Width
+                weaponHeight,            // Height
+                1f,                      // Scale X
+                1f,                      // Scale Y
+                weaponAngle - 90,        // Rotation (-90 because sprite default points up)
+                0,                       // Source X
+                0,                       // Source Y
+                (int) weaponWidth,       // Source width
+                (int) weaponHeight,      // Source height
+                false,                   // Flip X
+                false                    // Flip Y
+            );
+        }
+    }
+
+    /**
+     * Selects the appropriate animation frame based on attack phase and progress.
+     * Frame distribution:
+     * - Frame 0: WINDUP phase
+     * - Frames 1-3: ACTIVE phase (interpolated based on progress)
+     * - Frame 3: RECOVERY phase (hold last frame)
+     *
+     * @param attackComponent The attack component
+     * @return Frame index (0 to frameCount-1)
+     */
+    private int selectAnimationFrame(AttackComponent attackComponent) {
+        if (animationFrames == null || animationFrames.length == 0) {
+            return 0;
+        }
+
+        AttackComponent.AttackPhase phase = attackComponent.getPhase();
+        float progress = attackComponent.getPhaseProgress();
+        int frameCount = animationFrames.length;
+
+        switch (phase) {
+            case WINDUP:
+                // Frame 0 during windup
+                return 0;
+
+            case ACTIVE:
+                // Interpolate through frames 1 to (frameCount-1) during active phase
+                if (frameCount <= 1) return 0;
+
+                int activeFrames = frameCount - 1; // Frames 1, 2, 3...
+                int frameIndex = 1 + (int) (progress * activeFrames);
+                return Math.min(frameIndex, frameCount - 1);
+
+            case RECOVERY:
+                // Hold last frame during recovery
+                return frameCount - 1;
+
+            case IDLE:
+            case COOLDOWN:
+            default:
+                return 0;
+        }
     }
 
     /**

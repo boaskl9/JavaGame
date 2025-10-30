@@ -51,5 +51,12 @@ public enum WeaponType {
      * Whips - Very long range arc attacks with low damage.
      * Examples: Whip, flail, chain
      */
-    WHIP
+    WHIP,
+
+    /**
+     * Claws - Fast, short-range swipes with low damage.
+     * Examples: Beast claws, wolverine claws
+     * Primarily used by enemies, but can be equipped by player.
+     */
+    CLAW
 }

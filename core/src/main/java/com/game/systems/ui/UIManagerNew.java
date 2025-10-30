@@ -172,12 +172,12 @@ public class UIManagerNew {
         float spacing = 10;
 
         // Position inventory at bottom right
-        float inventoryX = Gdx.graphics.getWidth() - inventoryWindow.getWidth() - padding;
+        float inventoryX = Gdx.graphics.getWidth() - (inventoryWindow.getWidth() * gameSettings.getUIScale()) - padding;
         float inventoryY = hudHeight + padding;
         inventoryWindow.setPosition(inventoryX, inventoryY);
 
         // Position equipment to left of inventory
-        float equipmentX = inventoryX - equipmentWindow.getWidth() - spacing;
+        float equipmentX = inventoryX - (equipmentWindow.getWidth() * gameSettings.getUIScale()) - spacing;
         equipmentWindow.setPosition(equipmentX, inventoryY);
     }
 

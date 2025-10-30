@@ -32,7 +32,7 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     private static final float WALK_SPEED = 80f;
     private static final float RUN_SPEED = 160f;
     private static final int SIZE = 16;
-    private static final int DEFAULT_MAX_HEALTH = 100;
+    private static final int DEFAULT_MAX_HEALTH = 12;  // 6 hearts = 12 HP (4 HP per heart)
 
     private static PlayerEntity instance;
 
@@ -97,13 +97,14 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         animation = new AnimationComponent();
         addComponent(animation);
 
+        // Environment collider - used for wall/obstacle collision (feet only)
+        // NOT added to components - accessed via field reference by collision system
         environmentCollider = new ColliderComponent(SIZE * 0.5f, SIZE * 0.25f, SIZE * 0.25f, 0);
-        addComponent(environmentCollider);
 
         // Combat collider - full body hitbox for enemy attacks
-        // This would be used when enemies attack the player
+        // This IS added to components so attack system can find it via getComponent()
         combatCollider = new ColliderComponent(SIZE - 4, SIZE - 4, 2, 2);
-        // Note: Don't add to components yet - we'll add it later when we implement combat
+        addComponent(combatCollider);
 
         RenderComponent render = new RenderComponent(SIZE, SIZE);
         addComponent(render);
@@ -113,9 +114,8 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         itemMagnet.setOwner(this);
         addComponent(itemMagnet);
 
-        // Add health component (6 hearts = 12 HP)
-        health = new HealthComponent(12);
-        addComponent(health);
+        // Health component is added by Entity constructor (6 hearts = 12 HP)
+        health = getComponent(HealthComponent.class);
 
         // Add attack component
         attackComponent = new AttackComponent();

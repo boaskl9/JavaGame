@@ -45,9 +45,13 @@ public class ArcSwingStrategy implements AttackStrategy {
 
         // Check each potential target
         for (GameObject target : potentialTargets) {
+            System.out.println("1");
             if (target == attacker) continue; // Don't hit self
+            System.out.println("2");
             if (!target.isActive()) continue; // Skip inactive targets (dead enemies, etc.)
+            System.out.println("3");
             if (attackComponent.hasHitEntity(target)) continue; // Already hit this attack
+            System.out.println("4");
 
             // Get target collider and position
             ColliderComponent targetCollider = target.getComponent(ColliderComponent.class);

@@ -26,6 +26,7 @@ public class AttackSystem {
         strategies.put(WeaponType.SWORD, arcSwing);
         strategies.put(WeaponType.AXE, arcSwing);
         strategies.put(WeaponType.WHIP, arcSwing);
+        strategies.put(WeaponType.CLAW, arcSwing); // Claws use arc swings with smaller arc
 
         strategies.put(WeaponType.DAGGER, new StabStrategy());
         strategies.put(WeaponType.SPEAR, new SpearThrustStrategy());
@@ -73,6 +74,7 @@ public class AttackSystem {
             return;
         }
 
+
         // Get attack strategy for this weapon type
         AttackStrategy strategy = getStrategy(weapon.getType());
 
@@ -87,6 +89,7 @@ public class AttackSystem {
         // Apply damage and knockback to hit entities
         for (GameObject target : hitEntities) {
             applyDamage(attacker, target, weapon, damageCallback);
+            System.out.print("damage! : " + damageCallback.toString());
         }
     }
 
