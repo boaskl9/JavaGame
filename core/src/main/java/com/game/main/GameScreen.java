@@ -343,6 +343,11 @@ public class GameScreen implements Screen {
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_CAT)) {
             spawnDebugEnemy("cat");
         }
+
+        // Debug: Spawn breakable objects
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_POT)) {
+            spawnDebugBreakable("pot");
+        }
     }
 
     /**
@@ -417,6 +422,36 @@ public class GameScreen implements Screen {
             });
 
             world.addGameObject(enemy);
+        }
+    }
+
+    /**
+     * Debug function: Spawns a breakable object at mouse position.
+     * @param objectType The object type to spawn (pot, crate, etc.)
+     */
+    private void spawnDebugBreakable(String objectType) {
+        // Get mouse position in world coordinates
+        Vector3 mousePos = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+        camera.unproject(mousePos);
+
+        // Create breakable object using factory
+        BreakableEntity breakable = com.game.systems.breakable.BreakableObjectFactory.create(
+            objectType,
+            mousePos.x,
+            mousePos.y
+        );
+
+        if (breakable != null) {
+            // Set particle callback to spawn destruction particles
+            breakable.setParticleCallback((x, y, particleType) -> {
+                DestructionParticleEntity particle = new DestructionParticleEntity(x, y, particleType);
+                destructionParticles.add(particle);
+            });
+
+            world.addGameObject(breakable);
+            System.out.println("Spawned " + objectType + " at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
+        } else {
+            System.out.println("Failed to spawn breakable: " + objectType);
         }
     }
 
