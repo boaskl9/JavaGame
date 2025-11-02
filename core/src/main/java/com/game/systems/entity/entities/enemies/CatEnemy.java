@@ -2,6 +2,7 @@ package com.game.systems.entity.entities.enemies;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
+import com.game.components.SeparationComponent;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
@@ -28,6 +29,10 @@ public class CatEnemy extends EnemyEntity {
         ai.setAttackRange(CAT_ATTACK_RANGE);
         ai.setWanderInterval(3f);
         ai.setIdleTime(2f);
+
+        // Configure separation behavior (larger radius for faster enemy)
+        separation = new SeparationComponent(40f, 10f);
+        addComponent(separation);
 
         // Load animations
         loadAnimations();

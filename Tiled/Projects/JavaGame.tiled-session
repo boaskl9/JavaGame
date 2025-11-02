@@ -25,16 +25,16 @@
             "scale": 2,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 640.25,
-                "y": 480.5
+                "x": 640,
+                "y": 480.25
             }
         },
         "D:/JavaGame/assets/Maps/StartArea.tmx": {
             "scale": 0.75,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 312.6666666666667,
-                "y": 450.66666666666674
+                "x": 661.3333333333333,
+                "y": 480.66666666666663
             }
         },
         "D:/JavaGame/assets/Maps/WestArea.tmx": {
@@ -55,16 +55,16 @@
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 144.16666666666666,
-                "y": 143.99999999999997
+                "x": 144,
+                "y": 144.16666666666666
             }
         },
         "D:/JavaGame/assets/Maps/house1.tmx": {
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 160.16666666666666,
-                "y": 119.99999999999999
+                "x": 160,
+                "y": 120.16666666666666
             }
         },
         "D:/JavaGame/assets/Maps/prototype.tmx": {
@@ -74,8 +74,8 @@
             "scale": 2,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 116.75,
-                "y": 169
+                "x": 640,
+                "y": 480.25
             }
         },
         "D:/Tiled/Projects/TilesetDesert.tsx": {

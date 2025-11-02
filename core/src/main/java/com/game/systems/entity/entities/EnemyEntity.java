@@ -8,6 +8,7 @@ import com.game.components.AnimationComponent;
 import com.game.components.AttackComponent;
 import com.game.components.ColliderComponent;
 import com.game.components.RenderComponent;
+import com.game.components.SeparationComponent;
 import com.game.components.VelocityComponent;
 import com.game.integration.WorldManager;
 import com.game.systems.combat.WeaponStats;
@@ -35,6 +36,7 @@ public abstract class EnemyEntity extends Entity {
     protected ColliderComponent combatCollider;       // For player attacks, projectiles (full body)
     protected AIComponent ai;
     protected AttackComponent attackComponent;
+    protected SeparationComponent separation;         // For enemy-enemy spacing
 
     protected int lastDirectionAngle = 180; // Down
 
@@ -274,7 +276,14 @@ public abstract class EnemyEntity extends Entity {
                     currentWaypoint.y - feetPos.y
                 ).nor();
 
-                velocity.setVelocity(direction.x * ai.getMoveSpeed(), direction.y * ai.getMoveSpeed());
+                // Apply separation force to avoid bunching
+                Vector2 separationForce = calculateSeparationForce();
+
+                // Blend pathfinding direction with separation (pathfinding dominates)
+                Vector2 finalDirection = direction.scl(ai.getMoveSpeed());
+                finalDirection.add(separationForce.scl(0.6f)); // Separation weight: 60%
+
+                velocity.setVelocity(finalDirection.x, finalDirection.y);
             } else {
                 // No path - stop
                 velocity.setVelocity(0, 0);
@@ -286,7 +295,14 @@ public abstract class EnemyEntity extends Entity {
                 target.getTransform().getY() - transform.getY()
             ).nor();
 
-            velocity.setVelocity(direction.x * ai.getMoveSpeed(), direction.y * ai.getMoveSpeed());
+            // Apply separation force to avoid bunching
+            Vector2 separationForce = calculateSeparationForce();
+
+            // Blend direct movement with separation
+            Vector2 finalDirection = direction.scl(ai.getMoveSpeed());
+            finalDirection.add(separationForce.scl(0.6f)); // Separation weight: 60%
+
+            velocity.setVelocity(finalDirection.x, finalDirection.y);
         }
     }
 
@@ -339,6 +355,55 @@ public abstract class EnemyEntity extends Entity {
         }
 
         return target.getTransform().getPosition();
+    }
+
+    /**
+     * Calculates a separation force to push this enemy away from nearby allies.
+     * This prevents enemy bunching and creates natural flocking behavior.
+     *
+     * @return A vector representing the separation force (normalized direction * strength)
+     */
+    protected Vector2 calculateSeparationForce() {
+        if (separation == null) {
+            return new Vector2(0, 0);
+        }
+
+        Vector2 separationForce = new Vector2(0, 0);
+        int nearbyCount = 0;
+        Vector2 averagePosition = new Vector2(0, 0);
+
+        // Find all nearby enemies
+        for (var obj : world.getGameObjects()) {
+            if (obj instanceof EnemyEntity && obj != this && obj.isActive()) {
+                EnemyEntity other = (EnemyEntity) obj;
+
+                float distance = transform.getPosition().dst(other.getTransform().getPosition());
+
+                // Check if within separation radius
+                if (distance < separation.getSeparationRadius() && distance > 0.1f) {
+                    averagePosition.add(other.getTransform().getPosition());
+                    nearbyCount++;
+                }
+            }
+        }
+
+        // If there are nearby enemies, calculate force away from their average position
+        if (nearbyCount > 0) {
+            averagePosition.scl(1f / nearbyCount); // Calculate average
+
+            // Direction away from average position
+            separationForce.set(
+                transform.getX() - averagePosition.x,
+                transform.getY() - averagePosition.y
+            );
+
+            // Normalize and apply strength
+            if (separationForce.len() > 0) {
+                separationForce.nor().scl(separation.getSeparationStrength());
+            }
+        }
+
+        return separationForce;
     }
 
     /**

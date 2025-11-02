@@ -2,6 +2,7 @@ package com.game.systems.entity.entities.enemies;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
+import com.game.components.SeparationComponent;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
@@ -26,6 +27,10 @@ public class Axolot extends EnemyEntity {
         ai.setAttackRange(AXOLOTL_ATTACK_RANGE);
         ai.setWanderInterval(1.5f);
         ai.setIdleTime(0.8f);          // Short idle time
+
+        // Configure separation behavior
+        separation = new SeparationComponent(36f, 50f);
+        addComponent(separation);
 
         // Add loot table
         LootTableComponent lootTable = new LootTableComponent()

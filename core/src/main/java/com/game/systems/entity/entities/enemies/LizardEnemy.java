@@ -3,6 +3,7 @@ package com.game.systems.entity.entities.enemies;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.game.components.AIComponent;
+import com.game.components.SeparationComponent;
 import com.game.components.WeaponRenderComponent;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.integration.WorldManager;
@@ -36,6 +37,10 @@ public class LizardEnemy extends EnemyEntity {
         // Lizards start in wander state
         ai.setState(AIComponent.AIState.WANDER);
         pickRandomWanderDirection();
+
+        // Configure separation behavior to prevent bunching
+        separation = new SeparationComponent(32f, 10f);
+        addComponent(separation);
 
         // Add loot table
         LootTableComponent lootTable = new LootTableComponent()

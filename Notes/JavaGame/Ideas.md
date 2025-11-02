@@ -2,3 +2,6 @@ the game should have a world with various areas locked off, where a specific mec
 
 
 [[Ideas about dungeons]]
+
+
+[[Fun ideas]]
