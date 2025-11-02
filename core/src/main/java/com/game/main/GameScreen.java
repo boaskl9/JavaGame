@@ -66,6 +66,12 @@ public class GameScreen implements Screen {
     private boolean debugMode = false;
     private ShapeRenderer shapeRenderer;
 
+    // Debug time scale
+    private float timeScale = 1.0f;
+    private static final float TIME_SCALE_STEP = 0.25f;
+    private static final float MIN_TIME_SCALE = 0.25f;
+    private static final float MAX_TIME_SCALE = 4.0f;
+
     private OrthographicCamera camera;
     private OrthographicCamera uiCamera;
     private Viewport viewport;
@@ -176,33 +182,36 @@ public class GameScreen implements Screen {
             }
         }
 
+        // Apply time scale to delta (only affects game simulation, not rendering)
+        float scaledDelta = delta * timeScale;
+
         // Clear screen
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         // Update world
-        world.update(delta);
+        world.update(scaledDelta);
 
         // Update damage numbers
         damageNumbers.removeIf(dn -> {
-            dn.update(delta);
+            dn.update(scaledDelta);
             return !dn.isAlive();
         });
 
         // Update death animations
         deathAnimations.removeIf(da -> {
-            da.update(delta);
+            da.update(scaledDelta);
             return !da.isAlive();
         });
 
         // Update destruction particles
         destructionParticles.removeIf(dp -> {
-            dp.update(delta);
+            dp.update(scaledDelta);
             return !dp.isAlive();
         });
 
         // Update world items
-        worldItemManager.update(delta);
+        worldItemManager.update(scaledDelta);
 
         // Update item magnetism (register nearby items)
         updateItemMagnetism();
@@ -355,6 +364,20 @@ public class GameScreen implements Screen {
         // Debug: Test sound system
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_TEST_SOUND)) {
             testSound();
+        }
+
+        // Debug: Time scale controls
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_INCREASE_SPEED)) {
+            timeScale = Math.min(timeScale + TIME_SCALE_STEP, MAX_TIME_SCALE);
+            System.out.println("Time scale: " + timeScale + "x");
+        }
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_DECREASE_SPEED)) {
+            timeScale = Math.max(timeScale - TIME_SCALE_STEP, MIN_TIME_SCALE);
+            System.out.println("Time scale: " + timeScale + "x");
+        }
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_RESET_SPEED)) {
+            timeScale = 1.0f;
+            System.out.println("Time scale reset to: " + timeScale + "x");
         }
     }
 
@@ -995,7 +1018,8 @@ public class GameScreen implements Screen {
         debugFont.draw(batch, "Memory: " + memUsed + "/" + memTotal + " MB", x, y - lineHeight);
         debugFont.draw(batch, "Player Pos: (" + (int)playerX + ", " + (int)playerY + ")", x, y - lineHeight * 2);
         debugFont.draw(batch, "Objects: " + world.getGameObjects().size(), x, y - lineHeight * 3);
-        debugFont.draw(batch, "Press F3 to toggle debug", x, y - lineHeight * 4);
+        debugFont.draw(batch, "Time Scale: " + String.format("%.2fx", timeScale) + " (+/- to adjust, 0 to reset)", x, y - lineHeight * 4);
+        debugFont.draw(batch, "Press F3 to toggle debug", x, y - lineHeight * 5);
 
         batch.end();
     }
@@ -1039,5 +1063,14 @@ public class GameScreen implements Screen {
 
     public UIManagerNew getUiManager() {
         return uiManager;
+    }
+
+    public float getTimeScale() {
+        return timeScale;
+    }
+
+    public void setTimeScale(float timeScale) {
+        this.timeScale = Math.max(MIN_TIME_SCALE, Math.min(timeScale, MAX_TIME_SCALE));
+        System.out.println("Time scale set to: " + this.timeScale + "x");
     }
 }

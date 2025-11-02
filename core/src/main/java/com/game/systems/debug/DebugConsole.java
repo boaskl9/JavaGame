@@ -30,6 +30,8 @@ import java.util.List;
  * - /damage <amount> - Damage player
  * - /heal <amount> - Heal player
  * - /debug <feature> - Toggle debug visualization (colliders, navmesh, fps, all, none)
+ * - /timescale <value> - Set game speed (0.25x - 4.0x)
+ * - /items - Open item browser
  * - /help - List all commands
  * - /clear - Clear console output
  */
@@ -208,6 +210,10 @@ public class DebugConsole extends Window {
                 case "items":
                     executeItems();
                     break;
+                case "timescale":
+                case "speed":
+                    executeTimescale(parts);
+                    break;
                 default:
                     error("Unknown command: " + command);
                     log("Type /help for a list of commands");
@@ -237,6 +243,10 @@ public class DebugConsole extends Window {
         log("  /debug <feature> - Toggle debug view");
         log("      Features: colliders, navmesh, fps, all, none");
         log("      Example: /debug colliders");
+        log("  /timescale <value> - Set game speed (0.25x - 4.0x)");
+        log("      Use 'reset' to return to normal speed");
+        log("      Example: /timescale 2.0 (double speed)");
+        log("      Example: /timescale 0.5 (half speed)");
         log("  /items - Open item browser window");
         log("      Drag items to inventory or world to spawn");
         log("  /clear - Clear console output");
@@ -434,6 +444,50 @@ public class DebugConsole extends Window {
         gameScreen.getUiManager().toggleItemBrowser();
         log("Item browser window toggled");
         log("Drag items to inventory or world to spawn them");
+    }
+
+    private void executeTimescale(String[] parts) {
+        if (parts.length < 2) {
+            // Show current time scale
+            float currentScale = gameScreen.getTimeScale();
+            log("Current time scale: " + String.format("%.2fx", currentScale));
+            log("Usage: /timescale <value> - Set game speed (0.25x to 4.0x)");
+            log("       /timescale reset - Reset to normal speed (1.0x)");
+            return;
+        }
+
+        String arg = parts[1].toLowerCase();
+
+        if ("reset".equals(arg)) {
+            gameScreen.setTimeScale(1.0f);
+            log("Time scale reset to 1.0x (normal speed)");
+            return;
+        }
+
+        try {
+            float scale = Float.parseFloat(arg);
+
+            if (scale < 0.25f || scale > 4.0f) {
+                error("Time scale must be between 0.25 and 4.0");
+                log("Use 0.25 for slow motion, 4.0 for fast testing");
+                return;
+            }
+
+            gameScreen.setTimeScale(scale);
+            log("Time scale set to " + String.format("%.2fx", scale));
+
+            // Give helpful context
+            if (scale < 1.0f) {
+                log("Game running in slow motion");
+            } else if (scale > 1.0f) {
+                log("Game running faster than normal");
+            } else {
+                log("Game running at normal speed");
+            }
+        } catch (NumberFormatException e) {
+            error("Invalid time scale value: " + arg);
+            log("Usage: /timescale <value> (e.g., /timescale 2.0 for 2x speed)");
+        }
     }
 
     // ==================== LOGGING ====================
