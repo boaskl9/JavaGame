@@ -11,12 +11,15 @@ import com.game.components.RenderComponent;
 import com.game.components.SeparationComponent;
 import com.game.components.VelocityComponent;
 import com.game.integration.WorldManager;
+import com.game.systems.audio.SoundSystem;
 import com.game.systems.combat.WeaponStats;
 import com.game.systems.entity.Entity;
 import com.game.systems.entity.Transform;
 
 import java.util.HashSet;
 import java.util.Set;
+
+import static com.game.systems.audio.SoundRegistry.*;
 
 /**
  * Base class for all enemy entities.
@@ -630,6 +633,14 @@ public abstract class EnemyEntity extends Entity {
     @Override
     protected void onDeath() {
         super.onDeath();
+
+        // Play death sound
+        SoundSystem.getInstance().playSound(
+            ENEMY_DEATH,
+            0.9f
+        );
+
+
         System.out.println(getClass().getSimpleName() + " died at " + transform.getPosition());
 
         // Generate and spawn loot drops

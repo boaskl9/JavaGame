@@ -20,6 +20,7 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import com.game.components.AttackComponent;
 import com.game.components.ColliderComponent;
 import com.game.components.RenderComponent;
+import com.game.systems.audio.SoundSystem;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.systems.entity.entities.GatewayEntity;
 import com.game.systems.entity.entities.ItemPickupEntity;
@@ -48,6 +49,8 @@ import com.game.systems.level.TiledMapParser;
 import com.game.systems.ui.UIManagerNew;
 import com.game.systems.debug.DebugConsole;
 import com.game.systems.debug.DebugManager;
+
+import static com.game.systems.audio.SoundRegistry.*;
 
 /**
  * Refactored GameScreen using the new decoupled architecture.
@@ -348,6 +351,11 @@ public class GameScreen implements Screen {
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_POT)) {
             spawnDebugBreakable("pot");
         }
+
+        // Debug: Test sound system
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_TEST_SOUND)) {
+            testSound();
+        }
     }
 
     /**
@@ -423,6 +431,15 @@ public class GameScreen implements Screen {
 
             world.addGameObject(enemy);
         }
+    }
+
+    /**
+     * Debug function: Tests the sound system by playing a test sound.
+     */
+    private void testSound() {
+        SoundSystem.getInstance().playSound(
+            SWORD_SWING
+        );
     }
 
     /**
@@ -503,11 +520,19 @@ public class GameScreen implements Screen {
                     // All picked up
                     item.onPickup();
                     worldItemManager.removeItem(item);
+
+                    // Play pickup sound
+                    SoundSystem.getInstance().playSound(COIN_PICKUP,0.6f);
+
                     System.out.println("Picked up: " + itemStack.toString());
                     inventoryChanged = true;
                 } else if (remaining.getQuantity() < itemStack.getQuantity()) {
                     // Partial pickup
                     item.getItemStack().setQuantity(remaining.getQuantity());
+
+                    // Play pickup sound
+                    SoundSystem.getInstance().playSound(COIN_PICKUP,0.6f);
+
                     inventoryChanged = true;
                 }
             }
@@ -1005,6 +1030,9 @@ public class GameScreen implements Screen {
         if (mapRenderer != null) mapRenderer.dispose();
         if (currentMap != null) currentMap.dispose();
         if (uiManager != null) uiManager.dispose();
+
+        // Dispose audio resources
+        SoundSystem.getInstance().dispose();
     }
 
     // ==================== GETTERS ====================

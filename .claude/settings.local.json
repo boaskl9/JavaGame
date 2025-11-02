@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir -p \"Notes/JavaGame\")"
+      "Bash(mkdir -p \"Notes/JavaGame\")",
+      "Bash(dir \"D:\\JavaGame\\core\\src\\main\\java\\com\\game\\systems\")"
     ],
     "deny": [],
     "ask": []

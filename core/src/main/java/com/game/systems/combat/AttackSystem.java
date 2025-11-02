@@ -1,6 +1,7 @@
 package com.game.systems.combat;
 
 import com.game.components.AttackComponent;
+import com.game.systems.audio.SoundSystem;
 import com.game.systems.entity.Entity;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.Transform;
@@ -8,6 +9,8 @@ import com.game.systems.entity.Transform;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.game.systems.audio.SoundRegistry.*;
 
 /**
  * Unified attack system that handles attack execution for all entities.
@@ -107,6 +110,13 @@ public class AttackSystem {
         if (target instanceof Entity) {
             Entity targetEntity = (Entity) target;
             targetEntity.damage(weapon.getDamage());
+
+            // Play hit sound
+            SoundSystem.getInstance().playSound(
+                SWORD_HIT,
+                0.8f
+            );
+
 
             // Spawn damage number
             if (damageCallback != null) {

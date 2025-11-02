@@ -66,8 +66,8 @@ public class UIManagerNew {
         // Load UI skin
         skin = new Skin(Gdx.files.internal("assets/ui/wood-theme.json"));
 
-        // Initialize settings
-        gameSettings = new GameSettings();
+        // Get singleton settings instance
+        gameSettings = GameSettings.getInstance();
 
         // Set up settings change listener
         gameSettings.setListener(new GameSettings.SettingsChangeListener() {

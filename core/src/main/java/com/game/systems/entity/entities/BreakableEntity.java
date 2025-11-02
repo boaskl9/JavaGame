@@ -6,6 +6,7 @@ import com.game.components.ColliderComponent;
 import com.game.components.HealthComponent;
 import com.game.components.RenderComponent;
 import com.game.systems.animation.AnimationBuilder;
+import com.game.systems.audio.SoundSystem;
 import com.game.systems.breakable.BreakableObjectRegistry;
 import com.game.systems.entity.Entity;
 import com.game.systems.entity.Transform;
@@ -13,6 +14,8 @@ import com.game.systems.item.ItemStack;
 import com.game.systems.loot.LootTableComponent;
 
 import java.util.List;
+
+import static com.game.systems.audio.SoundRegistry.*;
 
 /**
  * Abstract base class for all destructible/breakable objects (pots, crates, barrels, etc.).
@@ -170,6 +173,13 @@ public abstract class BreakableEntity extends Entity {
 
         isBreaking = true;
         breakTimer = 0f;
+
+        // Play break sound
+        SoundSystem.getInstance().playSound(
+            POT_BREAK,
+            0.7f
+        );
+
 
         // Switch to break animation
         if (animation != null) {

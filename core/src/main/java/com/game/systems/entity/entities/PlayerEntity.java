@@ -17,12 +17,15 @@ import com.game.components.WeaponRenderComponent;
 import com.game.integration.WorldItemManager;
 import com.game.integration.WorldManager;
 import com.game.systems.animation.AnimationBuilder;
+import com.game.systems.audio.SoundSystem;
 import com.game.systems.combat.WeaponStats;
 import com.game.systems.entity.Transform;
 import com.game.systems.inventory.EquipmentSlot;
 import com.game.systems.inventory.PlayerInventory;
 import com.game.systems.item.ItemStack;
 import com.game.systems.loot.LootSystem;
+
+import static com.game.systems.audio.SoundRegistry.*;
 
 /**
  * Player entity built using the new component-based architecture.
@@ -255,6 +258,12 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         float attackAngle = com.game.systems.combat.CombatUtils.calculateAngle(
             playerCenterX, playerCenterY, mouseWorld.x, mouseWorld.y
         );
+
+        // Play weapon swing sound
+            SoundSystem.getInstance().playSound(
+                SWORD_SWING
+            );
+
 
         // Start attack (damage will be applied by AttackSystem during ACTIVE phase)
         attackComponent.startAttack(weapon, attackAngle);

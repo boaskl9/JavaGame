@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "D:/JavaGame/assets/Maps/WestArea.tmx",
+    "activeFile": "D:/JavaGame/assets/Maps/prototype.tmx",
     "expandedProjectPaths": [
         "."
     ],
@@ -72,10 +72,10 @@
                 6
             ],
             "scale": 2,
-            "selectedLayer": 2,
+            "selectedLayer": 5,
             "viewCenter": {
-                "x": 640,
-                "y": 480.25
+                "x": 146.25,
+                "y": 239
             }
         },
         "D:/Tiled/Projects/TilesetDesert.tsx": {
@@ -127,8 +127,8 @@
         "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "D:/JavaGame/assets/Maps/house1.tmx",
         "D:/JavaGame/assets/Maps/glade.tmx",
-        "D:/JavaGame/assets/Maps/prototype.tmx",
         "D:/JavaGame/assets/Maps/WestArea.tmx",
+        "D:/JavaGame/assets/Maps/prototype.tmx",
         "D:/JavaGame/assets/Backgrounds/Tilesets/Rules/autotiles_rules.tmx",
         "Backgrounds.tsx"
     ]
