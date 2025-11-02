@@ -69,7 +69,6 @@ public class TestItems {
         );
         ItemRegistry.register(bag3);
 
-        // Register more test items as needed
         ItemDefinition stone = new ItemDefinition(
             "stone",
             "Stone",
@@ -80,6 +79,17 @@ public class TestItems {
             false
         );
         ItemRegistry.register(stone);
+
+        ItemDefinition coin = new ItemDefinition(
+            "coin",
+            "Coin",
+            "A small coin. Probably not worth much",
+            ItemType.RESOURCE,
+            999,
+            "assets/Items/Treasure/GoldCoin.png",
+            false
+        );
+        ItemRegistry.register(coin);
 
         // Test consumable
         ItemDefinition potion = new ItemDefinition(
