@@ -81,9 +81,37 @@ public class WorldManager {
 
     /**
      * Check if a position is walkable (no collision).
+     * Checks both static collision (walls from TiledMap) and dynamic objects (breakables).
      */
     public boolean isPositionWalkable(float x, float y, float width, float height) {
-        return !collisionSystem.testArea(x, y, width, height);
+        // Check static collision (walls, obstacles)
+        if (collisionSystem.testArea(x, y, width, height)) {
+            return false;
+        }
+
+        // Check dynamic collision (breakable objects)
+        Rectangle testRect = new Rectangle(x, y, width, height);
+        for (GameObject obj : gameObjects) {
+            // Check if it's a breakable object
+            if (obj instanceof com.game.systems.entity.entities.BreakableEntity) {
+                com.game.systems.entity.entities.BreakableEntity breakable =
+                    (com.game.systems.entity.entities.BreakableEntity) obj;
+
+                // Skip inactive (destroyed) breakables
+                if (!breakable.isActive()) continue;
+
+                // Check collision with environment collider (feet area)
+                ColliderComponent envCollider = breakable.getEnvironmentCollider();
+                if (envCollider != null) {
+                    Rectangle breakableBounds = envCollider.getBounds(breakable);
+                    if (breakableBounds.overlaps(testRect)) {
+                        return false; // Collision detected
+                    }
+                }
+            }
+        }
+
+        return true; // No collision
     }
 
     /**

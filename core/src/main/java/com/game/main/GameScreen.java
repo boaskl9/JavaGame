@@ -26,6 +26,8 @@ import com.game.systems.entity.entities.ItemPickupEntity;
 import com.game.systems.entity.entities.PlayerEntity;
 import com.game.systems.entity.entities.DamageNumberEntity;
 import com.game.systems.entity.entities.DeathAnimationEntity;
+import com.game.systems.entity.entities.DestructionParticleEntity;
+import com.game.systems.entity.entities.BreakableEntity;
 import com.game.systems.entity.entities.enemies.LizardEnemy;
 import com.game.systems.entity.entities.enemies.Axolot;
 import com.game.systems.entity.entities.enemies.CatEnemy;
@@ -85,6 +87,9 @@ public class GameScreen implements Screen {
     // Death animations
     private java.util.List<DeathAnimationEntity> deathAnimations;
 
+    // Destruction particles
+    private java.util.List<DestructionParticleEntity> destructionParticles;
+
     public GameScreen() {
         // Create cameras
         camera = new OrthographicCamera();
@@ -111,9 +116,13 @@ public class GameScreen implements Screen {
         debugManager = new DebugManager();
         damageNumbers = new java.util.ArrayList<>();
         deathAnimations = new java.util.ArrayList<>();
+        destructionParticles = new java.util.ArrayList<>();
 
         // Initialize LootSystem singleton
         com.game.systems.loot.LootSystem.initialize(worldItemManager);
+
+        // Initialize BreakableObjectRegistry
+        com.game.systems.breakable.BreakableObjectRegistry.loadConfigs();
 
         // Register test items
         TestItems.registerTestItems();
@@ -183,6 +192,12 @@ public class GameScreen implements Screen {
             return !da.isAlive();
         });
 
+        // Update destruction particles
+        destructionParticles.removeIf(dp -> {
+            dp.update(delta);
+            return !dp.isAlive();
+        });
+
         // Update world items
         worldItemManager.update(delta);
 
@@ -237,6 +252,14 @@ public class GameScreen implements Screen {
         batch.begin();
         for (DeathAnimationEntity deathAnimation : deathAnimations) {
             deathAnimation.render(batch);
+        }
+        batch.end();
+
+        // Render destruction particles
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (DestructionParticleEntity particle : destructionParticles) {
+            particle.render(batch);
         }
         batch.end();
 
@@ -585,6 +608,30 @@ public class GameScreen implements Screen {
                 System.out.println("Loaded gateway to: " + targetLevel + " at spawn: " + targetSpawn);
             }
         }
+
+        // Load breakable objects (pots, crates, etc.)
+        // Check all supported breakable types and load them
+        String[] breakableTypes = {"pot", "clay_pot"}; // Can be expanded: "crate", "barrel", etc.
+        for (String breakableType : breakableTypes) {
+            for (LevelData.LevelObject obj : levelData.getObjectsByType(breakableType)) {
+                BreakableEntity breakable = com.game.systems.breakable.BreakableObjectFactory.create(
+                    breakableType,
+                    obj.getX(),
+                    obj.getY()
+                );
+
+                if (breakable != null) {
+                    // Set particle callback to spawn destruction particles
+                    breakable.setParticleCallback((x, y, particleType) -> {
+                        DestructionParticleEntity particle = new DestructionParticleEntity(x, y, particleType);
+                        destructionParticles.add(particle);
+                    });
+
+                    world.addGameObject(breakable);
+                    System.out.println("Loaded breakable object: " + breakableType + " at (" + obj.getX() + ", " + obj.getY() + ")");
+                }
+            }
+        }
     }
 
     private void checkGatewayCollisions() {
@@ -725,6 +772,25 @@ public class GameScreen implements Screen {
                         shapeRenderer.triangle(polygon[0], polygon[1], polygon[2], polygon[3], polygon[4], polygon[5]);
                         shapeRenderer.triangle(polygon[0], polygon[1], polygon[4], polygon[5], polygon[6], polygon[7]);
                     }
+                }
+            } else if (obj instanceof BreakableEntity breakable) {
+                // Skip inactive breakables (destroyed, etc.)
+                if (!breakable.isActive()) continue;
+
+                // Environment collider (blue) - feet/base area for walking collision
+                shapeRenderer.setColor(0, 0.5f, 1, 1); // Light blue
+                ColliderComponent envCollider = breakable.getEnvironmentCollider();
+                if (envCollider != null) {
+                    Rectangle envBounds = envCollider.getBounds(breakable);
+                    shapeRenderer.rect(envBounds.x, envBounds.y, envBounds.width, envBounds.height);
+                }
+
+                // Combat collider (light green) - full body for attacks
+                shapeRenderer.setColor(0.5f, 1, 0.5f, 1); // Light green
+                ColliderComponent combatCollider = breakable.getCombatCollider();
+                if (combatCollider != null) {
+                    Rectangle combatBounds = combatCollider.getBounds(breakable);
+                    shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
                 }
             }
         }

@@ -1,0 +1,16 @@
+{
+  "pot": {
+    "name": "Clay Pot",
+    "health": 2,
+    "spritePath": "assets/Objects/Pot/Pot.png",
+    "breakAnimationPath": "assets/Objects/Pot/BreakAnimation.png",
+    "breakAnimationFrames": 4,
+    "breakAnimationSpeed": 0.075,
+    "particleColor": "brown",
+    "lootTable": [
+      {"itemId": "coin", "chance": 0.6, "minQty": 1, "maxQty": 3},
+      {"itemId": "health_potion", "chance": 0.15, "minQty": 1, "maxQty": 1},
+      {"itemId": "stone", "chance": 0.25, "minQty": 1, "maxQty": 2}
+    ]
+  }
+}

@@ -1726,10 +1726,13 @@ Maps/house1.tmx
 Maps/prototype..tmx
 Maps/prototype.tmx
 Maps/rules.txt
+Objects/Pot/BreakAnimation.png
+Objects/Pot/Pot.png
 Tiled/Projects/TilesetDesert.tsx
 Tiled/Projects/TilesetElement.tsx
 Tiled/Projects/TilesetFloor.tsx
 Tiled/Projects/TilesetNature.tsx
+data/BreakableObjectConfig.json
 javaGamePallet.aseprite
 libgdx.png
 path finding stuck.png

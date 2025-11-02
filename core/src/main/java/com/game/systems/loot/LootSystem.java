@@ -109,6 +109,48 @@ public class LootSystem {
     }
 
     /**
+     * Generates and spawns loot for any entity with a loot table (breakables, chests, etc.).
+     * This is a generic version that doesn't use context-aware modifiers (no tags).
+     *
+     * @param source The GameObject that has loot (must have LootTableComponent)
+     * @param player The player (for equipment modifiers), can be null
+     * @param spawnX X position to spawn loot
+     * @param spawnY Y position to spawn loot
+     * @return List of item stacks that were dropped
+     */
+    public List<ItemStack> generateAndSpawnLoot(com.game.systems.entity.GameObject source,
+                                                 PlayerEntity player,
+                                                 float spawnX,
+                                                 float spawnY) {
+        // Get source's loot table
+        LootTableComponent lootTable = source.getComponent(LootTableComponent.class);
+        if (lootTable == null) {
+            return new ArrayList<>(); // Source has no loot table
+        }
+
+        // Collect active modifiers from player (equipment bonuses still apply)
+        List<LootModifier> modifiers = collectPlayerModifiers(player);
+
+        // Roll drops (with modifiers but without context-aware tag checks)
+        List<ItemStack> drops;
+        if (!modifiers.isEmpty()) {
+            // Create a minimal context for modifier support
+            LootContext context = new LootContext(null, player, modifiers);
+            drops = lootTable.rollDrops(context);
+        } else {
+            // No modifiers, simple roll
+            drops = lootTable.rollDrops();
+        }
+
+        // Spawn items in world
+        if (!drops.isEmpty()) {
+            spawnLoot(drops, spawnX, spawnY);
+        }
+
+        return drops;
+    }
+
+    /**
      * Collects all active loot modifiers from the player's equipment and effects.
      * TODO: Implement once equipment/skill system is in place.
      *
@@ -149,7 +191,7 @@ public class LootSystem {
      * @param centerX Center X position
      * @param centerY Center Y position
      */
-    private void spawnLoot(List<ItemStack> drops, float centerX, float centerY) {
+    public void spawnLoot(List<ItemStack> drops, float centerX, float centerY) {
         for (ItemStack drop : drops) {
             // Calculate random scatter offset
             double angle = Math.random() * Math.PI * 2;

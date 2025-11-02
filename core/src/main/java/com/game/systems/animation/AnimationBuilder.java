@@ -96,4 +96,32 @@ public class AnimationBuilder {
         animator.addAnimation(stateName, 90, singleFrame, 1.0f);   // Left
         animator.addAnimation(stateName, 270, singleFrame, 1.0f);  // Right
     }
+
+    /**
+     * Load a horizontal animation (single row of frames, no directional variants).
+     * Useful for break animations, explosion effects, etc.
+     *
+     * @param animator The animator to add animations to
+     * @param stateName The state name for this animation (e.g., "break")
+     * @param spriteSheet The texture containing the horizontal sprite sheet
+     * @param frameCount Number of frames in the animation
+     * @param frameDuration Duration of each frame
+     */
+    public static void loadHorizontalAnimation(SpriteAnimator animator, String stateName,
+                                               Texture spriteSheet, int frameCount,
+                                               float frameDuration) {
+        int frameWidth = spriteSheet.getWidth() / frameCount;
+        int frameHeight = spriteSheet.getHeight();
+
+        TextureRegion[] frames = new TextureRegion[frameCount];
+        for (int i = 0; i < frameCount; i++) {
+            frames[i] = new TextureRegion(spriteSheet, i * frameWidth, 0, frameWidth, frameHeight);
+        }
+
+        // Add the same animation for all directions (break animation is direction-independent)
+        animator.addAnimation(stateName, 180, frames, frameDuration);  // Down
+        animator.addAnimation(stateName, 0, frames, frameDuration);    // Up
+        animator.addAnimation(stateName, 90, frames, frameDuration);   // Left
+        animator.addAnimation(stateName, 270, frames, frameDuration);  // Right
+    }
 }
