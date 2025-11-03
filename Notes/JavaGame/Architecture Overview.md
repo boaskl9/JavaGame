@@ -132,6 +132,53 @@ core/src/main/java/com.game/
 - **Integration**: Automatic on death via EnemyEntity.onDeath() → WorldItemManager for spawning
 - **Extensible**: Custom modifiers implement LootModifier interface; priority-based ordering
 
+### 11. Equipment System
+- **Architecture**: Slot-based equipment with UI integration
+- **EquipmentSlot**: Enum defining 6 slots (Head, Body, Amulet, Ring1, Ring2, Weapon)
+- **PlayerEquipment**: Container for equipped items; manages equip/unequip/swap logic
+- **EquipmentWindow**: Scene2D UI for equipment management; drag-and-drop support
+- **Integration**: Connected to PlayerEntity and InventorySystem
+- **Item Types**: ItemType enum (WEAPON, ARMOR, CONSUMABLE, MATERIAL, MISC)
+- **Validation**: Slots accept specific item types (WEAPON slot only accepts weapons, etc.)
+- **Extensible**: Ready for stat bonuses, set bonuses, and loot modifiers
+
+### 12. Pathfinding System
+- **Architecture**: Grid-based A* with path smoothing and line-of-sight optimization
+- **GridPathfinder**: Efficient pathfinding using walkability grid (16×16 cell size)
+- **Path Smoothing**: Line-of-sight simplification removes unnecessary waypoints
+- **Integration**: Used by EnemyEntity chase state; updates paths every 0.5s
+- **Collision**: Uses SpatialQuery for walkability checks and line-of-sight tests
+- **Performance**: Coarse grid (16×16) with local navigation for smooth movement
+- **Feet-Based**: Pathfinding uses enemy "feet" position (environment collider center)
+- **Separation Steering**: Enemies maintain personal space (avoid bunching)
+
+### 13. Audio System
+- **Architecture**: Singleton manager with lazy loading and resource pooling
+- **SoundSystem**: Manages sound effects and background music
+- **SoundRegistry**: Enum mapping sound IDs to file paths
+- **MusicTrack**: Enum for 37 background music tracks
+- **Features**: Lazy loading, 16-sound limit, master/music/sfx volume controls
+- **Volume Persistence**: Settings saved via GameSettings preferences
+- **Integration**: Sounds for combat, item pickup, breakables, UI interactions
+
+### 14. Breakable Objects System
+- **Architecture**: Entity-based destructible world objects
+- **BreakableEntity**: Base class for pots, crates, barrels with health and animations
+- **BreakableObjectRegistry**: JSON-based configuration for object types
+- **Features**: Break animations, loot drops, particle effects, dual colliders
+- **Colliders**: Environment collider (blocks movement) + combat collider (takes damage)
+- **Loot Integration**: Uses LootSystem for drop generation
+- **Runtime Spawning**: Debug commands support spawning breakables
+
+### 15. Debug System
+- **Architecture**: In-game console with command system
+- **DebugConsole**: Scene2D widget with command input and output history
+- **DebugManager**: Manages debug visualization flags (colliders, navmesh, fps, etc.)
+- **Commands**: spawn, damage, heal, setmaxhealth, debug, timescale, items, clear, help
+- **Time Scale**: Debug feature to speed up/slow down game (0.25x - 4.0x)
+- **Input**: F4 toggles console; F3 toggles debug overlay
+- **Features**: Command history (up/down), validation, error messages
+
 ---
 
 ## Architecture Patterns
@@ -145,18 +192,18 @@ core/src/main/java/com.game/
 
 ---
 
-## Planned Systems (Not Implemented)
+## Planned Systems (Not Yet Implemented)
 
-- **Equipment System**: Weapon/armor slots, stat bonuses, collecting modifiers for loot
+- **Equipment Stats & Bonuses**: Equipment slots exist; needs stat bonuses, set effects, loot modifier integration
 - **NPCs**: Base class exists, needs dialogue/quests/schedules
 - **Enemy Spawning**: Spawn logic, spawn points, waves
 - **Shops**: Buy/sell UI + economy
 - **Dungeons**: Procedural generation, room templates
 - **Minigames**: Fishing, card game, others
 - **Perks/Skills**: Special items with unique mechanics that synergize
-- **Settings**: Options menu, keybinds UI, audio controls
 - **Day/Night Cycle**: 30-min timer, visual transitions
 - **Projectiles**: Ranged weapons (bows), enemy projectiles
+- **World Progression Gates**: Abilities to unlock areas (cut trees, place staircases, jump ledges)
 
 ---
 

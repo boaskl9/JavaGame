@@ -1,8 +1,14 @@
 
-- [ ] Create [[Sound system]]
-- [ ] Create combat system
+- [x] Create [[Sound system]]
+- [x] Create combat system
+- [x] Loot table
+- [x] Health system
+- [x] Equipment system (basic)
+- [x] Pathfinding system
+- [ ] Equipment stats & bonuses (extend existing)
+- [ ] Enemy spawning system
 - [ ] More maps
+- [ ] NPC dialogue system
+- [ ] Shop system
 - [ ] Introduce [[cursor sprites]]
 - [ ] Overhaul UI visuals
-- [x] Health system
-- [ ] Loot table

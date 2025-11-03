@@ -25,16 +25,16 @@
             "scale": 2,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 640.25,
-                "y": 480.5
+                "x": 640,
+                "y": 480.25
             }
         },
         "D:/JavaGame/assets/Maps/StartArea.tmx": {
             "scale": 0.75,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 312.6666666666667,
-                "y": 450.66666666666674
+                "x": 661.3333333333333,
+                "y": 480.66666666666663
             }
         },
         "D:/JavaGame/assets/Maps/WestArea.tmx": {
@@ -44,8 +44,8 @@
             "scale": 1.5,
             "selectedLayer": 4,
             "viewCenter": {
-                "x": 1051,
-                "y": 249.33333333333337
+                "x": 640,
+                "y": 240.33333333333331
             }
         },
         "D:/JavaGame/assets/Maps/glade.tmx": {
@@ -74,8 +74,8 @@
             "scale": 2,
             "selectedLayer": 5,
             "viewCenter": {
-                "x": 146.25,
-                "y": 239
+                "x": 640,
+                "y": 480.25
             }
         },
         "D:/Tiled/Projects/TilesetDesert.tsx": {
