@@ -568,6 +568,143 @@ public class GameScreen implements Screen {
     }
 
     /**
+     * Load an assembled dungeon directly (from dungeon generation system).
+     * Package-private so DebugConsole can access it.
+     */
+    public void loadAssembledDungeon(com.game.systems.dungeon.assembly.AssembledDungeon dungeon) {
+        System.out.println("Loading assembled dungeon: " + dungeon.getThemeName());
+
+        // Dispose previous resources
+        if (mapRenderer != null) {
+            mapRenderer.dispose();
+        }
+        if (currentMap != null) {
+            currentMap.dispose();
+        }
+
+        // Use the pre-assembled TiledMap and data
+        currentMap = dungeon.getTiledMap();
+        mapRenderer = new OrthogonalTiledMapRenderer(currentMap);
+        ySortRenderer = new YSortRenderer(mapRenderer, currentMap);
+
+        LevelData levelData = dungeon.getLevelData();
+
+        // Create world manager
+        world = new WorldManager(levelData.getWidth(), levelData.getHeight());
+
+        // Load collision system from pre-assembled collision shapes
+        SpatialQuery collisionSystem = new SpatialQuery();
+        for (com.badlogic.gdx.math.Rectangle rect : dungeon.getCollisionShapes()) {
+            collisionSystem.addRectangle(rect);
+        }
+        world.setCollisionSystem(collisionSystem);
+        System.out.println("Loaded " + collisionSystem.getShapeCount() + " collision shapes");
+
+        // Build grid pathfinder for pathfinding
+        world.buildGridPathfinder(currentMap);
+
+        // Get spawn position - look for player_spawn, or use a default
+        LevelData.SpawnPoint spawn = levelData.getDefaultSpawnPoint();
+        float spawnX = spawn != null ? spawn.getX() : 100;
+        float spawnY = spawn != null ? spawn.getY() : 100;
+
+        // Convert to grid and back to match old behavior
+        int spawnGridX = (int)(spawnX / world.getTileSize());
+        int spawnGridY = (int)(spawnY / world.getTileSize());
+        spawnX = spawnGridX * world.getTileSize();
+        spawnY = spawnGridY * world.getTileSize();
+
+        System.out.println("Spawning player at: (" + spawnX + ", " + spawnY + ")");
+
+        // DEBUG: Check map bounds and camera
+        float mapWidthPixels = levelData.getWidth() * levelData.getTileSize();
+        float mapHeightPixels = levelData.getHeight() * levelData.getTileSize();
+        System.out.println("DEBUG: Map dimensions = " + mapWidthPixels + "x" + mapHeightPixels + " pixels");
+        System.out.println("DEBUG: Camera position will be at player: (" + spawnX + ", " + spawnY + ")");
+        System.out.println("DEBUG: Camera viewport = " + camera.viewportWidth + "x" + camera.viewportHeight);
+
+        // Create or update player
+        if (player == null) {
+            com.game.systems.entity.entities.PlayerEntity.initialize(world, spawnX, spawnY);
+            player = com.game.systems.entity.entities.PlayerEntity.getInstance();
+        } else {
+            player.setWorld(world);
+            player.getTransform().setPosition(spawnX, spawnY);
+        }
+
+        // Set camera for mouse position tracking
+        player.setCamera(camera);
+
+        // Set damage number callback
+        player.setDamageNumberCallback((x, y, damage) -> {
+            DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
+            damageNumbers.add(damageNumber);
+        });
+
+        world.addGameObject(player);
+
+        // Initialize UI manager (if not already initialized)
+        if (uiManager == null) {
+            uiManager = new UIManagerNew(player.getInventory(), worldItemManager);
+            uiManager.setItemDropCallback(itemStack -> {
+                Vector2 playerPos = player.getTransform().getPosition();
+                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
+            });
+
+            uiManager.setPlayerHealth(player.getHealthComponent());
+            uiManager.setPlayer(player);
+
+            // Initialize debug console
+            debugConsole = new DebugConsole(uiManager.getSkin(), this, debugManager);
+            debugConsole.setSize(400, 600);
+            debugConsole.setPosition(10, VIEWPORT_HEIGHT - 70);
+            debugConsole.padTop(20);
+            uiManager.getStage().addActor(debugConsole);
+
+            Gdx.input.setInputProcessor(uiManager.getStage());
+            System.out.println("GameScreen: Input processor set to UI Stage");
+        }
+
+        // Create gateway entities
+        for (LevelData.LevelObject obj : levelData.getObjectsByType("gateway")) {
+            String targetLevel = obj.getPropertyString("targetLevel", null);
+            String targetSpawn = obj.getPropertyString("targetSpawn", null);
+
+            if (targetLevel != null) {
+                GatewayEntity gateway = new GatewayEntity(
+                    obj.getX(), obj.getY(),
+                    obj.getWidth(), obj.getHeight(),
+                    targetLevel, targetSpawn
+                );
+                world.addGameObject(gateway);
+                System.out.println("Loaded gateway to: " + targetLevel);
+            }
+        }
+
+        // Load breakable objects
+        String[] breakableTypes = {"pot", "clay_pot"};
+        for (String breakableType : breakableTypes) {
+            for (LevelData.LevelObject obj : levelData.getObjectsByType(breakableType)) {
+                BreakableEntity breakable = com.game.systems.breakable.BreakableObjectFactory.create(
+                    breakableType,
+                    obj.getX(),
+                    obj.getY()
+                );
+
+                if (breakable != null) {
+                    breakable.setParticleCallback((x, y, particleType) -> {
+                        DestructionParticleEntity particle = new DestructionParticleEntity(x, y, particleType);
+                        destructionParticles.add(particle);
+                    });
+
+                    world.addGameObject(breakable);
+                    System.out.println("Loaded breakable: " + breakableType);
+                }
+            }
+        }
+    }
+
+    /**
      * Load a level using the new decoupled systems.
      */
     private void loadLevel(String levelPath, String spawnPointName) {

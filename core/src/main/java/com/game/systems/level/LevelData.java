@@ -141,5 +141,9 @@ public class LevelData {
             }
             return defaultValue;
         }
+
+        public java.util.Set<String> getPropertyKeys() {
+            return properties.keySet();
+        }
     }
 }

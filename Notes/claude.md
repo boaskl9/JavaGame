@@ -116,23 +116,9 @@ systems/
 └── settings/                    # GameSettings (preferences)
 ```
 
-## 🔍 Quick Reference Commands
 
 ### Finding Code Efficiently
-```bash
-# Find all files matching pattern (FAST)
-Glob: pattern="**/combat/**/*.java"
-Glob: pattern="**/PlayerEntity.java"
-
-# Search for class definitions (FAST)
-Grep: pattern="class.*Equipment" type="java" output_mode="files_with_matches"
-
-# Search for method calls (TARGETED)
-Grep: pattern="playSound\(" type="java" output_mode="content" -n=true
-
-# Read specific file (AFTER finding it)
-Read: file_path="D:\JavaGame\core\src\main\java\com\game\main\GameScreen.java"
-```
+- Do not read Tiled files, they are too expensive token wise, and do not give AI agents a good idea of what they contain.
 
 ### Common File Locations
 - **Main game loop**: `main/GameScreen.java`

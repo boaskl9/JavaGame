@@ -31,6 +31,7 @@ import java.util.List;
  * - /heal <amount> - Heal player
  * - /debug <feature> - Toggle debug visualization (colliders, navmesh, fps, all, none)
  * - /timescale <value> - Set game speed (0.25x - 4.0x)
+ * - /dungeon <command> - Test dungeon themes (load, info)
  * - /items - Open item browser
  * - /help - List all commands
  * - /clear - Clear console output
@@ -46,6 +47,9 @@ public class DebugConsole extends Window {
 
     private final List<String> commandHistory;
     private int historyIndex;
+
+    // Store last assembled dungeon for loading
+    private com.game.systems.dungeon.assembly.AssembledDungeon lastAssembledDungeon;
 
     public DebugConsole(Skin skin, GameScreen gameScreen, DebugManager debugManager) {
         super("Debug Console", skin);
@@ -214,6 +218,9 @@ public class DebugConsole extends Window {
                 case "speed":
                     executeTimescale(parts);
                     break;
+                case "dungeon":
+                    executeDungeon(parts);
+                    break;
                 default:
                     error("Unknown command: " + command);
                     log("Type /help for a list of commands");
@@ -247,6 +254,9 @@ public class DebugConsole extends Window {
         log("      Use 'reset' to return to normal speed");
         log("      Example: /timescale 2.0 (double speed)");
         log("      Example: /timescale 0.5 (half speed)");
+        log("  /dungeon <command> - Dungeon theme and generation");
+        log("      Commands: load, info, generate");
+        log("      Example: /dungeon generate forest 50");
         log("  /items - Open item browser window");
         log("      Drag items to inventory or world to spawn");
         log("  /clear - Clear console output");
@@ -487,6 +497,247 @@ public class DebugConsole extends Window {
         } catch (NumberFormatException e) {
             error("Invalid time scale value: " + arg);
             log("Usage: /timescale <value> (e.g., /timescale 2.0 for 2x speed)");
+        }
+    }
+
+    private void executeDungeon(String[] parts) {
+        if (parts.length < 2) {
+            log("Dungeon Theme Registry Status:");
+            log("  Loaded themes: " + com.game.systems.dungeon.DungeonThemeRegistry.getInstance().getLoadedThemeCount());
+            log("  Registered themes: " + String.join(", ", com.game.systems.dungeon.DungeonThemeRegistry.getInstance().getRegisteredThemes()));
+            log("");
+            log("Usage: /dungeon load <themeName> - Load and test a theme");
+            log("Usage: /dungeon info <themeName> - Show theme details");
+            log("Usage: /dungeon generate <themeName> [budget] [seed] - Generate a dungeon");
+            log("Usage: /dungeon assemble <themeName> [budget] [seed] - Generate and assemble");
+            log("Usage: /dungeon load_generated - Load last assembled dungeon into game");
+            return;
+        }
+
+        String subcommand = parts[1].toLowerCase();
+
+        switch (subcommand) {
+            case "load":
+                if (parts.length < 3) {
+                    error("Usage: /dungeon load <themeName>");
+                    return;
+                }
+                String themeName = parts[2];
+                log("Loading dungeon theme: " + themeName);
+
+                com.game.systems.dungeon.DungeonTheme theme =
+                    com.game.systems.dungeon.DungeonThemeRegistry.getInstance().loadTheme(themeName);
+
+                if (theme == null) {
+                    error("Failed to load theme '" + themeName + "'");
+                    log("Check that the theme file exists and is properly formatted");
+                } else {
+                    log("Theme '" + themeName + "' loaded successfully!");
+                    log("  Rooms: " + theme.getRoomCount());
+                    if (theme.getRoomCount() > 0) {
+                        log("  Sample rooms:");
+                        int count = 0;
+                        for (com.game.systems.dungeon.RoomTemplate room : theme.getAllRooms()) {
+                            log("    - " + room.getName() + " (cost: " + room.getCost() + ", doors: " + room.getDoors().size() + ")");
+                            count++;
+                            if (count >= 5) {
+                                log("    ... and " + (theme.getRoomCount() - 5) + " more");
+                                break;
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case "info":
+                if (parts.length < 3) {
+                    error("Usage: /dungeon info <themeName>");
+                    return;
+                }
+                String infoThemeName = parts[2];
+                com.game.systems.dungeon.DungeonTheme infoTheme =
+                    com.game.systems.dungeon.DungeonThemeRegistry.getInstance().getTheme(infoThemeName);
+
+                if (infoTheme == null) {
+                    error("Theme '" + infoThemeName + "' not loaded. Use /dungeon load first");
+                } else {
+                    log("Theme: " + infoTheme.getThemeName());
+                    log("  Total rooms: " + infoTheme.getRoomCount());
+                    log("  Categories:");
+                    log("    Small: " + infoTheme.getRoomsByCategory("small").size());
+                    log("    Medium: " + infoTheme.getRoomsByCategory("medium").size());
+                    log("    Large: " + infoTheme.getRoomsByCategory("large").size());
+                    log("");
+                    log("All rooms:");
+                    for (com.game.systems.dungeon.RoomTemplate room : infoTheme.getAllRooms()) {
+                        log("  " + room.toString());
+                    }
+                }
+                break;
+
+            case "generate":
+                if (parts.length < 3) {
+                    error("Usage: /dungeon generate <themeName> [budget] [seed]");
+                    log("Example: /dungeon generate forest 50");
+                    log("Example: /dungeon generate forest 75 12345");
+                    return;
+                }
+                String genThemeName = parts[2];
+
+                // Parse optional budget and seed
+                int budget = 50;  // Default budget
+                long seed = System.currentTimeMillis();  // Default seed
+
+                if (parts.length > 3) {
+                    try {
+                        budget = Integer.parseInt(parts[3]);
+                    } catch (NumberFormatException e) {
+                        error("Invalid budget: " + parts[3]);
+                        return;
+                    }
+                }
+
+                if (parts.length > 4) {
+                    try {
+                        seed = Long.parseLong(parts[4]);
+                    } catch (NumberFormatException e) {
+                        error("Invalid seed: " + parts[4]);
+                        return;
+                    }
+                }
+
+                log("Generating dungeon...");
+                log("  Theme: " + genThemeName);
+                log("  Budget: " + budget);
+                log("  Seed: " + seed);
+                log("");
+
+                // Generate dungeon
+                com.game.systems.dungeon.generation.DungeonGenerationResult result =
+                    com.game.systems.dungeon.generation.DungeonGenerator.generateWithSeed(genThemeName, budget, seed);
+
+                if (result == null) {
+                    error("Generation failed! Check console output for details");
+                } else {
+                    log("Generation successful!");
+                    log(result.getSummary());
+                    log("");
+                    log("Placed rooms:");
+                    for (com.game.systems.dungeon.generation.PlacedRoom room : result.getPlacedRooms()) {
+                        log("  " + room.toString());
+                    }
+                }
+                break;
+
+            case "assemble":
+                if (parts.length < 3) {
+                    error("Usage: /dungeon assemble <themeName> [budget] [seed]");
+                    log("Example: /dungeon assemble forest 50");
+                    log("Example: /dungeon assemble forest 75 12345");
+                    return;
+                }
+                String assembleThemeName = parts[2];
+
+                // Parse optional budget and seed
+                int assembleBudget = 50;  // Default budget
+                long assembleSeed = System.currentTimeMillis();  // Default seed
+
+                if (parts.length > 3) {
+                    try {
+                        assembleBudget = Integer.parseInt(parts[3]);
+                    } catch (NumberFormatException e) {
+                        error("Invalid budget: " + parts[3]);
+                        return;
+                    }
+                }
+
+                if (parts.length > 4) {
+                    try {
+                        assembleSeed = Long.parseLong(parts[4]);
+                    } catch (NumberFormatException e) {
+                        error("Invalid seed: " + parts[4]);
+                        return;
+                    }
+                }
+
+                log("Generating and assembling dungeon...");
+                log("  Theme: " + assembleThemeName);
+                log("  Budget: " + assembleBudget);
+                log("  Seed: " + assembleSeed);
+                log("");
+
+                try {
+                    // Generate dungeon
+                    com.game.systems.dungeon.generation.DungeonGenerationResult genResult =
+                        com.game.systems.dungeon.generation.DungeonGenerator.generateWithSeed(
+                            assembleThemeName, assembleBudget, assembleSeed);
+
+                    if (genResult == null) {
+                        error("Generation failed!");
+                        return;
+                    }
+
+                    log("Generation successful!");
+                    log(genResult.getSummary());
+                    log("");
+
+                    // Get theme for tilesets
+                    com.game.systems.dungeon.DungeonTheme assembleTheme =
+                        com.game.systems.dungeon.DungeonThemeRegistry.getInstance().getTheme(assembleThemeName);
+
+                    // Assemble dungeon
+                    log("Assembling dungeon...");
+                    com.game.systems.dungeon.assembly.AssembledDungeon assembled =
+                        com.game.systems.dungeon.assembly.DungeonAssembler.assemble(genResult, assembleTheme);
+
+                    log("Assembly complete!");
+                    log("  TiledMap layers: " + assembled.getTiledMap().getLayers().size());
+                    log("  Collision shapes: " + assembled.getCollisionShapes().size());
+                    log("  Level objects: " + assembled.getLevelData().getObjects().size());
+                    log("  Map size: " +
+                        assembled.getLevelData().getWidth() + "x" +
+                        assembled.getLevelData().getHeight() + " tiles");
+                    log("");
+
+                    // Store for loading
+                    if (lastAssembledDungeon != null) {
+                        lastAssembledDungeon.dispose();
+                    }
+                    lastAssembledDungeon = assembled;
+
+                    log("Ready to load! Use: /dungeon load_generated");
+
+                } catch (Exception e) {
+                    error("Assembly failed: " + e.getMessage());
+                    e.printStackTrace();
+                }
+                break;
+
+            case "load_generated":
+                if (lastAssembledDungeon == null) {
+                    error("No dungeon to load! Use /dungeon assemble first");
+                    return;
+                }
+
+                log("Loading assembled dungeon into game...");
+                try {
+                    gameScreen.loadAssembledDungeon(lastAssembledDungeon);
+                    log("Dungeon loaded successfully!");
+                    log("Theme: " + lastAssembledDungeon.getThemeName());
+                    log("Budget: " + lastAssembledDungeon.getTargetBudget());
+                    log("Seed: " + lastAssembledDungeon.getSeed());
+
+                    // Don't dispose - it's now in use by the game
+                    lastAssembledDungeon = null;
+                } catch (Exception e) {
+                    error("Failed to load dungeon: " + e.getMessage());
+                    e.printStackTrace();
+                }
+                break;
+
+            default:
+                error("Unknown subcommand: " + subcommand);
+                log("Valid subcommands: load, info, generate, assemble, load_generated");
         }
     }
 

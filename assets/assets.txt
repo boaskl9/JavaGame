@@ -1721,6 +1721,8 @@ Items/Weapons/Whip/SpriteInHand.png
 Maps/Rules/autotiles_rules.tmx
 Maps/StartArea.tmx
 Maps/WestArea.tmx
+Maps/dungeons/forest_rooms.tmx
+Maps/dungeons/rules.txt
 Maps/glade.tmx
 Maps/house1.tmx
 Maps/prototype..tmx
@@ -1734,6 +1736,9 @@ Tiled/Projects/TilesetFloor.tsx
 Tiled/Projects/TilesetNature.tsx
 data/BreakableObjectConfig.json
 javaGamePallet.aseprite
+levels/dungeons/Rules/autotiles_rules.tmx
+levels/dungeons/forest_rooms.tmx
+levels/dungeons/rules.txt
 libgdx.png
 path finding stuck.png
 ui/Arrow.png
