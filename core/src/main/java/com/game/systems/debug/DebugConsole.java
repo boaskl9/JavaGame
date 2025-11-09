@@ -1,5 +1,7 @@
 package com.game.systems.debug;
 
+import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -13,6 +15,7 @@ import com.game.systems.entity.entities.enemies.LizardEnemy;
 import com.game.integration.WorldItemManager;
 import com.game.integration.WorldManager;
 import com.game.main.GameScreen;
+import com.game.systems.dungeon.DungeonTestScreen;
 import com.game.systems.entity.Transform;
 import com.game.systems.item.ItemFactory;
 import com.game.systems.item.ItemStack;
@@ -255,8 +258,9 @@ public class DebugConsole extends Window {
         log("      Example: /timescale 2.0 (double speed)");
         log("      Example: /timescale 0.5 (half speed)");
         log("  /dungeon <command> - Dungeon theme and generation");
-        log("      Commands: load, info, generate");
+        log("      Commands: load, info, generate, test");
         log("      Example: /dungeon generate forest 50");
+        log("      Example: /dungeon test (opens test screen)");
         log("  /items - Open item browser window");
         log("      Drag items to inventory or world to spawn");
         log("  /clear - Clear console output");
@@ -511,44 +515,13 @@ public class DebugConsole extends Window {
             log("Usage: /dungeon generate <themeName> [budget] [seed] - Generate a dungeon");
             log("Usage: /dungeon assemble <themeName> [budget] [seed] - Generate and assemble");
             log("Usage: /dungeon load_generated - Load last assembled dungeon into game");
+            log("Usage: /dungeon test - Open testing screen with live controls");
             return;
         }
 
         String subcommand = parts[1].toLowerCase();
 
         switch (subcommand) {
-            case "load":
-                if (parts.length < 3) {
-                    error("Usage: /dungeon load <themeName>");
-                    return;
-                }
-                String themeName = parts[2];
-                log("Loading dungeon theme: " + themeName);
-
-                com.game.systems.dungeon.DungeonTheme theme =
-                    com.game.systems.dungeon.DungeonThemeRegistry.getInstance().loadTheme(themeName);
-
-                if (theme == null) {
-                    error("Failed to load theme '" + themeName + "'");
-                    log("Check that the theme file exists and is properly formatted");
-                } else {
-                    log("Theme '" + themeName + "' loaded successfully!");
-                    log("  Rooms: " + theme.getRoomCount());
-                    if (theme.getRoomCount() > 0) {
-                        log("  Sample rooms:");
-                        int count = 0;
-                        for (com.game.systems.dungeon.RoomTemplate room : theme.getAllRooms()) {
-                            log("    - " + room.getName() + " (cost: " + room.getCost() + ", doors: " + room.getDoors().size() + ")");
-                            count++;
-                            if (count >= 5) {
-                                log("    ... and " + (theme.getRoomCount() - 5) + " more");
-                                break;
-                            }
-                        }
-                    }
-                }
-                break;
-
             case "info":
                 if (parts.length < 3) {
                     error("Usage: /dungeon info <themeName>");
@@ -629,11 +602,11 @@ public class DebugConsole extends Window {
                 }
                 break;
 
-            case "assemble":
+            case "load":
                 if (parts.length < 3) {
-                    error("Usage: /dungeon assemble <themeName> [budget] [seed]");
-                    log("Example: /dungeon assemble forest 50");
-                    log("Example: /dungeon assemble forest 75 12345");
+                    error("Usage: /dungeon load <themeName> [budget] [seed]");
+                    log("Example: /dungeon load forest 50");
+                    log("Example: /dungeon load forest 75 12345");
                     return;
                 }
                 String assembleThemeName = parts[2];
@@ -711,7 +684,6 @@ public class DebugConsole extends Window {
                     error("Assembly failed: " + e.getMessage());
                     e.printStackTrace();
                 }
-                break;
 
             case "load_generated":
                 if (lastAssembledDungeon == null) {
@@ -735,9 +707,22 @@ public class DebugConsole extends Window {
                 }
                 break;
 
+            case "test":
+                log("Launching dungeon test screen...");
+                log("Use WASD to move camera, +/- to zoom, ESC to exit");
+                try {
+                    Game game = (Game) Gdx.app.getApplicationListener();
+                    game.setScreen(new DungeonTestScreen());
+                    log("Test screen launched!");
+                } catch (Exception e) {
+                    error("Failed to launch test screen: " + e.getMessage());
+                    e.printStackTrace();
+                }
+                break;
+
             default:
                 error("Unknown subcommand: " + subcommand);
-                log("Valid subcommands: load, info, generate, assemble, load_generated");
+                log("Valid subcommands: load, info, generate, assemble, load_generated, test");
         }
     }
 

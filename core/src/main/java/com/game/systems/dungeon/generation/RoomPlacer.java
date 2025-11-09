@@ -1,6 +1,7 @@
 package com.game.systems.dungeon.generation;
 
 import com.badlogic.gdx.math.Vector2;
+import com.game.systems.dungeon.RoomBounds;
 import com.game.systems.dungeon.RoomTemplate;
 import com.game.systems.dungeon.generation.PlacedRoom.WorldDoor;
 
@@ -15,6 +16,7 @@ import java.util.Random;
 public class RoomPlacer {
     private static final int TILE_SIZE = 16;
     private static final int MAX_PLACEMENT_ATTEMPTS = 50;
+    private static final int OVERLAP_TOLERANCE_TILES = 2;  // Allow small overlaps for irregular rooms
 
     private final List<PlacedRoom> placedRooms;
     private final List<WorldDoor> unconnectedDoors;
@@ -38,10 +40,10 @@ public class RoomPlacer {
             return placedRooms;
         }
 
-        // Place first room at origin (or offset slightly for variety)
+        // Place first room at origin (aligned to tile grid)
         RoomTemplate firstRoom = rooms.get(0);
-        float startX = random.nextFloat() * 32 - 16;  // Small random offset
-        float startY = random.nextFloat() * 32 - 16;
+        float startX = 0;
+        float startY = 0;
         PlacedRoom firstPlaced = new PlacedRoom(firstRoom, startX, startY, nextRoomId++);
         addPlacedRoom(firstPlaced);
         System.out.println("RoomPlacer: Placed first room " + firstPlaced);
@@ -80,7 +82,7 @@ public class RoomPlacer {
         // DEBUG
         System.out.println("RoomPlacer: Trying to place " + template.getName() + " (has " + template.getDoors().size() + " doors)");
         for (com.game.systems.dungeon.DoorConnection door : template.getDoors()) {
-            System.out.println("  Template door: " + door.getDirection() + " at (" + door.getX() + "," + door.getY() + ")");
+            System.out.println("  " + door);  // Use toString() to show sizes
         }
         System.out.println("RoomPlacer: Available unconnected doors: " + unconnectedDoors.size());
 
@@ -132,28 +134,9 @@ public class RoomPlacer {
         }
 
         // Failed to place via door connections
-        // Last resort: place near a random existing room with some offset
-        if (!placedRooms.isEmpty()) {
-            for (int attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS; attempt++) {
-                PlacedRoom nearbyRoom = placedRooms.get(random.nextInt(placedRooms.size()));
-                float offsetX = (random.nextFloat() * 200 - 100);  // Random offset within range
-                float offsetY = (random.nextFloat() * 200 - 100);
-
-                PlacedRoom candidate = new PlacedRoom(
-                    template,
-                    nearbyRoom.getWorldX() + offsetX,
-                    nearbyRoom.getWorldY() + offsetY,
-                    nextRoomId
-                );
-
-                if (isValidPlacement(candidate, null)) {
-                    nextRoomId++;
-                    addPlacedRoom(candidate);
-                    return candidate;
-                }
-            }
-        }
-
+        // DO NOT use fallback random placement - it creates disconnected islands
+        // Rooms MUST connect via doors or not be placed at all
+        System.out.println("    FAILED - No valid door connections found for " + template.getName());
         return null;  // Failed to place
     }
 
@@ -162,13 +145,37 @@ public class RoomPlacer {
      */
     private boolean isValidPlacement(PlacedRoom candidate, WorldDoor connectionDoor) {
         for (PlacedRoom existing : placedRooms) {
-            // Check if rooms overlap
+            // Check if rooms overlap (using rectangular bounds)
             if (candidate.overlaps(existing, TILE_SIZE)) {
-                // Allow overlap only if this is the connection point
-                if (connectionDoor == null || connectionDoor.getParentRoom() != existing) {
-                    return false;  // Invalid overlap
+                // For irregular rooms, rectangular bounds might overlap even when connecting properly
+                // Allow overlap if this is the connection room OR if overlap is small
+                if (connectionDoor != null && connectionDoor.getParentRoom() == existing) {
+                    System.out.println("      OVERLAP ALLOWED: Connecting to this room");
+                    continue;  // Allow overlap with connection target
                 }
-                // Otherwise, overlap at connection point is expected
+
+                // Calculate overlap area to see if it's significant
+                RoomBounds candidateBounds = candidate.getWorldBounds(TILE_SIZE);
+                RoomBounds existingBounds = existing.getWorldBounds(TILE_SIZE);
+
+                int overlapX1 = Math.max(candidateBounds.getX(), existingBounds.getX());
+                int overlapY1 = Math.max(candidateBounds.getY(), existingBounds.getY());
+                int overlapX2 = Math.min(candidateBounds.getRight(), existingBounds.getRight());
+                int overlapY2 = Math.min(candidateBounds.getBottom(), existingBounds.getBottom());
+
+                int overlapWidth = overlapX2 - overlapX1;
+                int overlapHeight = overlapY2 - overlapY1;
+                int overlapArea = overlapWidth * overlapHeight;
+
+                // Allow small overlaps for irregular rooms
+                // This accounts for rectangular bounds being larger than actual room shape
+                if (overlapArea <= OVERLAP_TOLERANCE_TILES) {
+                    System.out.println("      OVERLAP ALLOWED: Small overlap (" + overlapArea + " tiles, tolerance=" + OVERLAP_TOLERANCE_TILES + ") with " + existing.getTemplate().getName());
+                    continue;
+                }
+
+                System.out.println("      OVERLAP REJECTED: Candidate at (" + candidate.getWorldX() + "," + candidate.getWorldY() + ") overlaps " + overlapArea + " tiles with " + existing.getTemplate().getName() + " at (" + existing.getWorldX() + "," + existing.getWorldY() + ")");
+                return false;  // Significant overlap
             }
         }
         return true;

@@ -13,18 +13,25 @@ import java.util.List;
  */
 public class ObjectSpawner {
 
+    private static final int TILE_SIZE = 16;
+
     /**
-     * Collect all objects from placed rooms, offset to world coordinates.
+     * Collect all objects from placed rooms with offset (to match tile positioning).
      * @param placedRooms List of placed rooms
-     * @return List of objects in world coordinates, ready for spawning
+     * @param offsetX Tile offset X (in tiles, same as TileLayerMerger)
+     * @param offsetY Tile offset Y (in tiles, same as TileLayerMerger)
+     * @return List of objects in final map coordinates, ready for spawning
      */
-    public static List<LevelData.LevelObject> collectObjects(List<PlacedRoom> placedRooms) {
+    public static List<LevelData.LevelObject> collectObjectsWithOffset(List<PlacedRoom> placedRooms, int offsetX, int offsetY) {
         System.out.println("ObjectSpawner: Collecting objects from " + placedRooms.size() + " rooms");
+        System.out.println("ObjectSpawner: Applying offset (" + offsetX + ", " + offsetY + ") tiles = (" + (offsetX * TILE_SIZE) + ", " + (offsetY * TILE_SIZE) + ") pixels");
 
         List<LevelData.LevelObject> worldObjects = new ArrayList<>();
+        float pixelOffsetX = offsetX * TILE_SIZE;
+        float pixelOffsetY = offsetY * TILE_SIZE;
 
         for (PlacedRoom room : placedRooms) {
-            List<LevelData.LevelObject> roomObjects = collectRoomObjects(room);
+            List<LevelData.LevelObject> roomObjects = collectRoomObjects(room, pixelOffsetX, pixelOffsetY);
             worldObjects.addAll(roomObjects);
         }
 
@@ -33,9 +40,18 @@ public class ObjectSpawner {
     }
 
     /**
-     * Collect objects from a single room, offset to world coordinates.
+     * Legacy method without offset (deprecated).
+     * @deprecated Use collectObjectsWithOffset() instead
      */
-    private static List<LevelData.LevelObject> collectRoomObjects(PlacedRoom room) {
+    @Deprecated
+    public static List<LevelData.LevelObject> collectObjects(List<PlacedRoom> placedRooms) {
+        return collectObjectsWithOffset(placedRooms, 0, 0);
+    }
+
+    /**
+     * Collect objects from a single room, offset to final map coordinates.
+     */
+    private static List<LevelData.LevelObject> collectRoomObjects(PlacedRoom room, float pixelOffsetX, float pixelOffsetY) {
         List<LevelData.LevelObject> worldObjects = new ArrayList<>();
         RoomTemplate template = room.getTemplate();
 
@@ -43,14 +59,15 @@ public class ObjectSpawner {
         float worldX = room.getWorldX();
         float worldY = room.getWorldY();
 
-        // Offset each object to world coordinates
+        // Offset each object to final map coordinates
+        // (same offset as tiles and collision to keep everything aligned)
         for (LevelData.LevelObject roomObj : template.getObjects()) {
-            // Create new object with world coordinates (type, name, x, y)
+            // Create new object with final map coordinates (type, name, x, y)
             LevelData.LevelObject worldObj = new LevelData.LevelObject(
                 roomObj.getType(),
                 roomObj.getName(),
-                roomObj.getX() + worldX,
-                roomObj.getY() + worldY
+                roomObj.getX() + worldX - pixelOffsetX,
+                roomObj.getY() + worldY - pixelOffsetY
             );
 
             // Copy all custom properties

@@ -167,6 +167,49 @@ public class DungeonTheme {
     }
 
     /**
+     * Get all rooms marked as closers (dead-ends for final cleanup).
+     */
+    public List<RoomTemplate> getCloserRooms() {
+        List<RoomTemplate> closers = new ArrayList<>();
+        for (RoomTemplate room : rooms) {
+            if (room.isCloser()) {
+                closers.add(room);
+            }
+        }
+        return closers;
+    }
+
+    /**
+     * Get a compatible closer room for a specific door direction.
+     * Returns a random closer that has a door facing the opposite direction.
+     *
+     * @param direction The direction of the open door that needs closing
+     * @return Compatible closer room, or null if none found
+     */
+    public RoomTemplate getCompatibleCloser(Direction direction) {
+        // Find closers with doors in the opposite direction
+        Direction oppositeDir = direction.opposite();
+        List<RoomTemplate> compatibleClosers = new ArrayList<>();
+
+        for (RoomTemplate closer : getCloserRooms()) {
+            // Check if closer has a door facing the opposite direction
+            for (DoorConnection door : closer.getDoors()) {
+                if (door.getDirection() == oppositeDir) {
+                    compatibleClosers.add(closer);
+                    break;  // Only add each closer once
+                }
+            }
+        }
+
+        if (compatibleClosers.isEmpty()) {
+            return null;
+        }
+
+        // Return random compatible closer
+        return compatibleClosers.get(random.nextInt(compatibleClosers.size()));
+    }
+
+    /**
      * Set the random seed for deterministic room selection.
      */
     public void setSeed(long seed) {

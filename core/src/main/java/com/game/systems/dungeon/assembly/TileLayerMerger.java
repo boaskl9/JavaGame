@@ -17,12 +17,27 @@ public class TileLayerMerger {
     private static final int TILE_SIZE = 16;
 
     /**
-     * Merge room tiles into final tile layers.
+     * Result of layer merging, including offset information.
+     */
+    public static class MergeResult {
+        public final Map<String, TiledMapTileLayer> layers;
+        public final int offsetX;  // Tile offset applied (in tiles)
+        public final int offsetY;
+
+        public MergeResult(Map<String, TiledMapTileLayer> layers, int offsetX, int offsetY) {
+            this.layers = layers;
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+        }
+    }
+
+    /**
+     * Merge room tiles into final tile layers (with offset info).
      * @param placedRooms List of placed rooms
      * @param bounds Bounding box of the dungeon in pixels
-     * @return Map of layer name to TiledMapTileLayer
+     * @return MergeResult containing layers and offset
      */
-    public static Map<String, TiledMapTileLayer> mergeLayers(List<PlacedRoom> placedRooms, Rectangle bounds) {
+    public static MergeResult mergeLayersWithOffset(List<PlacedRoom> placedRooms, Rectangle bounds) {
         System.out.println("TileLayerMerger: Merging layers for " + placedRooms.size() + " rooms");
         System.out.println("TileLayerMerger: Bounds = " + bounds);
 
@@ -63,7 +78,16 @@ public class TileLayerMerger {
         }
 
         System.out.println("TileLayerMerger: Layer merging complete");
-        return layers;
+        return new MergeResult(layers, offsetX, offsetY);
+    }
+
+    /**
+     * Legacy method for backward compatibility.
+     * @deprecated Use mergeLayersWithOffset() instead
+     */
+    @Deprecated
+    public static Map<String, TiledMapTileLayer> mergeLayers(List<PlacedRoom> placedRooms, Rectangle bounds) {
+        return mergeLayersWithOffset(placedRooms, bounds).layers;
     }
 
     /**

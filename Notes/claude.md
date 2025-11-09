@@ -71,10 +71,107 @@
 6. **Projectiles** - No ranged weapons or enemy projectiles yet
 
 ### Low Priority (Design Phase)
-7. **Dungeons** - Procedural generation not started
-8. **Day/Night Cycle** - Not implemented (30-min timer planned)
-9. **Minigames** - Fishing, card games planned
-10. **Progression Gates** - Abilities to unlock areas (cut trees, jump ledges, etc.)
+7. **Day/Night Cycle** - Not implemented (30-min timer planned)
+8. **Minigames** - Fishing, card games planned
+9. **Progression Gates** - Abilities to unlock areas (cut trees, jump ledges, etc.)
+
+## 🔧 Active Refactors / In Progress
+
+### Dungeon Generation System Refactor (IN PROGRESS)
+
+**Context**: Basic dungeon generation system exists but has critical issues:
+- Door system uses points (no size/dimensions) → rooms can't match properly
+- Only 2-3 rooms place successfully out of 30+ allocated
+- Testing requires debug console commands (clunky workflow)
+- Many hardcoded values, difficult to iterate/tune
+
+**Location**: `systems/dungeon/` - generation, assembly, parsing subsystems
+
+#### Phase 1: Fix Door System (Rectangle-based with Size Matching) ✅ COMPLETED
+**Goal**: Enable proper door-to-door connections with exact size matching
+
+- [x] **DoorConnection.java**: Add `width` and `height` fields
+- [x] **DoorConnection.java**: Auto-calculate direction from position relative to room bounds
+  - Top edge → NORTH, Bottom → SOUTH, Left → WEST, Right → EAST
+- [x] **DoorConnection.java**: Update `canConnectWith()` to require exact size match
+- [x] **RoomDataExtractor.java**: Change from point objects to rectangle objects
+- [x] **RoomDataExtractor.java**: Read rectangle dimensions (width/height) from Tiled
+- [x] **RoomDataExtractor.java**: Implement auto-direction calculation
+- [x] **RoomDataExtractor.java**: Validate doors are at room edges (not interior)
+- [x] **DoorMatcher.java**: Update `canDoorsConnect()` to check size compatibility
+- [x] **DoorMatcher.java**: Update alignment calculation for door sizes
+- [x] **DoorMatcher.java**: Add directional offset to prevent room overlaps
+- [x] **RoomPlacer.java**: Remove random offset for clean grid-aligned coordinates
+
+**Tiled Workflow Change**: Draw door rectangles at room edges (size defines connection area)
+
+**Key Fixes Applied**:
+- Doors now have width/height and only connect with exact size matches
+- Direction auto-calculated from door position relative to room edges
+- Room placement now accounts for door dimensions to prevent overlaps
+- Removed fractional coordinates - rooms now align to clean grid positions
+- Rooms successfully connect both horizontally AND vertically
+
+**Result**: Complex dungeon layouts now generate successfully with proper door connections!
+
+#### Phase 2: Create Parameter System ✅ COMPLETED
+**Goal**: Make generation tunable without code changes
+
+- [x] **DungeonGenerationParams.java** (NEW): Create parameter container class
+  - Fields: `theme`, `budget`, `seed`, `maxRooms`, `doorMatchPriority`
+  - Uses builder pattern for construction
+- [ ] **DungeonGenerator.java**: Accept `DungeonGenerationParams` instead of individual args (OPTIONAL - not needed for test screen)
+- [ ] **BudgetAllocator.java**: Accept params object (OPTIONAL)
+- [ ] **RoomPlacer.java**: Accept params object (OPTIONAL)
+
+**Note**: Params class created but not yet integrated into generator. Test screen uses params internally, then calls existing generator methods.
+
+#### Phase 3: Create Testing Screen ✅ COMPLETED
+**Goal**: Fast iteration workflow with visual feedback
+
+- [x] **DungeonTestScreen.java** (NEW): Implement LibGDX `Screen` interface
+  - Full screen layout with controls on left, preview on right
+  - Controls: Theme text input, budget/maxRooms/doorPriority sliders, seed display, buttons
+  - Camera controls: WASD to move, +/- to zoom
+  - Green room boundary overlays for debugging
+  - Stats display: room count, connected doors, map size
+- [x] **DebugConsole.java**: Add `/dungeon test` command to launch testing screen
+- [x] Screen switching implemented using `Game.setScreen()`
+
+**Test Screen Features**:
+- Live dungeon generation with adjustable parameters
+- Visual preview with TiledMap rendering
+- Interactive camera controls (WASD move, +/- zoom)
+- Real-time statistics showing room placement success
+- Seed control with randomize button
+- One-click regeneration
+
+#### Phase 4: Integration & Polish
+**Goal**: Connect everything into smooth workflow
+
+- [ ] Implement "Load into Game" button: assemble → switch to GameScreen → load dungeon
+- [ ] Add param validation before generation
+- [ ] Show error messages in UI if generation fails
+- [ ] Display quality warnings (e.g., "Only 5/30 rooms placed")
+- [ ] Store last params for quick iteration
+
+**Files Created**:
+- ✅ `systems/dungeon/DungeonGenerationParams.java`
+- ✅ `systems/dungeon/DungeonTestScreen.java`
+
+**Files Modified**:
+- ✅ `systems/dungeon/DoorConnection.java`
+- ✅ `systems/dungeon/parsing/RoomDataExtractor.java`
+- ✅ `systems/dungeon/generation/DoorMatcher.java`
+- ✅ `systems/dungeon/generation/RoomPlacer.java`
+- ✅ `systems/debug/DebugConsole.java`
+
+**New Workflow (READY TO USE)**:
+1. F4 → `/dungeon test` → Testing screen opens
+2. Adjust theme/budget/seed → Click "Generate Dungeon" → See instant preview
+3. Iterate quickly (no game restart needed!)
+4. Use WASD to explore, +/- to zoom
+5. Stats panel shows room count and connection success
 
 ## 🗂️ Project Structure (Key Directories)
 

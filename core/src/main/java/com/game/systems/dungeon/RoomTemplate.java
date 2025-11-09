@@ -35,6 +35,7 @@ public class RoomTemplate {
     private final int weight;
     private final String category;  // "small", "medium", "large"
     private final Set<String> tags;
+    private final boolean isCloser;  // Tagged as dead-end closer for final cleanup
 
     /**
      * Data for a tile layer.
@@ -61,6 +62,7 @@ public class RoomTemplate {
         this.weight = builder.weight;
         this.category = builder.category;
         this.tags = new HashSet<>(builder.tags);
+        this.isCloser = builder.isCloser;
     }
 
     // Getters
@@ -112,6 +114,10 @@ public class RoomTemplate {
         return tags.contains(tag);
     }
 
+    public boolean isCloser() {
+        return isCloser;
+    }
+
     /**
      * Get doors facing a specific direction.
      */
@@ -146,6 +152,7 @@ public class RoomTemplate {
         private int weight = 10;
         private String category = "medium";
         private Set<String> tags = new HashSet<>();
+        private boolean isCloser = false;
 
         public Builder(String id, RoomBounds bounds) {
             this.id = id;
@@ -200,6 +207,11 @@ public class RoomTemplate {
 
         public Builder tags(Set<String> tags) {
             this.tags = new HashSet<>(tags);
+            return this;
+        }
+
+        public Builder isCloser(boolean isCloser) {
+            this.isCloser = isCloser;
             return this;
         }
 

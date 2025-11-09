@@ -23,6 +23,7 @@ public class DungeonThemeRegistry {
         // Register theme paths
         // Add more themes here as they are created
         registerThemePath("forest", "Maps/dungeons/forest_rooms.tmx");
+        registerThemePath("cave", "Maps/dungeons/cave_rooms.tmx");
     }
 
     /**

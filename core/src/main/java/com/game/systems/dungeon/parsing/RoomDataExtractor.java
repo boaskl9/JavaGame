@@ -20,7 +20,6 @@ import java.util.*;
 public class RoomDataExtractor {
     private static final int TILE_SIZE = 16;
     private static final String DOORS_LAYER = "Doors";
-    private static final String COLLISION_LAYER = "Collision";
     private static final String ENTITIES_LAYER = "Entities";
 
     /**
@@ -94,6 +93,8 @@ public class RoomDataExtractor {
 
     /**
      * Extract door markers from the Doors layer.
+     * Doors must be rectangle objects with width and height.
+     * Direction is auto-calculated based on door position relative to room edges.
      */
     private static void extractDoors(TiledMap map, RoomBounds bounds, RoomTemplate.Builder builder) {
         MapLayer doorsLayer = map.getLayers().get(DOORS_LAYER);
@@ -105,8 +106,19 @@ public class RoomDataExtractor {
         int roomY = bounds.getY() * TILE_SIZE;
 
         for (MapObject obj : doorsLayer.getObjects()) {
-            float objX = obj.getProperties().get("x", Float.class);
-            float objY = obj.getProperties().get("y", Float.class);
+            // Only process rectangle objects (not points or other shapes)
+            if (!(obj instanceof com.badlogic.gdx.maps.objects.RectangleMapObject)) {
+                continue;
+            }
+
+            com.badlogic.gdx.maps.objects.RectangleMapObject rectObj =
+                (com.badlogic.gdx.maps.objects.RectangleMapObject) obj;
+            com.badlogic.gdx.math.Rectangle rect = rectObj.getRectangle();
+
+            float objX = rect.x;
+            float objY = rect.y;
+            float objWidth = rect.width;
+            float objHeight = rect.height;
 
             // Check if door is within room bounds (pixel coordinates)
             if (objX >= roomX && objX < roomX + bounds.getWidth() * TILE_SIZE &&
@@ -116,58 +128,85 @@ public class RoomDataExtractor {
                 float relativeX = objX - roomX;
                 float relativeY = objY - roomY;
 
-                // Get door properties
-                String directionStr = obj.getProperties().get("direction", String.class);
+                // Get door type from properties (optional)
                 String doorType = obj.getProperties().get("doorType", String.class);
-
-                if (directionStr == null) {
-                    directionStr = "NORTH";  // Default
-                }
                 if (doorType == null) {
                     doorType = "normal";
                 }
 
-                Direction direction = Direction.fromString(directionStr);
-                if (direction != null) {
-                    DoorConnection door = new DoorConnection(relativeX, relativeY, direction, doorType);
-                    builder.addDoor(door);
-                }
+                // Create door with auto-calculated direction based on position
+                DoorConnection door = new DoorConnection(
+                    relativeX, relativeY, objWidth, objHeight, bounds, doorType
+                );
+                builder.addDoor(door);
+
+                System.out.println("RoomDataExtractor: Extracted door " + door);
             }
         }
     }
 
     /**
-     * Extract collision shapes from the Collision layer.
+     * Extract collision shapes from tile collision objects (like TiledMapCollisionLoader does).
+     * Each tile in the tileset can have collision objects defined in Tiled's tile collision editor.
      */
     private static void extractCollision(TiledMap map, RoomBounds bounds, RoomTemplate.Builder builder) {
-        MapLayer collisionLayer = map.getLayers().get(COLLISION_LAYER);
-        if (collisionLayer == null) {
-            return;
-        }
+        int roomX = bounds.getX();
+        int roomY = bounds.getY();
+        int roomWidth = bounds.getWidth();
+        int roomHeight = bounds.getHeight();
+        int collisionCount = 0;
 
-        int roomX = bounds.getX() * TILE_SIZE;
-        int roomY = bounds.getY() * TILE_SIZE;
+        // Loop through all tile layers (Background, Features, Top, etc.)
+        for (MapLayer layer : map.getLayers()) {
+            if (!(layer instanceof TiledMapTileLayer)) {
+                continue;
+            }
 
-        for (MapObject obj : collisionLayer.getObjects()) {
-            if (obj instanceof RectangleMapObject) {
-                RectangleMapObject rectObj = (RectangleMapObject) obj;
-                Rectangle rect = rectObj.getRectangle();
+            TiledMapTileLayer tileLayer = (TiledMapTileLayer) layer;
+            int tileWidth = (int) tileLayer.getTileWidth();
+            int tileHeight = (int) tileLayer.getTileHeight();
 
-                // Check if collision is within room bounds
-                if (rect.x >= roomX && rect.x < roomX + bounds.getWidth() * TILE_SIZE &&
-                    rect.y >= roomY && rect.y < roomY + bounds.getHeight() * TILE_SIZE) {
+            // Loop through tiles in the room bounds
+            for (int x = roomX; x < roomX + roomWidth; x++) {
+                for (int y = roomY; y < roomY + roomHeight; y++) {
+                    TiledMapTileLayer.Cell cell = tileLayer.getCell(x, y);
 
-                    // Convert to room-relative coordinates
-                    Rectangle relativeRect = new Rectangle(
-                        rect.x - roomX,
-                        rect.y - roomY,
-                        rect.width,
-                        rect.height
-                    );
-                    builder.addCollisionShape(relativeRect);
+                    if (cell != null && cell.getTile() != null) {
+                        com.badlogic.gdx.maps.MapObjects tileObjects = cell.getTile().getObjects();
+
+                        // Process each collision object defined on this tile
+                        for (MapObject object : tileObjects) {
+                            // Calculate world position of this tile
+                            float tileWorldX = x * tileWidth;
+                            float tileWorldY = y * tileHeight;
+
+                            // Calculate room-relative position
+                            float roomRelativeX = (x - roomX) * tileWidth;
+                            float roomRelativeY = (y - roomY) * tileHeight;
+
+                            if (object instanceof RectangleMapObject) {
+                                Rectangle rect = ((RectangleMapObject) object).getRectangle();
+                                Rectangle relativeRect = new Rectangle(
+                                    rect.x + roomRelativeX,
+                                    rect.y + roomRelativeY,
+                                    rect.width,
+                                    rect.height
+                                );
+                                builder.addCollisionShape(relativeRect);
+                                collisionCount++;
+
+                            } else if (object instanceof com.badlogic.gdx.maps.objects.PolygonMapObject) {
+                                // TODO: Support polygon collision if needed
+                                System.out.println("RoomDataExtractor: Polygon collision not yet supported, skipping");
+                            }
+                        }
+                    }
                 }
             }
-            // TODO: Support polygon collision shapes if needed
+        }
+
+        if (collisionCount > 0) {
+            System.out.println("RoomDataExtractor: Extracted " + collisionCount + " collision shapes from room at " + bounds);
         }
     }
 
@@ -248,6 +287,12 @@ public class RoomDataExtractor {
             for (String tag : tagArray) {
                 builder.addTag(tag.trim());
             }
+        }
+
+        // Extract closer flag (default: false)
+        Boolean closer = marker.getProperties().get("closer", Boolean.class);
+        if (closer != null && closer) {
+            builder.isCloser(true);
         }
     }
 }

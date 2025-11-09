@@ -44,8 +44,9 @@ public class DungeonAssembler {
         }
 
         // Step 1: Merge tile layers from all rooms
-        Map<String, TiledMapTileLayer> mergedLayers =
-            TileLayerMerger.mergeLayers(genResult.getPlacedRooms(), genResult.getBounds());
+        TileLayerMerger.MergeResult mergeResult =
+            TileLayerMerger.mergeLayersWithOffset(genResult.getPlacedRooms(), genResult.getBounds());
+        Map<String, TiledMapTileLayer> mergedLayers = mergeResult.layers;
 
         // Step 2: Create TiledMap and add layers in correct order
         TiledMap tiledMap = new TiledMap();
@@ -93,13 +94,13 @@ public class DungeonAssembler {
             }
         }
 
-        // Step 3: Merge collision shapes
+        // Step 3: Merge collision shapes (use same offset as tiles!)
         List<Rectangle> collisionShapes =
-            CollisionMerger.mergeCollision(genResult.getPlacedRooms());
+            CollisionMerger.mergeCollisionWithOffset(genResult.getPlacedRooms(), mergeResult.offsetX, mergeResult.offsetY);
 
-        // Step 4: Collect spawn objects
+        // Step 4: Collect spawn objects (use same offset as tiles!)
         List<LevelData.LevelObject> objects =
-            ObjectSpawner.collectObjects(genResult.getPlacedRooms());
+            ObjectSpawner.collectObjectsWithOffset(genResult.getPlacedRooms(), mergeResult.offsetX, mergeResult.offsetY);
 
         // Step 5: Create LevelData from bounds and objects
         int mapWidthTiles = (int) Math.ceil(genResult.getBounds().width / TILE_SIZE);

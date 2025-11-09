@@ -13,18 +13,26 @@ import java.util.List;
  */
 public class CollisionMerger {
 
+    private static final int TILE_SIZE = 16;
+
     /**
-     * Merge collision shapes from all placed rooms.
+     * Merge collision shapes with offset (to match tile positioning).
      * @param placedRooms List of placed rooms
-     * @return List of collision rectangles in world coordinates
+     * @param offsetX Tile offset X (in tiles, same as TileLayerMerger)
+     * @param offsetY Tile offset Y (in tiles, same as TileLayerMerger)
+     * @return List of collision rectangles in final map coordinates
      */
-    public static List<Rectangle> mergeCollision(List<PlacedRoom> placedRooms) {
+    public static List<Rectangle> mergeCollisionWithOffset(List<PlacedRoom> placedRooms, int offsetX, int offsetY) {
         System.out.println("CollisionMerger: Merging collision for " + placedRooms.size() + " rooms");
+        System.out.println("CollisionMerger: Applying offset (" + offsetX + ", " + offsetY + ") tiles = (" + (offsetX * TILE_SIZE) + ", " + (offsetY * TILE_SIZE) + ") pixels");
 
         List<Rectangle> worldCollision = new ArrayList<>();
+        float pixelOffsetX = offsetX * TILE_SIZE;
+        float pixelOffsetY = offsetY * TILE_SIZE;
 
         for (PlacedRoom room : placedRooms) {
-            List<Rectangle> roomCollision = mergeRoomCollision(room);
+            System.out.println("CollisionMerger:   Room " + room.getId() + " world position: (" + room.getWorldX() + ", " + room.getWorldY() + ")");
+            List<Rectangle> roomCollision = mergeRoomCollision(room, pixelOffsetX, pixelOffsetY);
             worldCollision.addAll(roomCollision);
         }
 
@@ -33,10 +41,19 @@ public class CollisionMerger {
     }
 
     /**
-     * Merge collision shapes from a single room.
-     * Offsets shapes from room-relative to world coordinates.
+     * Legacy method without offset (deprecated).
+     * @deprecated Use mergeCollisionWithOffset() instead
      */
-    private static List<Rectangle> mergeRoomCollision(PlacedRoom room) {
+    @Deprecated
+    public static List<Rectangle> mergeCollision(List<PlacedRoom> placedRooms) {
+        return mergeCollisionWithOffset(placedRooms, 0, 0);
+    }
+
+    /**
+     * Merge collision shapes from a single room.
+     * Offsets shapes from room-relative to final map coordinates.
+     */
+    private static List<Rectangle> mergeRoomCollision(PlacedRoom room, float pixelOffsetX, float pixelOffsetY) {
         List<Rectangle> worldShapes = new ArrayList<>();
         RoomTemplate template = room.getTemplate();
 
@@ -44,11 +61,12 @@ public class CollisionMerger {
         float worldX = room.getWorldX();
         float worldY = room.getWorldY();
 
-        // Offset each collision shape to world coordinates
+        // Offset each collision shape to final map coordinates
+        // (same offset as tiles to keep everything aligned)
         for (Rectangle roomShape : template.getCollisionShapes()) {
             Rectangle worldShape = new Rectangle(
-                roomShape.x + worldX,
-                roomShape.y + worldY,
+                roomShape.x + worldX - pixelOffsetX,
+                roomShape.y + worldY - pixelOffsetY,
                 roomShape.width,
                 roomShape.height
             );

@@ -1721,6 +1721,7 @@ Items/Weapons/Whip/SpriteInHand.png
 Maps/Rules/autotiles_rules.tmx
 Maps/StartArea.tmx
 Maps/WestArea.tmx
+Maps/dungeons/cave_rooms.tmx
 Maps/dungeons/forest_rooms.tmx
 Maps/dungeons/rules.txt
 Maps/glade.tmx

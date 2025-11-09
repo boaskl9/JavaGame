@@ -25,10 +25,39 @@ public class DoorMatcher {
             return null;
         }
 
+        DoorConnection existingDoorConn = existingDoor.getDoor();
+        Direction existingDir = existingDoorConn.getDirection();
+
         // Calculate offset needed to align doors
         // New room position = existing door world pos - new room door offset
         float newRoomX = existingDoor.getWorldX() - newRoomDoor.getX();
         float newRoomY = existingDoor.getWorldY() - newRoomDoor.getY();
+
+        // Apply directional offset so doors MEET at boundary instead of overlapping
+        // For NORTH/SOUTH: offset by door height
+        // For EAST/WEST: offset by door width
+        switch (existingDir) {
+            case NORTH:
+                // Existing door faces up, new door faces down
+                // New room should be ABOVE existing door
+                newRoomY += existingDoorConn.getHeight();
+                break;
+            case SOUTH:
+                // Existing door faces down, new door faces up
+                // New room should be BELOW existing door
+                newRoomY -= newRoomDoor.getHeight();
+                break;
+            case EAST:
+                // Existing door faces right, new door faces left
+                // New room should be to the RIGHT of existing door
+                newRoomX += existingDoorConn.getWidth();
+                break;
+            case WEST:
+                // Existing door faces left, new door faces right
+                // New room should be to the LEFT of existing door
+                newRoomX -= newRoomDoor.getWidth();
+                break;
+        }
 
         return new Vector2(newRoomX, newRoomY);
     }
