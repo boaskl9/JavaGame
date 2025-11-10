@@ -16,6 +16,7 @@ public class PlacedRoom {
     private final RoomTemplate template;
     private final Vector2 worldPosition;  // Position in world coordinates (pixels)
     private final int id;  // Unique ID for this placed instance
+    private final List<WorldDoor> cachedWorldDoors;  // Cache to avoid recreating doors
 
     /**
      * Create a placed room.
@@ -28,6 +29,14 @@ public class PlacedRoom {
         this.template = template;
         this.worldPosition = new Vector2(worldX, worldY);
         this.id = id;
+
+        // Create and cache world doors once
+        this.cachedWorldDoors = new ArrayList<>();
+        for (DoorConnection door : template.getDoors()) {
+            float worldDoorX = worldPosition.x + door.getX();
+            float worldDoorY = worldPosition.y + door.getY();
+            cachedWorldDoors.add(new WorldDoor(door, worldDoorX, worldDoorY, this));
+        }
     }
 
     public RoomTemplate getTemplate() {
@@ -62,15 +71,10 @@ public class PlacedRoom {
 
     /**
      * Get all doors in world coordinates.
+     * Returns the same cached list to allow reference-based removal.
      */
     public List<WorldDoor> getWorldDoors() {
-        List<WorldDoor> worldDoors = new ArrayList<>();
-        for (DoorConnection door : template.getDoors()) {
-            float worldDoorX = worldPosition.x + door.getX();
-            float worldDoorY = worldPosition.y + door.getY();
-            worldDoors.add(new WorldDoor(door, worldDoorX, worldDoorY, this));
-        }
-        return worldDoors;
+        return cachedWorldDoors;
     }
 
     /**

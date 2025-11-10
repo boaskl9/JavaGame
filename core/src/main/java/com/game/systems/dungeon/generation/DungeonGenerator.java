@@ -41,19 +41,19 @@ public class DungeonGenerator {
         }
 
         // Phase 1: Budget Allocation
-        System.out.println("\n[Phase 1: Budget Allocation]");
-        BudgetAllocator allocator = new BudgetAllocator(theme, targetBudget, DEFAULT_BUDGET_TOLERANCE, seed);
-        List<RoomTemplate> selectedRooms = allocator.allocateRooms();
+        //System.out.println("\n[Phase 1: Budget Allocation]");
+        //BudgetAllocator allocator = new BudgetAllocator(theme, targetBudget, DEFAULT_BUDGET_TOLERANCE, seed);
+        // List<RoomTemplate> selectedRooms = allocator.allocateRooms();
 
-        if (selectedRooms.isEmpty()) {
-            System.err.println("DungeonGenerator: No rooms selected by budget allocator");
-            return null;
-        }
+        // (selectedRooms.isEmpty()) {
+        //    System.err.println("DungeonGenerator: No rooms selected by budget allocator");
+        //    return null;
+        //}
 
         // Phase 2: Room Placement
         System.out.println("\n[Phase 2: Room Placement]");
-        RoomPlacer placer = new RoomPlacer(seed);
-        List<PlacedRoom> placedRooms = placer.placeRooms(selectedRooms);
+        RoomPlacer placer = new RoomPlacer(targetBudget, seed, theme.getAllRooms(), theme);
+        List<PlacedRoom> placedRooms = placer.placeRooms();
 
         if (placedRooms.isEmpty()) {
             System.err.println("DungeonGenerator: No rooms placed");
@@ -71,7 +71,7 @@ public class DungeonGenerator {
 
         System.out.println("\n==============================================");
         System.out.println("DungeonGenerator: Generation complete!");
-        System.out.println("  Rooms placed: " + placedRooms.size() + "/" + selectedRooms.size());
+        System.out.println("  Rooms placed: " + placedRooms.size());
         System.out.println("  Unconnected doors: " + placer.getUnconnectedDoors().size());
         System.out.println("  Bounds: " + result.getBounds());
         System.out.println("==============================================");

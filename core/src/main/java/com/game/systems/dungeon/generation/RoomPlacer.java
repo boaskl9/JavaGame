@@ -1,6 +1,7 @@
 package com.game.systems.dungeon.generation;
 
 import com.badlogic.gdx.math.Vector2;
+import com.game.systems.dungeon.DoorConnection;
 import com.game.systems.dungeon.RoomBounds;
 import com.game.systems.dungeon.RoomTemplate;
 import com.game.systems.dungeon.generation.PlacedRoom.WorldDoor;
@@ -19,29 +20,39 @@ public class RoomPlacer {
     private static final int OVERLAP_TOLERANCE_TILES = 2;  // Allow small overlaps for irregular rooms
 
     private final List<PlacedRoom> placedRooms;
+    private List<RoomTemplate> rooms;
+    private final int targetBudget;
     private final List<WorldDoor> unconnectedDoors;
     private final Random random;
     private int nextRoomId = 0;
+    private int budgetUsed;
+    private final com.game.systems.dungeon.DungeonTheme theme;
+    private final RoomSelector roomSelector;
 
-    public RoomPlacer(long seed) {
+    public RoomPlacer(int targetBudget, long seed, List<RoomTemplate> inputRooms, com.game.systems.dungeon.DungeonTheme theme) {
         this.placedRooms = new ArrayList<>();
         this.unconnectedDoors = new ArrayList<>();
         this.random = new Random(seed);
+        this.targetBudget = targetBudget;
+        this.rooms = inputRooms;
+        this.theme = theme;
+        this.roomSelector = new RoomSelector(inputRooms, random);
     }
 
     /**
      * Place rooms from the allocated list.
-     * @param rooms List of room templates to place
      * @return List of successfully placed rooms
      */
-    public List<PlacedRoom> placeRooms(List<RoomTemplate> rooms) {
+    public List<PlacedRoom> placeRooms() {
         if (rooms.isEmpty()) {
             System.err.println("RoomPlacer: No rooms to place");
             return placedRooms;
         }
 
+
+
         // Place first room at origin (aligned to tile grid)
-        RoomTemplate firstRoom = rooms.get(0);
+        RoomTemplate firstRoom = pickRoom();
         float startX = 0;
         float startY = 0;
         PlacedRoom firstPlaced = new PlacedRoom(firstRoom, startX, startY, nextRoomId++);
@@ -52,22 +63,75 @@ public class RoomPlacer {
             System.out.println("  - " + door.getDoor().getDirection() + " at (" + door.getWorldX() + "," + door.getWorldY() + ")");
         }
 
-        // Place remaining rooms
-        for (int i = 1; i < rooms.size(); i++) {
-            RoomTemplate room = rooms.get(i);
-            PlacedRoom placed = tryPlaceRoom(room);
+        int attempts = 0;
 
-            if (placed != null) {
-                System.out.println("RoomPlacer: Placed room " + placed);
-            } else {
-                System.out.println("RoomPlacer: Failed to place room " + room.getName() + " after " + MAX_PLACEMENT_ATTEMPTS + " attempts");
+        // Place remaining rooms
+        while (getRemainingBudget() > 5 && !getUnconnectedDoors().isEmpty() && attempts < 50){
+
+            for (PlacedRoom.WorldDoor door : getUnconnectedDoors()) {
+                System.out.println("door: "+ door.toString());
+            }
+
+
+            if (canPickRoom()) {
+                RoomTemplate room = pickRoom();
+                PlacedRoom placed = tryPlaceRoom(room);
+
+                if (placed != null) {
+                    System.out.println("RoomPlacer: Placed room " + placed);
+                    budgetUsed += placed.getTemplate().getCost();
+                } else {
+                    System.out.println("RoomPlacer: Failed to place room " + room.getName() + " after " + MAX_PLACEMENT_ATTEMPTS + " attempts");
+                    attempts++;
+                }
+            }
+            else {
+                break;
             }
         }
+
+        // Fill out dead ends with closer rooms
+        System.out.println("\n[Phase 3: Door Closure]");
+        closeUnconnectedDoors();
+
+        System.out.println("RoomPlacer: failed attempts: " + attempts);
+
 
         System.out.println("RoomPlacer: Placed " + placedRooms.size() + "/" + rooms.size() + " rooms");
         System.out.println("RoomPlacer: " + unconnectedDoors.size() + " unconnected doors remaining");
 
         return new ArrayList<>(placedRooms);
+    }
+
+    private boolean canPickRoom() {
+
+        for (RoomTemplate r : rooms) {
+            if (r.getCost() < getRemainingBudget()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Pick the next room using intelligent selection strategy.
+     * @return Selected room
+     */
+    private RoomTemplate pickRoom() {
+        RoomTemplate selected = roomSelector.selectRoom(getRemainingBudget(), targetBudget);
+
+        if (selected == null) {
+            throw new IllegalStateException("ERROR: no available rooms within budget");
+        }
+
+        System.out.println("picked room named " + selected.getName() + " (" + selected.getDoors().size() + " doors)");
+        return selected;
+    }
+
+    private int getRemainingBudget()
+    {
+        return targetBudget - budgetUsed;
     }
 
     /**
@@ -122,8 +186,20 @@ public class RoomPlacer {
                     nextRoomId++;
                     addPlacedRoom(candidate);
 
-                    // Connect the doors
-                    connectDoors(existingDoor, candidate);
+                    // Mark door1 as connected
+                    existingDoor.setConnectedRoom(candidate);
+                    unconnectedDoors.remove(existingDoor);
+
+                    // Find the matching door in candidate that corresponds to pair.templateDoor
+                    for (WorldDoor candidateDoor : candidate.getWorldDoors()) {
+                        // Match by DoorConnection reference - the WorldDoor wraps the same templateDoor
+                        if (candidateDoor.getDoor() == pair.templateDoor) {
+                            candidateDoor.setConnectedRoom(existingDoor.getParentRoom());
+                            unconnectedDoors.remove(candidateDoor);
+                            System.out.println("      Connected door pair: " + existingDoor.getDoor().getDirection() + " <-> " + candidateDoor.getDoor().getDirection());
+                            break;
+                        }
+                    }
 
                     System.out.println("    SUCCESS - Placed at (" + position.x + "," + position.y + ")");
                     return candidate;
@@ -207,6 +283,95 @@ public class RoomPlacer {
                 break;
             }
         }
+    }
+
+    /**
+     * Close all unconnected doors using closer rooms from the theme.
+     * Closer rooms are free (don't consume budget) and are specifically designed as dead-ends.
+     */
+    private void closeUnconnectedDoors() {
+        // Make a copy to avoid concurrent modification
+        List<WorldDoor> doorsToClose = new ArrayList<>(unconnectedDoors);
+        int closedCount = 0;
+
+        System.out.println("RoomPlacer: Attempting to close " + doorsToClose.size() + " unconnected doors");
+
+        for (WorldDoor openDoor : doorsToClose) {
+            // Get a compatible closer room for this door direction
+            RoomTemplate closer = theme.getCompatibleCloser(openDoor.getDoor().getDirection());
+
+            if (closer == null) {
+                System.out.println("  Door " + openDoor.getDoor().getDirection() + " at (" + openDoor.getWorldX() + "," + openDoor.getWorldY() + "): no compatible closer found");
+                continue;
+            }
+
+            // Try to place the closer room
+            PlacedRoom placedCloser = tryPlaceCloser(closer, openDoor);
+
+            if (placedCloser != null) {
+                closedCount++;
+                System.out.println("  Door " + openDoor.getDoor().getDirection() + " at (" + openDoor.getWorldX() + "," + openDoor.getWorldY() + "): CLOSED with " + closer.getName());
+            } else {
+                System.out.println("  Door " + openDoor.getDoor().getDirection() + " at (" + openDoor.getWorldX() + "," + openDoor.getWorldY() + "): failed to place closer");
+            }
+        }
+
+        System.out.println("RoomPlacer: Closed " + closedCount + "/" + doorsToClose.size() + " doors");
+    }
+
+    /**
+     * Try to place a closer room to seal a specific door.
+     * @param closerTemplate The closer room template
+     * @param doorToClose The door to close
+     * @return Placed room or null if placement failed
+     */
+    private PlacedRoom tryPlaceCloser(RoomTemplate closerTemplate, WorldDoor doorToClose) {
+        // Find all compatible doors in the closer template
+        List<DoorMatcher.DoorPair> pairs = new ArrayList<>();
+        for (com.game.systems.dungeon.DoorConnection closerDoor : closerTemplate.getDoors()) {
+            if (DoorMatcher.canDoorsConnect(doorToClose.getDoor(), closerDoor)) {
+                pairs.add(new DoorMatcher.DoorPair(doorToClose, closerDoor));
+            }
+        }
+
+        if (pairs.isEmpty()) {
+            return null;
+        }
+
+        // Try each compatible door pair
+        for (DoorMatcher.DoorPair pair : pairs) {
+            Vector2 position = pair.calculatePlacementPosition();
+            if (position == null) {
+                continue;
+            }
+
+            // Create tentative placed room
+            PlacedRoom candidate = new PlacedRoom(closerTemplate, position.x, position.y, nextRoomId);
+
+            // Validate placement (closers can overlap slightly with connection room)
+            if (isValidPlacement(candidate, doorToClose)) {
+                // Accept placement
+                nextRoomId++;
+                addPlacedRoom(candidate);
+
+                // Connect the doors
+                doorToClose.setConnectedRoom(candidate);
+                unconnectedDoors.remove(doorToClose);
+
+                // Find and connect the matching door in the closer
+                for (WorldDoor closerDoor : candidate.getWorldDoors()) {
+                    if (closerDoor.getDoor() == pair.templateDoor) {
+                        closerDoor.setConnectedRoom(doorToClose.getParentRoom());
+                        unconnectedDoors.remove(closerDoor);
+                        break;
+                    }
+                }
+
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     public List<PlacedRoom> getPlacedRooms() {

@@ -364,15 +364,40 @@ public class DungeonTestScreen implements Screen {
         }
 
         // Render room bounds (GREEN)
-        if (placedRooms != null) {
+        if (placedRooms != null && currentDungeon != null) {
+            // Apply the same offset that was used for tiles and collision
+            float pixelOffsetX = currentDungeon.getOffsetX() * 16;
+            float pixelOffsetY = currentDungeon.getOffsetY() * 16;
+
             shapeRenderer.setColor(Color.GREEN);
             for (PlacedRoom room : placedRooms) {
                 RoomBounds bounds = room.getTemplate().getBounds();
-                float x = room.getWorldX();
-                float y = room.getWorldY();
+                float x = room.getWorldX() - pixelOffsetX;
+                float y = room.getWorldY() - pixelOffsetY;
                 float w = bounds.getWidth() * 16;
                 float h = bounds.getHeight() * 16;
                 shapeRenderer.rect(x, y, w, h);
+            }
+        }
+
+        // Render doors (YELLOW for unconnected, CYAN for connected)
+        if (placedRooms != null && currentDungeon != null) {
+            float pixelOffsetX = currentDungeon.getOffsetX() * 16;
+            float pixelOffsetY = currentDungeon.getOffsetY() * 16;
+
+            for (PlacedRoom room : placedRooms) {
+                for (PlacedRoom.WorldDoor door : room.getWorldDoors()) {
+                    if (door.isConnected()) {
+                        shapeRenderer.setColor(Color.CYAN);
+                    } else {
+                        shapeRenderer.setColor(Color.YELLOW);
+                    }
+                    float doorX = door.getWorldX() - pixelOffsetX;
+                    float doorY = door.getWorldY() - pixelOffsetY;
+                    float doorW = door.getDoor().getWidth();
+                    float doorH = door.getDoor().getHeight();
+                    shapeRenderer.rect(doorX, doorY, doorW, doorH);
+                }
             }
         }
 
@@ -384,7 +409,7 @@ public class DungeonTestScreen implements Screen {
 
         // Render help text
         batch.begin();
-        font.draw(batch, "WASD: Move Camera | +/-: Zoom | ESC: Exit | RED: Colliders | GREEN: Room Bounds", 10, 30);
+        font.draw(batch, "WASD: Move Camera | +/-: Zoom | ESC: Exit | RED: Colliders | GREEN: Room Bounds | YELLOW: Open Doors | CYAN: Connected Doors", 10, 30);
         batch.end();
     }
 

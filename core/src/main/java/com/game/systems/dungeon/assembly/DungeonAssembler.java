@@ -120,7 +120,9 @@ public class DungeonAssembler {
             collisionShapes,
             genResult.getThemeName(),
             genResult.getTargetBudget(),
-            genResult.getSeed()
+            genResult.getSeed(),
+            mergeResult.offsetX,
+            mergeResult.offsetY
         );
     }
 

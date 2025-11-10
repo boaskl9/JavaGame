@@ -1718,6 +1718,7 @@ Items/Weapons/Sword3/longsword.aseprite
 Items/Weapons/Sword3/longsword.png
 Items/Weapons/Whip/Sprite.png
 Items/Weapons/Whip/SpriteInHand.png
+Maps/Cresent mountain.tmx
 Maps/Rules/autotiles_rules.tmx
 Maps/StartArea.tmx
 Maps/WestArea.tmx

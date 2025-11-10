@@ -69,10 +69,13 @@ public class DoorMatcher {
      * @return true if doors are aligned within tolerance
      */
     public static boolean areDoorsAligned(WorldDoor door1, WorldDoor door2) {
-        float dx = door1.getWorldX() - door2.getWorldX();
-        float dy = door1.getWorldY() - door2.getWorldY();
-        float distance = (float) Math.sqrt(dx * dx + dy * dy);
-        return distance <= DOOR_ALIGNMENT_TOLERANCE;
+
+        Direction door1Direction = door1.getDoor().getDirection();
+        Direction door2Direction = door2.getDoor().getDirection();
+
+        System.out.println("--------------" + (door1Direction.opposite() == door2Direction) + "-----------");
+
+        return door1Direction.opposite() == door2Direction;
     }
 
     /**

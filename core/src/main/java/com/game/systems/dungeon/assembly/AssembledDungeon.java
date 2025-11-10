@@ -17,15 +17,19 @@ public class AssembledDungeon {
     private final String themeName;
     private final int targetBudget;
     private final long seed;
+    private final int offsetX;  // Tile offset in tiles
+    private final int offsetY;
 
     public AssembledDungeon(TiledMap tiledMap, LevelData levelData, List<Rectangle> collisionShapes,
-                            String themeName, int targetBudget, long seed) {
+                            String themeName, int targetBudget, long seed, int offsetX, int offsetY) {
         this.tiledMap = tiledMap;
         this.levelData = levelData;
         this.collisionShapes = collisionShapes;
         this.themeName = themeName;
         this.targetBudget = targetBudget;
         this.seed = seed;
+        this.offsetX = offsetX;
+        this.offsetY = offsetY;
     }
 
     /**
@@ -59,6 +63,14 @@ public class AssembledDungeon {
 
     public long getSeed() {
         return seed;
+    }
+
+    public int getOffsetX() {
+        return offsetX;
+    }
+
+    public int getOffsetY() {
+        return offsetY;
     }
 
     /**

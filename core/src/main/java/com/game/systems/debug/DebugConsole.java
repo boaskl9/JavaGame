@@ -678,8 +678,6 @@ public class DebugConsole extends Window {
                     }
                     lastAssembledDungeon = assembled;
 
-                    log("Ready to load! Use: /dungeon load_generated");
-
                 } catch (Exception e) {
                     error("Assembly failed: " + e.getMessage());
                     e.printStackTrace();
