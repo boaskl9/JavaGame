@@ -585,20 +585,23 @@ public class DebugConsole extends Window {
                 log("  Seed: " + seed);
                 log("");
 
-                // Generate dungeon
-                com.game.systems.dungeon.generation.DungeonGenerationResult result =
-                    com.game.systems.dungeon.generation.DungeonGenerator.generateWithSeed(genThemeName, budget, seed);
+                // Generate dungeon using controller
+                try {
+                    com.game.systems.dungeon.assembly.AssembledDungeon assembled =
+                        gameScreen.getDungeonController().generateDungeon(genThemeName, budget, seed, 50);
 
-                if (result == null) {
-                    error("Generation failed! Check console output for details");
-                } else {
-                    log("Generation successful!");
-                    log(result.getSummary());
-                    log("");
-                    log("Placed rooms:");
-                    for (com.game.systems.dungeon.generation.PlacedRoom room : result.getPlacedRooms()) {
-                        log("  " + room.toString());
+                    if (assembled == null) {
+                        error("Generation failed! Check console output for details");
+                    } else {
+                        log("Generation successful!");
+                        log("  Theme: " + assembled.getThemeName());
+                        log("  Seed: " + assembled.getSeed());
+                        log("  Budget: " + assembled.getTargetBudget());
+                        log("  Placed rooms: " + gameScreen.getDungeonController().getPlacedRooms().size());
                     }
+                } catch (Exception e) {
+                    error("Generation failed: " + e.getMessage());
+                    e.printStackTrace();
                 }
                 break;
 
@@ -640,30 +643,19 @@ public class DebugConsole extends Window {
                 log("");
 
                 try {
-                    // Generate dungeon
-                    com.game.systems.dungeon.generation.DungeonGenerationResult genResult =
-                        com.game.systems.dungeon.generation.DungeonGenerator.generateWithSeed(
-                            assembleThemeName, assembleBudget, assembleSeed);
+                    // Generate and assemble dungeon using controller
+                    com.game.systems.dungeon.assembly.AssembledDungeon assembled =
+                        gameScreen.getDungeonController().generateDungeon(assembleThemeName, assembleBudget, assembleSeed, 50);
 
-                    if (genResult == null) {
+                    if (assembled == null) {
                         error("Generation failed!");
                         return;
                     }
 
-                    log("Generation successful!");
-                    log(genResult.getSummary());
-                    log("");
-
-                    // Get theme for tilesets
-                    com.game.systems.dungeon.DungeonTheme assembleTheme =
-                        com.game.systems.dungeon.DungeonThemeRegistry.getInstance().getTheme(assembleThemeName);
-
-                    // Assemble dungeon
-                    log("Assembling dungeon...");
-                    com.game.systems.dungeon.assembly.AssembledDungeon assembled =
-                        com.game.systems.dungeon.assembly.DungeonAssembler.assemble(genResult, assembleTheme);
-
                     log("Assembly complete!");
+                    log("  Theme: " + assembled.getThemeName());
+                    log("  Seed: " + assembled.getSeed());
+                    log("  Budget: " + assembled.getTargetBudget());
                     log("  TiledMap layers: " + assembled.getTiledMap().getLayers().size());
                     log("  Collision shapes: " + assembled.getCollisionShapes().size());
                     log("  Level objects: " + assembled.getLevelData().getObjects().size());
@@ -682,6 +674,7 @@ public class DebugConsole extends Window {
                     error("Assembly failed: " + e.getMessage());
                     e.printStackTrace();
                 }
+                break;
 
             case "load_generated":
                 if (lastAssembledDungeon == null) {

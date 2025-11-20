@@ -53,6 +53,10 @@ public class DungeonTestScreen implements Screen {
     private Skin skin;
     private Window controlPanel;
 
+    // Dungeon systems
+    private DungeonController dungeonController;
+    private DungeonDebugRenderer dungeonDebugRenderer;
+
     // Dungeon preview
     private OrthogonalTiledMapRenderer mapRenderer;
     private AssembledDungeon currentDungeon;
@@ -85,6 +89,11 @@ public class DungeonTestScreen implements Screen {
         shapeRenderer = new ShapeRenderer();
         font = new BitmapFont();
         font.getData().setScale(1.5f);
+
+        // Initialize dungeon systems
+        dungeonController = new DungeonController();
+        dungeonDebugRenderer = new DungeonDebugRenderer();
+        dungeonDebugRenderer.setShowAll(true); // Always show debug in test screen
 
         // Initialize UI
         stage = new Stage(new ScreenViewport());
@@ -206,51 +215,23 @@ public class DungeonTestScreen implements Screen {
     }
 
     private void generateDungeon() {
-        System.out.println("\n=== Generating Dungeon ===");
-
         try {
             // Auto-randomize seed if enabled
             if (autoRandomizeSeed) {
                 seed = System.currentTimeMillis();
                 seedLabel.setText(String.valueOf(seed));
-                System.out.println("Auto-randomized seed to: " + seed);
             }
 
-            // Build parameters
-            DungeonGenerationParams params = new DungeonGenerationParams.Builder()
-                .theme(theme)
-                .budget(budget)
-                .seed(seed)
-                .maxRooms(maxRooms)
-                .build();
+            // Generate dungeon using controller
+            currentDungeon = dungeonController.generateDungeon(theme, budget, seed, maxRooms);
 
-            System.out.println("Parameters: " + params);
-
-            // Generate layout (use static method)
-            DungeonGenerationResult result = DungeonGenerator.generateWithSeed(theme, budget, seed);
-
-            if (result == null) {
+            if (currentDungeon == null) {
                 statsLabel.setText("ERROR: Generation failed!");
-                System.err.println("DungeonGenerator.generateWithSeed returned null");
                 return;
             }
 
-            placedRooms = result.getPlacedRooms();
-
-            // Load theme for assembly
-            DungeonTheme dungeonTheme = DungeonThemeRegistry.getInstance().getTheme(theme);
-            if (dungeonTheme == null) {
-                dungeonTheme = DungeonThemeRegistry.getInstance().loadTheme(theme);
-            }
-
-            if (dungeonTheme == null) {
-                statsLabel.setText("ERROR: Theme '" + theme + "' not found!");
-                System.err.println("Failed to load theme: " + theme);
-                return;
-            }
-
-            // Assemble dungeon (use static method)
-            currentDungeon = DungeonAssembler.assemble(result, dungeonTheme);
+            // Get placed rooms for debug rendering
+            placedRooms = dungeonController.getPlacedRooms();
 
             // Setup renderer
             if (mapRenderer != null) {
@@ -263,15 +244,12 @@ public class DungeonTestScreen implements Screen {
             for (Rectangle rect : currentDungeon.getCollisionShapes()) {
                 collisionSystem.addRectangle(rect);
             }
-            System.out.println("Loaded " + collisionSystem.getShapeCount() + " collision shapes");
 
             // Update stats
             updateStats();
 
             // Center camera on dungeon
             centerCameraOnDungeon();
-
-            System.out.println("=== Generation Complete ===\n");
 
         } catch (Exception e) {
             System.err.println("Failed to generate dungeon: " + e.getMessage());
@@ -348,57 +326,13 @@ public class DungeonTestScreen implements Screen {
             mapRenderer.render();
         }
 
-        // Render debug overlays
+        // Render debug overlays using DungeonDebugRenderer
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
-        // Render collision shapes (RED)
-        if (collisionSystem != null) {
-            shapeRenderer.setColor(Color.RED);
-            for (Rectangle rect : collisionSystem.getRectangles()) {
-                shapeRenderer.rect(rect.x, rect.y, rect.width, rect.height);
-            }
-            for (Polygon poly : collisionSystem.getPolygons()) {
-                shapeRenderer.polygon(poly.getTransformedVertices());
-            }
-        }
-
-        // Render room bounds (GREEN)
-        if (placedRooms != null && currentDungeon != null) {
-            // Apply the same offset that was used for tiles and collision
-            float pixelOffsetX = currentDungeon.getOffsetX() * 16;
-            float pixelOffsetY = currentDungeon.getOffsetY() * 16;
-
-            shapeRenderer.setColor(Color.GREEN);
-            for (PlacedRoom room : placedRooms) {
-                RoomBounds bounds = room.getTemplate().getBounds();
-                float x = room.getWorldX() - pixelOffsetX;
-                float y = room.getWorldY() - pixelOffsetY;
-                float w = bounds.getWidth() * 16;
-                float h = bounds.getHeight() * 16;
-                shapeRenderer.rect(x, y, w, h);
-            }
-        }
-
-        // Render doors (YELLOW for unconnected, CYAN for connected)
-        if (placedRooms != null && currentDungeon != null) {
-            float pixelOffsetX = currentDungeon.getOffsetX() * 16;
-            float pixelOffsetY = currentDungeon.getOffsetY() * 16;
-
-            for (PlacedRoom room : placedRooms) {
-                for (PlacedRoom.WorldDoor door : room.getWorldDoors()) {
-                    if (door.isConnected()) {
-                        shapeRenderer.setColor(Color.CYAN);
-                    } else {
-                        shapeRenderer.setColor(Color.YELLOW);
-                    }
-                    float doorX = door.getWorldX() - pixelOffsetX;
-                    float doorY = door.getWorldY() - pixelOffsetY;
-                    float doorW = door.getDoor().getWidth();
-                    float doorH = door.getDoor().getHeight();
-                    shapeRenderer.rect(doorX, doorY, doorW, doorH);
-                }
-            }
+        if (currentDungeon != null && placedRooms != null && collisionSystem != null) {
+            float[] offset = dungeonController.getOffset();
+            dungeonDebugRenderer.render(shapeRenderer, collisionSystem, placedRooms, offset[0], offset[1]);
         }
 
         shapeRenderer.end();
@@ -470,6 +404,9 @@ public class DungeonTestScreen implements Screen {
         skin.dispose();
         if (mapRenderer != null) {
             mapRenderer.dispose();
+        }
+        if (dungeonController != null) {
+            dungeonController.dispose();
         }
     }
 }

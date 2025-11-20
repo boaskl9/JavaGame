@@ -88,6 +88,11 @@ public class GameScreen implements Screen {
     private DebugManager debugManager;
     private DebugConsole debugConsole;
 
+    // Level loading abstraction
+    private com.game.systems.level.LevelSource currentLevelSource;
+    private com.game.systems.dungeon.DungeonController dungeonController;
+    private com.game.systems.dungeon.DungeonDebugRenderer dungeonDebugRenderer;
+
     private GatewayEntity pendingGateway = null;
 
     // Damage numbers
@@ -126,6 +131,11 @@ public class GameScreen implements Screen {
         damageNumbers = new java.util.ArrayList<>();
         deathAnimations = new java.util.ArrayList<>();
         destructionParticles = new java.util.ArrayList<>();
+
+        // Initialize level loading systems
+        dungeonController = new com.game.systems.dungeon.DungeonController();
+        dungeonDebugRenderer = new com.game.systems.dungeon.DungeonDebugRenderer();
+        dungeonDebugRenderer.setShowAll(false); // Off by default, toggle with F3
 
         // Initialize LootSystem singleton
         com.game.systems.loot.LootSystem.initialize(worldItemManager);
@@ -177,6 +187,10 @@ public class GameScreen implements Screen {
                 debugMode = !debugMode;
                 if (ySortRenderer != null) {
                     ySortRenderer.setDebugMode(debugMode);
+                }
+                // Toggle dungeon debug rendering
+                if (dungeonDebugRenderer != null) {
+                    dungeonDebugRenderer.setShowAll(debugMode);
                 }
                 System.out.println("Debug mode: " + debugMode);
             }
@@ -569,9 +583,30 @@ public class GameScreen implements Screen {
 
     /**
      * Load an assembled dungeon directly (from dungeon generation system).
-     * Package-private so DebugConsole can access it.
+     * Public so DebugConsole can access it.
+     * Wrapper that uses the unified loadLevel(LevelSource) method.
      */
     public void loadAssembledDungeon(com.game.systems.dungeon.assembly.AssembledDungeon dungeon) {
+        // Create a DungeonLevelSource and delegate to unified method
+        com.game.systems.dungeon.DungeonLevelSource levelSource =
+            new com.game.systems.dungeon.DungeonLevelSource(dungeon, null);
+        loadLevel(levelSource, null);
+    }
+
+    /**
+     * Get the dungeon controller for external access (e.g., DebugConsole).
+     * @return The dungeon controller
+     */
+    public com.game.systems.dungeon.DungeonController getDungeonController() {
+        return dungeonController;
+    }
+
+    /**
+     * DEPRECATED: Load an assembled dungeon directly (from dungeon generation system).
+     * This old implementation is preserved for reference but replaced by loadAssembledDungeon wrapper.
+     */
+    @Deprecated
+    private void loadAssembledDungeonOLD(com.game.systems.dungeon.assembly.AssembledDungeon dungeon) {
         System.out.println("Loading assembled dungeon: " + dungeon.getThemeName());
 
         // Dispose previous resources
@@ -705,10 +740,14 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Load a level using the new decoupled systems.
+     * Unified level loading method using LevelSource abstraction.
+     * This replaces the old loadLevel() and loadAssembledDungeon() methods.
+     * @param levelSource The level source (Tiled map or dungeon)
+     * @param spawnPointName Optional spawn point name (null = use default)
      */
-    private void loadLevel(String levelPath, String spawnPointName) {
-        System.out.println("Loading level: " + levelPath + " at spawn: " + spawnPointName);
+    private void loadLevel(com.game.systems.level.LevelSource levelSource, String spawnPointName) {
+        System.out.println("Loading level: " + levelSource.getLevelName() +
+            (spawnPointName != null ? " at spawn: " + spawnPointName : ""));
 
         // Dispose previous resources
         if (mapRenderer != null) {
@@ -717,23 +756,27 @@ public class GameScreen implements Screen {
         if (currentMap != null) {
             currentMap.dispose();
         }
+        if (currentLevelSource != null) {
+            currentLevelSource.dispose();
+        }
 
-        // Load Tiled map
-        currentMap = new TmxMapLoader().load(levelPath);
+        // Store the new level source
+        currentLevelSource = levelSource;
+
+        // Get TiledMap and LevelData from the source
+        currentMap = levelSource.getTiledMap();
         mapRenderer = new OrthogonalTiledMapRenderer(currentMap);
         ySortRenderer = new YSortRenderer(mapRenderer, currentMap);
 
-        // Parse level data
-        LevelData levelData = TiledMapParser.parse(currentMap);
+        LevelData levelData = levelSource.getLevelData();
 
         // Create world manager
         world = new WorldManager(levelData.getWidth(), levelData.getHeight());
 
-        // Load collision system
+        // Load collision system using the source's method
         SpatialQuery collisionSystem = new SpatialQuery();
-        TiledMapCollisionLoader.loadFromTiledMap(currentMap, collisionSystem);
+        levelSource.loadCollision(collisionSystem);
         world.setCollisionSystem(collisionSystem);
-        System.out.println("Loaded " + collisionSystem.getShapeCount() + " collision shapes");
 
         // Build grid pathfinder for pathfinding
         world.buildGridPathfinder(currentMap);
@@ -756,8 +799,7 @@ public class GameScreen implements Screen {
         float spawnX = spawn != null ? spawn.getX() : 50;
         float spawnY = spawn != null ? spawn.getY() : 750;
 
-        // OLD SYSTEM: Convert to grid and back to match old behavior
-        // This ensures spawn positions match the old LevelLoader exactly
+        // Convert to grid and back to match old behavior
         int spawnGridX = (int)(spawnX / world.getTileSize());
         int spawnGridY = (int)(spawnY / world.getTileSize());
         spawnX = spawnGridX * world.getTileSize();
@@ -769,13 +811,12 @@ public class GameScreen implements Screen {
         if (player == null) {
             com.game.systems.entity.entities.PlayerEntity.initialize(world, spawnX, spawnY);
             player = com.game.systems.entity.entities.PlayerEntity.getInstance();
-                //new PlayerEntity(world, spawnX, spawnY);
         } else {
             player.setWorld(world);
             player.getTransform().setPosition(spawnX, spawnY);
         }
 
-        // Set camera for mouse position tracking (needed for attack direction)
+        // Set camera for mouse position tracking
         player.setCamera(camera);
 
         // Set damage number callback
@@ -786,19 +827,15 @@ public class GameScreen implements Screen {
 
         world.addGameObject(player);
 
-        // Initialize UI manager
+        // Initialize UI manager (if not already initialized)
         if (uiManager == null) {
             uiManager = new UIManagerNew(player.getInventory(), worldItemManager);
             uiManager.setItemDropCallback(itemStack -> {
-                // Drop item at player position
                 Vector2 playerPos = player.getTransform().getPosition();
                 worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
             });
 
-            // Set player health for HUD display
             uiManager.setPlayerHealth(player.getHealthComponent());
-
-            // Set player reference for equipment updates (weapon sprite rendering)
             uiManager.setPlayer(player);
 
             // Initialize debug console
@@ -808,7 +845,6 @@ public class GameScreen implements Screen {
             debugConsole.padTop(20);
             uiManager.getStage().addActor(debugConsole);
 
-            // Set input processor to stage (for HUD and all UI interactions)
             Gdx.input.setInputProcessor(uiManager.getStage());
             System.out.println("GameScreen: Input processor set to UI Stage");
         }
@@ -829,9 +865,8 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Load breakable objects (pots, crates, etc.)
-        // Check all supported breakable types and load them
-        String[] breakableTypes = {"pot", "clay_pot"}; // Can be expanded: "crate", "barrel", etc.
+        // Load breakable objects
+        String[] breakableTypes = {"pot", "clay_pot"};
         for (String breakableType : breakableTypes) {
             for (LevelData.LevelObject obj : levelData.getObjectsByType(breakableType)) {
                 BreakableEntity breakable = com.game.systems.breakable.BreakableObjectFactory.create(
@@ -841,17 +876,28 @@ public class GameScreen implements Screen {
                 );
 
                 if (breakable != null) {
-                    // Set particle callback to spawn destruction particles
+                    // Set particle callback
                     breakable.setParticleCallback((x, y, particleType) -> {
                         DestructionParticleEntity particle = new DestructionParticleEntity(x, y, particleType);
                         destructionParticles.add(particle);
                     });
 
                     world.addGameObject(breakable);
-                    System.out.println("Loaded breakable object: " + breakableType + " at (" + obj.getX() + ", " + obj.getY() + ")");
+                    System.out.println("Loaded breakable: " + breakableType);
                 }
             }
         }
+    }
+
+    /**
+     * Load a level from a Tiled map file (.tmx).
+     * Wrapper that uses the unified loadLevel(LevelSource) method.
+     */
+    private void loadLevel(String levelPath, String spawnPointName) {
+        // Create a TiledMapLevelSource and delegate to unified method
+        com.game.systems.level.TiledMapLevelSource levelSource =
+            new com.game.systems.level.TiledMapLevelSource(levelPath);
+        loadLevel(levelSource, spawnPointName);
     }
 
     private void checkGatewayCollisions() {
@@ -1013,6 +1059,13 @@ public class GameScreen implements Screen {
                     shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
                 }
             }
+        }
+
+        // Render dungeon-specific debug overlays if in a dungeon
+        if (currentLevelSource != null && currentLevelSource.isDungeon()) {
+            com.game.systems.dungeon.DungeonLevelSource dungeonSource =
+                (com.game.systems.dungeon.DungeonLevelSource) currentLevelSource;
+            dungeonDebugRenderer.render(shapeRenderer, world.getCollisionSystem(), dungeonSource);
         }
 
         shapeRenderer.end();

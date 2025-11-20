@@ -22,6 +22,14 @@
                 "y": 40
             }
         },
+        "D:/JavaGame/assets/Maps/Cresent mountain.tmx": {
+            "scale": 0.25,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 1874,
+                "y": 1454
+            }
+        },
         "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx": {
             "scale": 1.5,
             "selectedLayer": 1,
@@ -57,7 +65,7 @@
             "scale": 1,
             "selectedLayer": 4,
             "viewCenter": {
-                "x": 769,
+                "x": 699.5,
                 "y": 264.5
             }
         },
@@ -143,7 +151,7 @@
         },
         "TilesetFloor.tsx": {
             "dynamicWrapping": false,
-            "scaleInDock": 4,
+            "scaleInDock": 2,
             "scaleInEditor": 3
         }
     },
@@ -166,7 +174,8 @@
         "D:/JavaGame/assets/Tiled/Projects/TilesetFloor.tsx",
         "D:/JavaGame/assets/Maps/Rules/autotiles_rules.tmx",
         "D:/JavaGame/assets/Maps/dungeons/forest_rooms.tmx",
-        "D:/JavaGame/assets/Maps/dungeons/cave_rooms.tmx"
+        "D:/JavaGame/assets/Maps/dungeons/cave_rooms.tmx",
+        "D:/JavaGame/assets/Maps/Cresent mountain.tmx"
     ],
     "project": "JavaGame.tiled-project",
     "property.type": "bool",

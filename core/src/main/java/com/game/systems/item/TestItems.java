@@ -287,7 +287,7 @@ public class TestItems {
             360f,    // knockback (light)
             0.3f,   // windup (quick)
             0.25f,   // swing duration (fast swipe)
-            1f,   // recovery (quick)
+            0f,   // recovery (quick)
             0f,    // swing arc (short arc - half of sword's 120°)
             0.6f    // movement multiplier (can move while swiping)
         );

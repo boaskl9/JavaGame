@@ -410,7 +410,7 @@
 </data>
  </layer>
  <objectgroup id="4" name="Entities"/>
- <objectgroup id="5" name="RoomMarkers">
+ <objectgroup id="5" name="RoomMarkers" visible="0">
   <object id="55" name="room1" x="16" y="16" width="192" height="160">
    <properties>
     <property name="category" value="medium"/>
