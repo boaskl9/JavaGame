@@ -37,6 +37,9 @@ public class UIManagerNew {
     private Map<BagInstance, Integer> bagSlotIndices; // Track which slot each bag is in
     private boolean inventoryOpen;
 
+    // Chest windows
+    private Map<com.game.systems.furniture.ChestEntity, ContainerWindow> chestWindows;
+
     private TooltipLabel tooltip;
     private ContextMenu contextMenu;
     private SettingsMenu settingsMenu;
@@ -45,8 +48,19 @@ public class UIManagerNew {
     private Timer.Task tooltipDelayTask; // Task for delaying tooltip display
     private static final float TOOLTIP_DELAY = 0.5f; // 0.5 seconds delay
 
+    // Furniture placement mode
+    private boolean placementModeActive = false;
+    private ItemStack placementItem = null;
+    private ItemSlotUI placementSourceSlot = null;
+    private FurniturePlacementCallback placementCallback;
+
     public interface ItemDropCallback {
         void onDropItemToWorld(ItemStack itemStack);
+    }
+
+    public interface FurniturePlacementCallback {
+        void onPlaceFurniture(ItemStack furnitureItem, ItemSlotUI sourceSlot);
+        void onCancelPlacement();
     }
 
     public UIManagerNew(PlayerInventory playerInventory, WorldItemManager worldItemManager) {
@@ -55,6 +69,7 @@ public class UIManagerNew {
         this.player = null; // Set later via setPlayer()
         this.bagWindows = new HashMap<>();
         this.bagSlotIndices = new HashMap<>();
+        this.chestWindows = new HashMap<>();
         this.inventoryOpen = false;
 
         // Create stage with screen viewport
@@ -117,6 +132,7 @@ public class UIManagerNew {
         // Create equipment window (hidden by default)
         equipmentWindow = new EquipmentWindow(playerInventory, dragAndDrop, skin);
         equipmentWindow.setVisible(false);
+
         stage.addActor(equipmentWindow);
 
         // Add tooltip and context menu to stage (they manage their own visibility)
@@ -128,10 +144,6 @@ public class UIManagerNew {
         // Create settings menu
         settingsMenu = new SettingsMenu(gameSettings, skin);
         stage.addActor(settingsMenu);
-        System.out.println("UIManagerNew: SettingsMenu created");
-
-        System.out.println("UIManagerNew: Window movable = " + inventoryWindow.isMovable());
-        System.out.println("UIManagerNew: Window visible = " + inventoryWindow.isVisible());
 
         // Position inventory window
         positionInventoryWindow();
@@ -836,6 +848,16 @@ public class UIManagerNew {
                 }
                 break;
 
+            case "Place":
+                // Enter furniture placement mode
+                if (stack.getDefinition().isFurniture()) {
+                    enterPlacementMode(stack, slot);
+                    System.out.println("Context menu: Entering placement mode for " + stack.getDefinition().getName());
+                } else {
+                    System.out.println("Context menu: Cannot place - not a furniture item");
+                }
+                break;
+
             default:
                 System.out.println("Context menu: Unknown action " + action);
                 break;
@@ -1101,57 +1123,114 @@ public class UIManagerNew {
     }
 
     /**
-     * Intelligently positions all bag windows in columns, maintaining slot order.
-     * Bags are ordered by slot index (0 at bottom, higher slots above).
-     * Fills vertical space first, then creates new columns to the left.
+     * Unified window layout manager.
+     * Positions all open windows (chests, equipment, inventory, bags) intelligently.
+     * Layout: [Chests...] [Equipment] [Inventory] [Bags...]
+     * Windows stack vertically and create new columns as needed.
      */
-    private void positionAllBagWindows() {
-        if (bagWindows.isEmpty()) return;
-
+    private void positionAllWindows() {
         float padding = 10;
+        float spacing = 10;
+        float hudHeight = 60;
         float screenHeight = Gdx.graphics.getHeight();
+        float screenWidth = Gdx.graphics.getWidth();
+        float baseY = hudHeight + padding;
 
-        // Starting position: bottom right, above inventory
-        float startY = inventoryWindow.getY() + inventoryWindow.getHeight() + padding;
-        float currentX = Gdx.graphics.getWidth() - padding;
-        float currentY = startY;
+        // Track current X position (start from right, move left)
+        float currentX = screenWidth - padding;
 
-        int columnIndex = 0;
-        float maxWindowWidthInColumn = 0;
+        // Helper to position a column of windows
+        class ColumnPlacer {
+            float columnX;
+            float currentY = baseY;
+            float maxWidth = 0;
 
-        // Sort bags by slot index to maintain consistent order
-        java.util.List<java.util.Map.Entry<BagInstance, ContainerWindow>> sortedBags =
-            new java.util.ArrayList<>(bagWindows.entrySet());
-        sortedBags.sort((a, b) -> {
-            int slotA = bagSlotIndices.getOrDefault(a.getKey(), 999);
-            int slotB = bagSlotIndices.getOrDefault(b.getKey(), 999);
-            return Integer.compare(slotA, slotB);
-        });
+            void addWindow(ContainerWindow window) {
+                float windowHeight = window.getHeight() * gameSettings.getUIScale();
+                float windowWidth = window.getWidth() * gameSettings.getUIScale();
 
-        for (java.util.Map.Entry<BagInstance, ContainerWindow> entry : sortedBags) {
-            ContainerWindow bagWindow = entry.getValue();
-            float windowHeight = bagWindow.getHeight();
-            float windowWidth = bagWindow.getWidth();
+                // Check if window fits in current column
+                if (currentY + windowHeight > screenHeight - padding && currentY > baseY) {
+                    // Window doesn't fit, caller should start new column
+                    return;
+                }
 
-            // Check if this window would go off the top of the screen
-            if (currentY + windowHeight > screenHeight - padding) {
-                // Start a new column to the left
-                columnIndex++;
-                currentX -= (maxWindowWidthInColumn + padding);
-                currentY = startY;
-                maxWindowWidthInColumn = 0;
+                // Position window
+                window.setPosition(columnX - windowWidth, currentY);
+                maxWidth = Math.max(maxWidth, windowWidth);
+                currentY += windowHeight + spacing;
             }
 
-            // Position the window
-            float windowX = currentX - windowWidth;
-            bagWindow.setPosition(windowX, currentY);
-
-            // Track the widest window in this column for next column positioning
-            maxWindowWidthInColumn = Math.max(maxWindowWidthInColumn, windowWidth);
-
-            // Move up for next window in column
-            currentY += windowHeight + padding;
+            boolean canFit(ContainerWindow window) {
+                float windowHeight = window.getHeight() * gameSettings.getUIScale();
+                return currentY + windowHeight <= screenHeight - padding;
+            }
         }
+
+        // Position bags (rightmost columns)
+        java.util.List<ContainerWindow> bagList = new java.util.ArrayList<>();
+        if (!bagWindows.isEmpty()) {
+            // Sort bags by slot index
+            java.util.List<java.util.Map.Entry<BagInstance, ContainerWindow>> sortedBags =
+                new java.util.ArrayList<>(bagWindows.entrySet());
+            sortedBags.sort((a, b) -> {
+                int slotA = bagSlotIndices.getOrDefault(a.getKey(), 999);
+                int slotB = bagSlotIndices.getOrDefault(b.getKey(), 999);
+                return Integer.compare(slotA, slotB);
+            });
+            for (java.util.Map.Entry<BagInstance, ContainerWindow> entry : sortedBags) {
+                bagList.add(entry.getValue());
+            }
+        }
+
+        // Position bags in columns from right to left
+        ColumnPlacer bagPlacer = new ColumnPlacer();
+        bagPlacer.columnX = currentX;
+        for (ContainerWindow bag : bagList) {
+            if (!bagPlacer.canFit(bag)) {
+                // Start new column
+                currentX = bagPlacer.columnX - bagPlacer.maxWidth - spacing;
+                bagPlacer = new ColumnPlacer();
+                bagPlacer.columnX = currentX;
+            }
+            bagPlacer.addWindow(bag);
+        }
+        if (bagPlacer.maxWidth > 0) {
+            currentX = bagPlacer.columnX - bagPlacer.maxWidth - spacing;
+        }
+
+        // Position inventory (single window)
+        float inventoryWidth = inventoryWindow.getWidth() * gameSettings.getUIScale();
+        inventoryWindow.setPosition(currentX - inventoryWidth, baseY);
+        currentX -= inventoryWidth + spacing;
+
+        // Position equipment (single window)
+        float equipmentWidth = equipmentWindow.getWidth() * gameSettings.getUIScale();
+        equipmentWindow.setPosition(currentX - equipmentWidth, baseY);
+        currentX -= equipmentWidth + spacing;
+
+        // Position chests (leftmost columns)
+        java.util.List<ContainerWindow> chestList = new java.util.ArrayList<>(chestWindows.values());
+        ColumnPlacer chestPlacer = new ColumnPlacer();
+        chestPlacer.columnX = currentX;
+        for (ContainerWindow chest : chestList) {
+            if (!chestPlacer.canFit(chest)) {
+                // Start new column
+                currentX = chestPlacer.columnX - chestPlacer.maxWidth - spacing;
+                chestPlacer = new ColumnPlacer();
+                chestPlacer.columnX = currentX;
+            }
+            chestPlacer.addWindow(chest);
+        }
+    }
+
+    /**
+     * Intelligently positions all bag windows in columns, maintaining slot order.
+     * @deprecated Use positionAllWindows() instead for unified layout
+     */
+    @Deprecated
+    private void positionAllBagWindows() {
+        positionAllWindows();
     }
 
     /**
@@ -1182,6 +1261,83 @@ public class UIManagerNew {
         System.out.println("UIManagerNew: Closed all bag windows");
     }
 
+    /**
+     * Open a chest and display its inventory.
+     */
+    public void openChest(com.game.systems.furniture.ChestEntity chest) {
+        // Check if chest is already open
+        if (chestWindows.containsKey(chest)) {
+            ContainerWindow existingWindow = chestWindows.get(chest);
+            existingWindow.toFront();
+            System.out.println("UIManagerNew: Chest window already open, bringing to front");
+            return;
+        }
+
+        // Open inventory and equipment windows if not already open
+        if (!inventoryOpen) {
+            inventoryOpen = true;
+            inventoryWindow.setVisible(true);
+            equipmentWindow.setVisible(true);
+
+            // Position equipment and inventory windows
+            positionEquipmentAndInventoryWindows();
+
+            // Open bag windows
+            openBagWindows();
+        }
+
+        // Create container window for the chest
+        ContainerWindow chestWindow = new ContainerWindow(
+            "Chest (" + chest.getContainer().getSize() + " slots)",
+            chest.getContainer(),
+            com.game.systems.ui.ItemSlotUI.SlotType.BAG_INVENTORY, // Reuse bag slot type
+            dragAndDrop,
+            skin
+        );
+
+        // Position chest window to the left of equipment window
+        float hudHeight = 60;
+        float padding = 10;
+        float spacing = 10;
+        float inventoryY = hudHeight + padding;
+
+        // Position chest to the left of equipment window
+        float chestX = equipmentWindow.getX() - (chestWindow.getWidth() * gameSettings.getUIScale()) - spacing;
+        float chestY = inventoryY;
+        chestWindow.setPosition(chestX, chestY);
+
+        // Add to stage
+        stage.addActor(chestWindow);
+        chestWindow.toFront();
+
+        // Store reference
+        chestWindows.put(chest, chestWindow);
+
+        System.out.println("UIManagerNew: Opened chest window");
+    }
+
+    /**
+     * Close a specific chest window.
+     */
+    public void closeChest(com.game.systems.furniture.ChestEntity chest) {
+        ContainerWindow window = chestWindows.remove(chest);
+        if (window != null) {
+            window.remove();
+            System.out.println("UIManagerNew: Closed chest window");
+        }
+    }
+
+    /**
+     * Close all chest windows.
+     */
+    public void closeAllChests() {
+        for (ContainerWindow window : chestWindows.values()) {
+            window.remove();
+        }
+        chestWindows.clear();
+        System.out.println("UIManagerNew: Closed all chest windows");
+    }
+
     public void refreshAllWindows() {
         refreshContainerWindowWithIcons(inventoryWindow);
         refreshEquipmentWindowWithIcons();
@@ -1189,6 +1345,11 @@ public class UIManagerNew {
 
         // Refresh all bag windows
         for (ContainerWindow window : bagWindows.values()) {
+            refreshContainerWindowWithIcons(window);
+        }
+
+        // Refresh all chest windows
+        for (ContainerWindow window : chestWindows.values()) {
             refreshContainerWindowWithIcons(window);
         }
 
@@ -1390,6 +1551,114 @@ public class UIManagerNew {
             } else {
                 System.out.println("UIManagerNew: Item browser window closed");
             }
+        }
+    }
+
+    // ========== Furniture Placement Mode ==========
+
+    /**
+     * Set the callback for furniture placement events.
+     */
+    public void setFurniturePlacementCallback(FurniturePlacementCallback callback) {
+        this.placementCallback = callback;
+    }
+
+    /**
+     * Enter furniture placement mode.
+     * Closes all UI windows and notifies GameScreen to handle placement.
+     */
+    private void enterPlacementMode(ItemStack furnitureItem, ItemSlotUI sourceSlot) {
+        if (!furnitureItem.getDefinition().isFurniture()) {
+            System.err.println("UIManagerNew: Attempted to place non-furniture item");
+            return;
+        }
+
+        placementModeActive = true;
+        placementItem = furnitureItem;
+        placementSourceSlot = sourceSlot;
+
+        // Close all UI windows to give clear view for placement
+        if (inventoryOpen) {
+            inventoryOpen = false;
+            inventoryWindow.setVisible(false);
+            equipmentWindow.setVisible(false);
+            closeAllBagWindows();
+        }
+
+        // Notify GameScreen to handle placement rendering and input
+        if (placementCallback != null) {
+            placementCallback.onPlaceFurniture(furnitureItem, sourceSlot);
+        }
+    }
+
+    /**
+     * Exit furniture placement mode.
+     * Called when placement is completed or canceled.
+     */
+    public void exitPlacementMode() {
+        if (!placementModeActive) return;
+
+        placementModeActive = false;
+        placementItem = null;
+        placementSourceSlot = null;
+
+        System.out.println("UIManagerNew: Exited placement mode");
+    }
+
+    /**
+     * Check if placement mode is currently active.
+     */
+    public boolean isPlacementModeActive() {
+        return placementModeActive;
+    }
+
+    /**
+     * Get the item being placed (only valid during placement mode).
+     */
+    public ItemStack getPlacementItem() {
+        return placementItem;
+    }
+
+    /**
+     * Get the source slot of the item being placed.
+     */
+    public ItemSlotUI getPlacementSourceSlot() {
+        return placementSourceSlot;
+    }
+
+    /**
+     * Called by GameScreen when furniture is successfully placed.
+     * Removes the item from inventory and exits placement mode.
+     */
+    public void onFurniturePlaced() {
+        if (!placementModeActive || placementSourceSlot == null) {
+            System.err.println("UIManagerNew: onFurniturePlaced called but placement not active");
+            return;
+        }
+
+        // Remove item from source slot
+        ItemStack stack = placementSourceSlot.getItemStack();
+        if (stack != null) {
+            stack.setQuantity(stack.getQuantity() - 1);
+            if (stack.getQuantity() <= 0) {
+                placementSourceSlot.setItemStack(null);
+                updateBackingData(placementSourceSlot, null);
+            } else {
+                updateBackingData(placementSourceSlot, stack);
+            }
+            refreshAllWindows();
+        }
+
+        exitPlacementMode();
+    }
+
+    /**
+     * Called by GameScreen when placement is canceled (ESC key).
+     */
+    public void onPlacementCanceled() {
+        exitPlacementMode();
+        if (placementCallback != null) {
+            placementCallback.onCancelPlacement();
         }
     }
 }

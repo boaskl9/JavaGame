@@ -13,5 +13,6 @@ public enum ItemType {
     QUEST,          // Quest-specific items
     RESOURCE,       //
     BAG,
+    FURNITURE,      // Placeable furniture (chests, tables, etc.)
     MISC            // Other items
 }

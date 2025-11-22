@@ -36,6 +36,9 @@ public class ItemActionHelper {
             case BAG:
                 return "Equip";
 
+            case FURNITURE:
+                return "Place";
+
             case MATERIAL:
             case RESOURCE:
             case QUEST:
@@ -100,6 +103,11 @@ public class ItemActionHelper {
 
             case BAG:
                 // Future: Add "Open" when not equipped
+                break;
+
+            case FURNITURE:
+                // Furniture is placed, not dropped normally
+                // No additional secondary actions needed
                 break;
 
             case MATERIAL:

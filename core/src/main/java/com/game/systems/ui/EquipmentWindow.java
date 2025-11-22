@@ -36,9 +36,6 @@ public class EquipmentWindow extends Window {
     }
 
     private void buildUI(Skin skin) {
-        // Clear any existing content
-        clear();
-
         Table contentTable = new Table();
         contentTable.pad(10);
 

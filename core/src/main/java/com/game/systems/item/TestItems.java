@@ -69,6 +69,19 @@ public class TestItems {
         );
         ItemRegistry.register(bag3);
 
+        // Register wooden chest - placeable furniture with 24 storage slots
+        ItemDefinition woodenChest = new ItemDefinition(
+            "wooden_chest",
+            "Wooden Chest",
+            "A wooden storage chest. Can be placed in the world to store 24 items.",
+            ItemType.FURNITURE,
+            1, // Chests don't stack
+            "assets/Items/Treasure/LittleTreasureChest.png",
+            false,
+            24 // Storage capacity: 24 slots
+        );
+        ItemRegistry.register(woodenChest);
+
         ItemDefinition stone = new ItemDefinition(
             "stone",
             "Stone",

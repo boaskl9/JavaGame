@@ -130,6 +130,10 @@ public class ItemDefinition {
         return weaponStats != null;
     }
 
+    public boolean isFurniture() {
+        return type == ItemType.FURNITURE;
+    }
+
     @Override
     public String toString() {
         return "ItemDefinition{" +

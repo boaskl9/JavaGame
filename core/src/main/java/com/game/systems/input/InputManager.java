@@ -46,6 +46,9 @@ public class InputManager {
         // Interaction
         bind(InputAction.INTERACT, Input.Keys.E);
 
+        // General
+        bind(InputAction.CANCEL, Input.Keys.ESCAPE);
+
         // Combat
         bindMouse(InputAction.ATTACK_PRIMARY, Input.Buttons.LEFT);
 
@@ -54,6 +57,7 @@ public class InputManager {
         bind(InputAction.DEBUG_SPAWN_BAG, Input.Keys.NUM_2);
         bind(InputAction.DEBUG_SPAWN_BAG2, Input.Keys.NUM_3);
         bind(InputAction.DEBUG_SPAWN_BAG3, Input.Keys.NUM_4);
+        bind(InputAction.DEBUG_SPAWN_CHEST, Input.Keys.C);
         bind(InputAction.DEBUG_SPAWN_SLIME, Input.Keys.NUM_5);
         bind(InputAction.DEBUG_SPAWN_FROG, Input.Keys.NUM_6);
         bind(InputAction.DEBUG_SPAWN_CAT, Input.Keys.NUM_7);

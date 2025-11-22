@@ -89,7 +89,7 @@ public class WorldManager {
             return false;
         }
 
-        // Check dynamic collision (breakable objects)
+        // Check dynamic collision (breakable objects and furniture)
         Rectangle testRect = new Rectangle(x, y, width, height);
         for (GameObject obj : gameObjects) {
             // Check if it's a breakable object
@@ -105,6 +105,20 @@ public class WorldManager {
                 if (envCollider != null) {
                     Rectangle breakableBounds = envCollider.getBounds(breakable);
                     if (breakableBounds.overlaps(testRect)) {
+                        return false; // Collision detected
+                    }
+                }
+            }
+            // Check if it's furniture
+            else if (obj instanceof com.game.systems.furniture.FurnitureEntity) {
+                com.game.systems.furniture.FurnitureEntity furniture =
+                    (com.game.systems.furniture.FurnitureEntity) obj;
+
+                // Check collision with furniture collider
+                ColliderComponent furnitureCollider = furniture.getCollider();
+                if (furnitureCollider != null) {
+                    Rectangle furnitureBounds = furnitureCollider.getBounds(furniture);
+                    if (furnitureBounds.overlaps(testRect)) {
                         return false; // Collision detected
                     }
                 }

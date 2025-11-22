@@ -21,6 +21,9 @@ public enum InputAction {
     // Interaction
     INTERACT,
 
+    // General
+    CANCEL,
+
     // Combat
     ATTACK_PRIMARY,
 
@@ -29,6 +32,7 @@ public enum InputAction {
     DEBUG_SPAWN_BAG,
     DEBUG_SPAWN_BAG2,
     DEBUG_SPAWN_BAG3,
+    DEBUG_SPAWN_CHEST,
     DEBUG_SPAWN_SLIME,
     DEBUG_SPAWN_FROG,
     DEBUG_SPAWN_CAT,

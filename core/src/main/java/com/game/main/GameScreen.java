@@ -49,6 +49,12 @@ import com.game.systems.level.TiledMapParser;
 import com.game.systems.ui.UIManagerNew;
 import com.game.systems.debug.DebugConsole;
 import com.game.systems.debug.DebugManager;
+import com.game.systems.furniture.FurnitureManager;
+import com.game.systems.furniture.ChestEntity;
+import com.game.systems.item.ItemDefinition;
+import com.game.systems.item.ItemRegistry;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Color;
 
 import static com.game.systems.audio.SoundRegistry.*;
 
@@ -104,6 +110,17 @@ public class GameScreen implements Screen {
     // Destruction particles
     private java.util.List<DestructionParticleEntity> destructionParticles;
 
+    // Furniture placement mode
+    private boolean furniturePlacementMode = false;
+    private ItemStack placementFurnitureItem = null;
+    private Texture placementPreviewTexture = null;
+    private com.game.systems.ui.ItemSlotUI placementSourceSlot = null;
+    private FurnitureManager furnitureManager;
+
+    // Currently open chest (for auto-closing)
+    private ChestEntity currentlyOpenChest = null;
+    private static final float CHEST_AUTO_CLOSE_DISTANCE = 32f; // pixels
+
     public GameScreen() {
         // Create cameras
         camera = new OrthographicCamera();
@@ -128,6 +145,7 @@ public class GameScreen implements Screen {
         worldItemManager = new WorldItemManager();
         inputManager = new InputManager();
         debugManager = new DebugManager();
+        furnitureManager = FurnitureManager.getInstance();
         damageNumbers = new java.util.ArrayList<>();
         deathAnimations = new java.util.ArrayList<>();
         destructionParticles = new java.util.ArrayList<>();
@@ -205,6 +223,9 @@ public class GameScreen implements Screen {
 
         // Update world
         world.update(scaledDelta);
+
+        // Check if player has moved away from open chest
+        updateOpenChestDistance();
 
         // Update damage numbers
         damageNumbers.removeIf(dn -> {
@@ -289,6 +310,11 @@ public class GameScreen implements Screen {
         }
         batch.end();
 
+        // Handle furniture placement mode
+        if (furniturePlacementMode) {
+            handleFurniturePlacement(delta);
+        }
+
         // Render UI
         if (uiManager != null) {
             uiManager.render();
@@ -337,6 +363,11 @@ public class GameScreen implements Screen {
             }
         }
 
+        // Interact with nearby furniture (E key)
+        if (inputManager.isJustPressed(InputAction.INTERACT)) {
+            handleFurnitureInteraction();
+        }
+
         // Debug: Spawn wood item
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_ITEM)) {
             spawnDebugItem("wood");
@@ -355,6 +386,11 @@ public class GameScreen implements Screen {
         // Debug: Spawn bag3 item
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_BAG3)) {
             spawnDebugItem("bag3");
+        }
+
+        // Debug: Spawn wooden chest item
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SPAWN_CHEST)) {
+            spawnDebugItem("wooden_chest");
         }
 
         // Debug: Spawn enemies
@@ -601,143 +637,6 @@ public class GameScreen implements Screen {
         return dungeonController;
     }
 
-    /**
-     * DEPRECATED: Load an assembled dungeon directly (from dungeon generation system).
-     * This old implementation is preserved for reference but replaced by loadAssembledDungeon wrapper.
-     */
-    @Deprecated
-    private void loadAssembledDungeonOLD(com.game.systems.dungeon.assembly.AssembledDungeon dungeon) {
-        System.out.println("Loading assembled dungeon: " + dungeon.getThemeName());
-
-        // Dispose previous resources
-        if (mapRenderer != null) {
-            mapRenderer.dispose();
-        }
-        if (currentMap != null) {
-            currentMap.dispose();
-        }
-
-        // Use the pre-assembled TiledMap and data
-        currentMap = dungeon.getTiledMap();
-        mapRenderer = new OrthogonalTiledMapRenderer(currentMap);
-        ySortRenderer = new YSortRenderer(mapRenderer, currentMap);
-
-        LevelData levelData = dungeon.getLevelData();
-
-        // Create world manager
-        world = new WorldManager(levelData.getWidth(), levelData.getHeight());
-
-        // Load collision system from pre-assembled collision shapes
-        SpatialQuery collisionSystem = new SpatialQuery();
-        for (com.badlogic.gdx.math.Rectangle rect : dungeon.getCollisionShapes()) {
-            collisionSystem.addRectangle(rect);
-        }
-        world.setCollisionSystem(collisionSystem);
-        System.out.println("Loaded " + collisionSystem.getShapeCount() + " collision shapes");
-
-        // Build grid pathfinder for pathfinding
-        world.buildGridPathfinder(currentMap);
-
-        // Get spawn position - look for player_spawn, or use a default
-        LevelData.SpawnPoint spawn = levelData.getDefaultSpawnPoint();
-        float spawnX = spawn != null ? spawn.getX() : 100;
-        float spawnY = spawn != null ? spawn.getY() : 100;
-
-        // Convert to grid and back to match old behavior
-        int spawnGridX = (int)(spawnX / world.getTileSize());
-        int spawnGridY = (int)(spawnY / world.getTileSize());
-        spawnX = spawnGridX * world.getTileSize();
-        spawnY = spawnGridY * world.getTileSize();
-
-        System.out.println("Spawning player at: (" + spawnX + ", " + spawnY + ")");
-
-        // DEBUG: Check map bounds and camera
-        float mapWidthPixels = levelData.getWidth() * levelData.getTileSize();
-        float mapHeightPixels = levelData.getHeight() * levelData.getTileSize();
-        System.out.println("DEBUG: Map dimensions = " + mapWidthPixels + "x" + mapHeightPixels + " pixels");
-        System.out.println("DEBUG: Camera position will be at player: (" + spawnX + ", " + spawnY + ")");
-        System.out.println("DEBUG: Camera viewport = " + camera.viewportWidth + "x" + camera.viewportHeight);
-
-        // Create or update player
-        if (player == null) {
-            com.game.systems.entity.entities.PlayerEntity.initialize(world, spawnX, spawnY);
-            player = com.game.systems.entity.entities.PlayerEntity.getInstance();
-        } else {
-            player.setWorld(world);
-            player.getTransform().setPosition(spawnX, spawnY);
-        }
-
-        // Set camera for mouse position tracking
-        player.setCamera(camera);
-
-        // Set damage number callback
-        player.setDamageNumberCallback((x, y, damage) -> {
-            DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-            damageNumbers.add(damageNumber);
-        });
-
-        world.addGameObject(player);
-
-        // Initialize UI manager (if not already initialized)
-        if (uiManager == null) {
-            uiManager = new UIManagerNew(player.getInventory(), worldItemManager);
-            uiManager.setItemDropCallback(itemStack -> {
-                Vector2 playerPos = player.getTransform().getPosition();
-                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
-            });
-
-            uiManager.setPlayerHealth(player.getHealthComponent());
-            uiManager.setPlayer(player);
-
-            // Initialize debug console
-            debugConsole = new DebugConsole(uiManager.getSkin(), this, debugManager);
-            debugConsole.setSize(400, 600);
-            debugConsole.setPosition(10, VIEWPORT_HEIGHT - 70);
-            debugConsole.padTop(20);
-            uiManager.getStage().addActor(debugConsole);
-
-            Gdx.input.setInputProcessor(uiManager.getStage());
-            System.out.println("GameScreen: Input processor set to UI Stage");
-        }
-
-        // Create gateway entities
-        for (LevelData.LevelObject obj : levelData.getObjectsByType("gateway")) {
-            String targetLevel = obj.getPropertyString("targetLevel", null);
-            String targetSpawn = obj.getPropertyString("targetSpawn", null);
-
-            if (targetLevel != null) {
-                GatewayEntity gateway = new GatewayEntity(
-                    obj.getX(), obj.getY(),
-                    obj.getWidth(), obj.getHeight(),
-                    targetLevel, targetSpawn
-                );
-                world.addGameObject(gateway);
-                System.out.println("Loaded gateway to: " + targetLevel);
-            }
-        }
-
-        // Load breakable objects
-        String[] breakableTypes = {"pot", "clay_pot"};
-        for (String breakableType : breakableTypes) {
-            for (LevelData.LevelObject obj : levelData.getObjectsByType(breakableType)) {
-                BreakableEntity breakable = com.game.systems.breakable.BreakableObjectFactory.create(
-                    breakableType,
-                    obj.getX(),
-                    obj.getY()
-                );
-
-                if (breakable != null) {
-                    breakable.setParticleCallback((x, y, particleType) -> {
-                        DestructionParticleEntity particle = new DestructionParticleEntity(x, y, particleType);
-                        destructionParticles.add(particle);
-                    });
-
-                    world.addGameObject(breakable);
-                    System.out.println("Loaded breakable: " + breakableType);
-                }
-            }
-        }
-    }
 
     /**
      * Unified level loading method using LevelSource abstraction.
@@ -835,6 +734,18 @@ public class GameScreen implements Screen {
                 worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
             });
 
+            uiManager.setFurniturePlacementCallback(new UIManagerNew.FurniturePlacementCallback() {
+                @Override
+                public void onPlaceFurniture(ItemStack furnitureItem, com.game.systems.ui.ItemSlotUI sourceSlot) {
+                    enterFurniturePlacementMode(furnitureItem, sourceSlot);
+                }
+
+                @Override
+                public void onCancelPlacement() {
+                    exitFurniturePlacementMode(false);
+                }
+            });
+
             uiManager.setPlayerHealth(player.getHealthComponent());
             uiManager.setPlayer(player);
 
@@ -887,6 +798,9 @@ public class GameScreen implements Screen {
                 }
             }
         }
+
+        // Load placed furniture for this level
+        furnitureManager.loadFurnitureIntoWorld(levelSource.getLevelName(), world);
     }
 
     /**
@@ -1057,6 +971,14 @@ public class GameScreen implements Screen {
                 if (combatCollider != null) {
                     Rectangle combatBounds = combatCollider.getBounds(breakable);
                     shapeRenderer.rect(combatBounds.x, combatBounds.y, combatBounds.width, combatBounds.height);
+                }
+            } else if (obj instanceof com.game.systems.furniture.FurnitureEntity furniture) {
+                // Furniture collider (orange) - collision box
+                shapeRenderer.setColor(1, 0.65f, 0, 1); // Orange
+                ColliderComponent furnitureCollider = furniture.getCollider();
+                if (furnitureCollider != null) {
+                    Rectangle furnitureBounds = furnitureCollider.getBounds(furniture);
+                    shapeRenderer.rect(furnitureBounds.x, furnitureBounds.y, furnitureBounds.width, furnitureBounds.height);
                 }
             }
         }
@@ -1262,5 +1184,251 @@ public class GameScreen implements Screen {
     public void setTimeScale(float timeScale) {
         this.timeScale = Math.max(MIN_TIME_SCALE, Math.min(timeScale, MAX_TIME_SCALE));
         System.out.println("Time scale set to: " + this.timeScale + "x");
+    }
+
+    // ========== Furniture Placement System ==========
+
+    /**
+     * Enter furniture placement mode.
+     * Called by UIManager when user selects "Place" on a furniture item.
+     */
+    private void enterFurniturePlacementMode(ItemStack furnitureItem, com.game.systems.ui.ItemSlotUI sourceSlot) {
+        if (!furnitureItem.getDefinition().isFurniture()) {
+            System.err.println("GameScreen: Cannot place non-furniture item");
+            return;
+        }
+
+        furniturePlacementMode = true;
+        placementFurnitureItem = furnitureItem;
+        placementSourceSlot = sourceSlot;
+
+        // Load preview texture
+        String iconPath = furnitureItem.getDefinition().getIconPath();
+        try {
+            placementPreviewTexture = new Texture(iconPath);
+            System.out.println("GameScreen: Entered furniture placement mode for " + furnitureItem.getDefinition().getName());
+        } catch (Exception e) {
+            System.err.println("GameScreen: Failed to load placement preview texture: " + iconPath);
+            e.printStackTrace();
+            exitFurniturePlacementMode(false);
+        }
+    }
+
+    /**
+     * Exit furniture placement mode.
+     * @param placed true if furniture was successfully placed, false if canceled
+     */
+    private void exitFurniturePlacementMode(boolean placed) {
+        if (!furniturePlacementMode) return;
+
+        furniturePlacementMode = false;
+        placementFurnitureItem = null;
+        placementSourceSlot = null;
+
+        if (placementPreviewTexture != null) {
+            placementPreviewTexture.dispose();
+            placementPreviewTexture = null;
+        }
+
+        if (placed) {
+            System.out.println("GameScreen: Furniture placed successfully");
+        } else {
+            System.out.println("GameScreen: Furniture placement canceled");
+        }
+    }
+
+    /**
+     * Handle furniture placement input and rendering.
+     * Called during render loop when placement mode is active.
+     */
+    private void handleFurniturePlacement(float delta) {
+        if (!furniturePlacementMode || placementPreviewTexture == null) return;
+
+        // Get mouse position in world coordinates
+        Vector3 mousePos = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+        camera.unproject(mousePos);
+
+        // Snap to 16x16 grid
+        float snappedX = Math.round(mousePos.x / 16f) * 16f;
+        float snappedY = Math.round(mousePos.y / 16f) * 16f;
+
+        // Check if placement is valid (not on collision)
+        boolean validPlacement = world.isPositionWalkable(snappedX, snappedY, 16, 16);
+
+        // Render placement preview
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+
+        // Set tint based on validity (green if valid, red if invalid)
+        if (validPlacement) {
+            batch.setColor(0.5f, 1f, 0.5f, 0.7f); // Green tint
+        } else {
+            batch.setColor(1f, 0.5f, 0.5f, 0.7f); // Red tint
+        }
+
+        batch.draw(placementPreviewTexture, snappedX, snappedY, 16, 16);
+        batch.setColor(Color.WHITE); // Reset color
+        batch.end();
+
+        // Handle input
+        if (Gdx.input.justTouched() && validPlacement) {
+            // Place furniture at snapped position
+            placeFurniture(snappedX, snappedY);
+        } else if (inputManager.isJustPressed(InputAction.CANCEL) ||
+                   Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.ESCAPE)) {
+            // Cancel placement
+            uiManager.onPlacementCanceled();
+            exitFurniturePlacementMode(false);
+        }
+    }
+
+    /**
+     * Place furniture at the specified world position.
+     */
+    private void placeFurniture(float x, float y) {
+        if (placementFurnitureItem == null) return;
+
+        ItemDefinition definition = placementFurnitureItem.getDefinition();
+        String itemId = definition.getId();
+
+        // Create furniture entity based on type
+        // For now, all furniture is chests
+        ChestEntity chest = new ChestEntity(itemId, definition, x, y);
+
+        // Add to world
+        world.addGameObject(chest);
+
+        // Add to furniture manager for persistence
+        String currentLevelName = currentLevelSource != null ? currentLevelSource.getLevelName() : "unknown";
+        furnitureManager.placeFurniture(currentLevelName, chest);
+
+        // Notify UI manager to remove item from inventory
+        uiManager.onFurniturePlaced();
+
+        // Exit placement mode
+        exitFurniturePlacementMode(true);
+    }
+
+    /**
+     * Handle interaction with nearby furniture.
+     * Checks for furniture near the player and opens UI or picks up.
+     */
+    private void handleFurnitureInteraction() {
+        if (player == null) return;
+
+        // Find nearby furniture
+        Vector2 playerPos = player.getTransform().getPosition();
+        float interactionRange = 24f; // pixels
+
+        com.game.systems.furniture.FurnitureEntity nearestFurniture = null;
+        float nearestDistance = Float.MAX_VALUE;
+
+        for (GameObject obj : world.getGameObjects()) {
+            if (obj instanceof com.game.systems.furniture.FurnitureEntity furniture) {
+                Vector2 furniturePos = new Vector2(
+                    furniture.getTransform().getX(),
+                    furniture.getTransform().getY()
+                );
+
+                float distance = playerPos.dst(furniturePos);
+                if (distance < interactionRange && distance < nearestDistance) {
+                    nearestFurniture = furniture;
+                    nearestDistance = distance;
+                }
+            }
+        }
+
+        // Interact with nearest furniture
+        if (nearestFurniture != null) {
+            if (nearestFurniture instanceof ChestEntity chest) {
+                // Toggle chest - close if it's already open, open if closed
+                if (currentlyOpenChest == chest) {
+                    closeChest(chest);
+                } else {
+                    // Close any other open chest first
+                    if (currentlyOpenChest != null) {
+                        closeChest(currentlyOpenChest);
+                    }
+                    openChest(chest);
+                }
+            } else {
+                // Other furniture types - just call onInteract
+                nearestFurniture.onInteract(player);
+            }
+        }
+    }
+
+    /**
+     * Pick up furniture and return it to player inventory.
+     */
+    private void pickupFurniture(com.game.systems.furniture.FurnitureEntity furniture) {
+        // Create item stack for the furniture
+        String itemId = furniture.getItemId();
+        ItemStack furnitureItem = ItemFactory.create(itemId, 1);
+
+        if (furnitureItem == null) {
+            System.err.println("GameScreen: Failed to create item for furniture: " + itemId);
+            return;
+        }
+
+        // Try to add to player inventory
+        ItemStack remaining = player.getInventory().addItem(furnitureItem);
+        if (remaining == null) {
+            // Successfully added - remove from world
+            world.removeGameObject(furniture);
+
+            // Remove from furniture manager
+            String currentLevelName = currentLevelSource != null ? currentLevelSource.getLevelName() : "unknown";
+            furnitureManager.removeFurniture(currentLevelName, furniture);
+
+            System.out.println("GameScreen: Picked up furniture: " + itemId);
+        } else {
+            System.out.println("GameScreen: Inventory full, cannot pick up furniture");
+        }
+    }
+
+    /**
+     * Open a chest and show its inventory UI.
+     */
+    private void openChest(ChestEntity chest) {
+        if (uiManager != null) {
+            uiManager.openChest(chest);
+            uiManager.refreshAllWindows(); // Refresh to load item icons
+            currentlyOpenChest = chest;
+            System.out.println("GameScreen: Opened chest");
+        }
+    }
+
+    /**
+     * Close a chest UI.
+     */
+    private void closeChest(ChestEntity chest) {
+        if (uiManager != null) {
+            uiManager.closeChest(chest);
+            if (currentlyOpenChest == chest) {
+                currentlyOpenChest = null;
+            }
+            System.out.println("GameScreen: Closed chest");
+        }
+    }
+
+    /**
+     * Check if player has moved too far from open chest and auto-close it.
+     * Call this every frame in update loop.
+     */
+    private void updateOpenChestDistance() {
+        if (currentlyOpenChest != null && player != null) {
+            Vector2 playerPos = player.getTransform().getPosition();
+            Vector2 chestPos = new Vector2(
+                currentlyOpenChest.getTransform().getX(),
+                currentlyOpenChest.getTransform().getY()
+            );
+
+            float distance = playerPos.dst(chestPos);
+            if (distance > CHEST_AUTO_CLOSE_DISTANCE) {
+                closeChest(currentlyOpenChest);
+                System.out.println("GameScreen: Auto-closed chest (player moved away)");
+            }
+        }
     }
 }
