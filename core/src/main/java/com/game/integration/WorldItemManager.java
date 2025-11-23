@@ -21,9 +21,14 @@ public class WorldItemManager {
     private final Map<String, TextureRegion> itemTextures;
     private int maxWorldItems;
 
+    // Track items by level for save/load
+    private final Map<String, List<ItemPickupEntity>> itemsByLevel;
+    private String currentLevelId;
+
     public WorldItemManager() {
         this.items = new ArrayList<>();
         this.itemTextures = new HashMap<>();
+        this.itemsByLevel = new HashMap<>();
         this.maxWorldItems = InventoryConfig.MAX_WORLD_ITEMS;
     }
 
@@ -193,5 +198,125 @@ public class WorldItemManager {
 
     public void setMaxWorldItems(int maxWorldItems) {
         this.maxWorldItems = maxWorldItems;
+    }
+
+    /**
+     * Set the current level ID for tracking items by level.
+     * Call this when changing levels.
+     */
+    public void setCurrentLevel(String levelId) {
+        // Save current items to their level before switching
+        if (currentLevelId != null && !items.isEmpty()) {
+            itemsByLevel.put(currentLevelId, new ArrayList<>(items));
+        }
+
+        this.currentLevelId = levelId;
+
+        // Load items for new level
+        items.clear();
+        List<ItemPickupEntity> levelItems = itemsByLevel.get(levelId);
+        if (levelItems != null) {
+            items.addAll(levelItems);
+        }
+    }
+
+    /**
+     * Clear items for a specific level.
+     * Used when entering dungeons (which don't persist items).
+     */
+    public void clearLevel(String levelId) {
+        itemsByLevel.remove(levelId);
+        if (levelId.equals(currentLevelId)) {
+            items.clear();
+        }
+    }
+
+    // ========== Save/Load Support ==========
+
+    /**
+     * Export dropped items data for saving.
+     * @return Map of level ID -> list of dropped item data
+     */
+    public Map<String, List<com.game.save.DroppedItemData>> exportSaveData() {
+        // Update current level's items before export
+        if (currentLevelId != null && !items.isEmpty()) {
+            itemsByLevel.put(currentLevelId, new ArrayList<>(items));
+        }
+
+        Map<String, List<com.game.save.DroppedItemData>> result = new HashMap<>();
+
+        for (Map.Entry<String, List<ItemPickupEntity>> entry : itemsByLevel.entrySet()) {
+            String levelId = entry.getKey();
+            List<ItemPickupEntity> levelItems = entry.getValue();
+            List<com.game.save.DroppedItemData> droppedItemDataList = new ArrayList<>();
+
+            for (ItemPickupEntity pickup : levelItems) {
+                ItemStack stack = pickup.getItemStack();
+                com.game.systems.entity.Transform transform = pickup.getComponent(com.game.systems.entity.Transform.class);
+                if (stack != null && transform != null) {
+                    droppedItemDataList.add(new com.game.save.DroppedItemData(
+                        stack.getDefinition().getId(),
+                        stack.getQuantity(),
+                        transform.getX(),
+                        transform.getY()
+                    ));
+                }
+            }
+
+            result.put(levelId, droppedItemDataList);
+        }
+
+        return result;
+    }
+
+    /**
+     * Import dropped items data from save.
+     * Clears existing items and recreates from save data.
+     * @param data Map of level ID -> list of dropped item data
+     */
+    public void importSaveData(Map<String, List<com.game.save.DroppedItemData>> data) {
+        // Clear existing items
+        items.clear();
+        itemsByLevel.clear();
+
+        // Recreate items from save data
+        for (Map.Entry<String, List<com.game.save.DroppedItemData>> entry : data.entrySet()) {
+            String levelId = entry.getKey();
+            List<com.game.save.DroppedItemData> droppedItemDataList = entry.getValue();
+            List<ItemPickupEntity> levelItems = new ArrayList<>();
+
+            for (com.game.save.DroppedItemData itemData : droppedItemDataList) {
+                // Look up item definition
+                com.game.systems.item.ItemDefinition def = com.game.systems.item.ItemRegistry.get(itemData.itemId);
+                if (def == null) {
+                    System.err.println("WorldItemManager: Item not found in registry: " + itemData.itemId);
+                    continue;
+                }
+
+                // Create item stack and pickup entity
+                ItemStack stack = new ItemStack(def, itemData.quantity);
+                ItemPickupEntity pickup = new ItemPickupEntity(stack, itemData.x, itemData.y, 0f);
+
+                // Set texture if available
+                String iconPath = def.getIconPath();
+                if (iconPath != null && itemTextures.containsKey(iconPath)) {
+                    pickup.setTexture(itemTextures.get(iconPath));
+                }
+
+                levelItems.add(pickup);
+            }
+
+            itemsByLevel.put(levelId, levelItems);
+        }
+
+        // Load items for current level if it was set
+        if (currentLevelId != null) {
+            List<ItemPickupEntity> levelItems = itemsByLevel.get(currentLevelId);
+            if (levelItems != null) {
+                items.addAll(levelItems);
+            }
+        }
+
+        System.out.println("WorldItemManager: Imported dropped items for " + itemsByLevel.size() + " levels");
     }
 }

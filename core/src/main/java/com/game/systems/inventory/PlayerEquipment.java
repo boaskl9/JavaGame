@@ -149,4 +149,25 @@ public class PlayerEquipment {
     public Map<EquipmentSlot, ItemStack> getAllEquipped() {
         return new EnumMap<>(equipped);
     }
+
+    /**
+     * Alias for equipItem() to match standard API naming.
+     */
+    public ItemStack equip(EquipmentSlot slot, ItemStack item) {
+        return equipItem(slot, item);
+    }
+
+    /**
+     * Get equipment for a slot (alias for getEquipped).
+     */
+    public ItemStack getEquipment(EquipmentSlot slot) {
+        return getEquipped(slot);
+    }
+
+    /**
+     * Clear all equipment (alias for clearAll but returns void).
+     */
+    public void clear() {
+        equipped.clear();
+    }
 }

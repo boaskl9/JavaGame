@@ -283,4 +283,129 @@ public class PlayerInventory {
         }
         return count;
     }
+
+    // ========== Save/Load Support ==========
+
+    /**
+     * Export inventory data for saving.
+     */
+    public com.game.save.InventoryData exportSaveData() {
+        java.util.List<com.game.save.ItemStackData> defaultSlots = new java.util.ArrayList<>();
+        java.util.List<com.game.save.BagData> bags = new java.util.ArrayList<>();
+        java.util.Map<String, com.game.save.ItemStackData> equipmentMap = new java.util.HashMap<>();
+
+        // Export default inventory
+        for (int i = 0; i < defaultInventory.getSize(); i++) {
+            ItemStack stack = defaultInventory.getItem(i);
+            if (stack != null && !stack.isEmpty()) {
+                defaultSlots.add(new com.game.save.ItemStackData(stack.getDefinition().getId(), stack.getQuantity()));
+            } else {
+                defaultSlots.add(null);
+            }
+        }
+
+        // Export bags
+        for (int i = 0; i < maxBagSlots; i++) {
+            BagInstance bag = bagSlots.get(i);
+            if (bag != null) {
+                java.util.List<com.game.save.ItemStackData> bagContents = new java.util.ArrayList<>();
+                for (int j = 0; j < bag.getSlotCount(); j++) {
+                    ItemStack stack = bag.getItem(j);
+                    if (stack != null && !stack.isEmpty()) {
+                        bagContents.add(new com.game.save.ItemStackData(stack.getDefinition().getId(), stack.getQuantity()));
+                    } else {
+                        bagContents.add(null);
+                    }
+                }
+                bags.add(new com.game.save.BagData(i, bag.getDefinition().getId(), bagContents));
+            } else {
+                bags.add(null);
+            }
+        }
+
+        // Export equipment
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = equipment.getEquipment(slot);
+            if (stack != null && !stack.isEmpty()) {
+                equipmentMap.put(slot.name(), new com.game.save.ItemStackData(stack.getDefinition().getId(), stack.getQuantity()));
+            }
+        }
+
+        return new com.game.save.InventoryData(defaultSlots, bags, equipmentMap);
+    }
+
+    /**
+     * Import inventory data from save.
+     */
+    public void importSaveData(com.game.save.InventoryData data) {
+        // Clear current inventory
+        defaultInventory.clear();
+        for (int i = 0; i < maxBagSlots; i++) {
+            bagSlots.set(i, null);
+        }
+        equipment.clear();
+
+        // Import default inventory
+        for (int i = 0; i < data.defaultSlots.size() && i < defaultInventory.getSize(); i++) {
+            com.game.save.ItemStackData stackData = data.defaultSlots.get(i);
+            if (stackData != null) {
+                com.game.systems.item.ItemDefinition def = com.game.systems.item.ItemRegistry.get(stackData.itemId);
+                if (def != null) {
+                    defaultInventory.setItem(i, new ItemStack(def, stackData.quantity));
+                } else {
+                    System.err.println("PlayerInventory: Item not found in registry: " + stackData.itemId);
+                }
+            }
+        }
+
+        // Import bags
+        for (com.game.save.BagData bagData : data.bags) {
+            if (bagData != null && bagData.slotIndex < maxBagSlots) {
+                com.game.systems.item.ItemDefinition bagItemDef = com.game.systems.item.ItemRegistry.get(bagData.bagItemId);
+                if (bagItemDef != null && bagItemDef.isBag()) {
+                    // Create BagDefinition from ItemDefinition
+                    BagDefinition bagDef = new BagDefinition(
+                        bagItemDef.getId(),
+                        bagItemDef.getName(),
+                        bagItemDef.getDescription(),
+                        bagItemDef.getBagSize(),
+                        ItemFilter.allowAll(),
+                        bagItemDef.getIconPath()
+                    );
+                    BagInstance bag = new BagInstance(bagDef);
+
+                    // Import bag contents
+                    for (int i = 0; i < bagData.contents.size() && i < bag.getSlotCount(); i++) {
+                        com.game.save.ItemStackData stackData = bagData.contents.get(i);
+                        if (stackData != null) {
+                            com.game.systems.item.ItemDefinition itemDef = com.game.systems.item.ItemRegistry.get(stackData.itemId);
+                            if (itemDef != null) {
+                                bag.getContainer().setItem(i, new ItemStack(itemDef, stackData.quantity));
+                            }
+                        }
+                    }
+
+                    bagSlots.set(bagData.slotIndex, bag);
+                } else {
+                    System.err.println("PlayerInventory: Bag not found in registry: " + bagData.bagItemId);
+                }
+            }
+        }
+
+        // Import equipment
+        for (java.util.Map.Entry<String, com.game.save.ItemStackData> entry : data.equipment.entrySet()) {
+            try {
+                EquipmentSlot slot = EquipmentSlot.valueOf(entry.getKey());
+                com.game.save.ItemStackData stackData = entry.getValue();
+                com.game.systems.item.ItemDefinition def = com.game.systems.item.ItemRegistry.get(stackData.itemId);
+                if (def != null) {
+                    equipment.equip(slot, new ItemStack(def, stackData.quantity));
+                } else {
+                    System.err.println("PlayerInventory: Equipment item not found: " + stackData.itemId);
+                }
+            } catch (IllegalArgumentException e) {
+                System.err.println("PlayerInventory: Invalid equipment slot: " + entry.getKey());
+            }
+        }
+    }
 }

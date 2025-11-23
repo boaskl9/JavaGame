@@ -69,6 +69,8 @@ public class InputManager {
         bind(InputAction.DEBUG_INCREASE_SPEED, Input.Keys.PLUS);
         bind(InputAction.DEBUG_DECREASE_SPEED, Input.Keys.MINUS);
         bind(InputAction.DEBUG_RESET_SPEED, Input.Keys.NUM_0);
+        bind(InputAction.DEBUG_SAVE, Input.Keys.F6);
+        bind(InputAction.DEBUG_LOAD, Input.Keys.F7);
     }
 
     /**

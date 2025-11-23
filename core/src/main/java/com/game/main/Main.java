@@ -12,9 +12,8 @@ public class Main extends Game {
     @Override
     public void create() {
         // This is called when the application is created
-        // Set the initial screen to the game screen
-        // Using GameScreenNew with refactored decoupled architecture
-        setScreen(new GameScreen());
+        // Set the initial screen to the main menu
+        setScreen(new MainMenuScreen(this));
     }
 
     @Override

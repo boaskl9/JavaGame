@@ -34,6 +34,18 @@ public class FurnitureManager {
     }
 
     /**
+     * Reset the singleton instance.
+     * Call this when starting a new game or loading a different save to prevent data contamination.
+     */
+    public static void resetInstance() {
+        if (instance != null) {
+            instance.clearAll();
+            instance = null;
+            System.out.println("FurnitureManager: Instance reset");
+        }
+    }
+
+    /**
      * Place furniture in a level.
      * Adds the furniture to the manager's registry for the specified level.
      * @param levelId The level ID where furniture is placed
@@ -147,5 +159,110 @@ public class FurnitureManager {
             }
         }
         System.out.println("==============================");
+    }
+
+    // ========== Save/Load Support ==========
+
+    /**
+     * Export furniture data for saving.
+     * @return Map of level ID -> list of furniture data
+     */
+    public Map<String, List<com.game.save.FurnitureData>> exportSaveData() {
+        Map<String, List<com.game.save.FurnitureData>> result = new HashMap<>();
+
+        for (Map.Entry<String, List<FurnitureEntity>> entry : furnitureByLevel.entrySet()) {
+            String levelId = entry.getKey();
+            List<FurnitureEntity> furniture = entry.getValue();
+            List<com.game.save.FurnitureData> furnitureDataList = new ArrayList<>();
+
+            for (FurnitureEntity f : furniture) {
+                String itemId = f.getItemId();
+                float x = f.getTransform().getX();
+                float y = f.getTransform().getY();
+                List<com.game.save.ItemStackData> inventoryContents = null;
+
+                // Export chest inventory if this is a chest
+                if (f instanceof ChestEntity) {
+                    ChestEntity chest = (ChestEntity) f;
+                    inventoryContents = new ArrayList<>();
+                    com.game.systems.inventory.InventoryContainer container = chest.getContainer();
+
+                    for (int i = 0; i < container.getSize(); i++) {
+                        com.game.systems.item.ItemStack stack = container.getItem(i);
+                        if (stack != null && !stack.isEmpty()) {
+                            inventoryContents.add(new com.game.save.ItemStackData(
+                                stack.getDefinition().getId(),
+                                stack.getQuantity()
+                            ));
+                        } else {
+                            inventoryContents.add(null);
+                        }
+                    }
+                }
+
+                furnitureDataList.add(new com.game.save.FurnitureData(itemId, x, y, inventoryContents));
+            }
+
+            result.put(levelId, furnitureDataList);
+        }
+
+        return result;
+    }
+
+    /**
+     * Import furniture data from save.
+     * Clears existing furniture and recreates from save data.
+     * @param data Map of level ID -> list of furniture data
+     */
+    public void importSaveData(Map<String, List<com.game.save.FurnitureData>> data) {
+        // Clear existing furniture
+        furnitureByLevel.clear();
+
+        // Recreate furniture from save data
+        for (Map.Entry<String, List<com.game.save.FurnitureData>> entry : data.entrySet()) {
+            String levelId = entry.getKey();
+            List<com.game.save.FurnitureData> furnitureDataList = entry.getValue();
+
+            for (com.game.save.FurnitureData furnitureData : furnitureDataList) {
+                // Look up item definition
+                com.game.systems.item.ItemDefinition def = com.game.systems.item.ItemRegistry.get(furnitureData.itemId);
+                if (def == null || !def.isFurniture()) {
+                    System.err.println("FurnitureManager: Invalid furniture item: " + furnitureData.itemId);
+                    continue;
+                }
+
+                // Create appropriate furniture entity
+                FurnitureEntity furniture;
+                if (def.isBag()) {
+                    // This is a chest (bag item used for furniture)
+                    furniture = new ChestEntity(furnitureData.itemId, def, furnitureData.x, furnitureData.y);
+
+                    // Restore chest inventory
+                    if (furnitureData.inventoryContents != null) {
+                        ChestEntity chest = (ChestEntity) furniture;
+                        com.game.systems.inventory.InventoryContainer container = chest.getContainer();
+
+                        for (int i = 0; i < furnitureData.inventoryContents.size() && i < container.getSize(); i++) {
+                            com.game.save.ItemStackData stackData = furnitureData.inventoryContents.get(i);
+                            if (stackData != null) {
+                                com.game.systems.item.ItemDefinition itemDef = com.game.systems.item.ItemRegistry.get(stackData.itemId);
+                                if (itemDef != null) {
+                                    container.setItem(i, new com.game.systems.item.ItemStack(itemDef, stackData.quantity));
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Future: Other furniture types would be created here
+                    System.err.println("FurnitureManager: Unknown furniture type: " + furnitureData.itemId);
+                    continue;
+                }
+
+                // Add to manager
+                placeFurniture(levelId, furniture);
+            }
+        }
+
+        System.out.println("FurnitureManager: Imported " + getTotalFurnitureCount() + " furniture items");
     }
 }

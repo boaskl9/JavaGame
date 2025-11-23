@@ -13,11 +13,28 @@ import com.game.systems.loot.QuantityMultiplierModifier;
  * Registers test items for debugging and development.
  */
 public class TestItems {
+    private static boolean itemsRegistered = false;
+    private static boolean texturesLoaded = false;
+
+    /**
+     * Reset texture loading flag.
+     * Call this when creating a new WorldItemManager instance to force texture reload.
+     */
+    public static void resetTextureFlag() {
+        texturesLoaded = false;
+        System.out.println("TestItems: Texture flag reset, textures will be reloaded");
+    }
 
     /**
      * Registers all test items.
+     * Only registers once per game session.
      */
     public static void registerTestItems() {
+        if (itemsRegistered) {
+            System.out.println("TestItems: Items already registered, skipping");
+            return;
+        }
+        itemsRegistered = true;
         // Register wood item
         ItemDefinition wood = new ItemDefinition(
             "wood",
@@ -325,9 +342,16 @@ public class TestItems {
     /**
      * Automatically loads textures for all registered items.
      * Reads the iconPath from each ItemDefinition and loads the texture.
+     * Only loads once per game session.
      * @param worldItemManager The world item manager
      */
     public static void loadTextures(WorldItemManager worldItemManager) {
+        if (texturesLoaded) {
+            System.out.println("TestItems: Textures already loaded, skipping");
+            return;
+        }
+        texturesLoaded = true;
+
         int loadedCount = 0;
         int skippedCount = 0;
 

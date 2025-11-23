@@ -121,7 +121,30 @@ public class GameScreen implements Screen {
     private ChestEntity currentlyOpenChest = null;
     private static final float CHEST_AUTO_CLOSE_DISTANCE = 32f; // pixels
 
+    // Save name tracking for auto-save
+    private String currentSaveName = null;
+
+    /**
+     * Create a new game with default starting level.
+     */
     public GameScreen() {
+        this((com.game.save.SaveData) null); // Delegate to save data constructor
+    }
+
+    /**
+     * Create a new game with a save name.
+     * @param saveName The name for this save
+     */
+    public GameScreen(String saveName) {
+        this((com.game.save.SaveData) null);
+        this.currentSaveName = saveName;
+    }
+
+    /**
+     * Create game from save data.
+     * If saveData is null, starts a new game.
+     */
+    public GameScreen(com.game.save.SaveData saveData) {
         // Create cameras
         camera = new OrthographicCamera();
         uiCamera = new OrthographicCamera();
@@ -145,7 +168,11 @@ public class GameScreen implements Screen {
         worldItemManager = new WorldItemManager();
         inputManager = new InputManager();
         debugManager = new DebugManager();
+
+        // Reset FurnitureManager to prevent data contamination between saves
+        FurnitureManager.resetInstance();
         furnitureManager = FurnitureManager.getInstance();
+
         damageNumbers = new java.util.ArrayList<>();
         deathAnimations = new java.util.ArrayList<>();
         destructionParticles = new java.util.ArrayList<>();
@@ -163,10 +190,20 @@ public class GameScreen implements Screen {
 
         // Register test items
         TestItems.registerTestItems();
+
+        // Reset texture flag to force reload for new WorldItemManager instance
+        TestItems.resetTextureFlag();
         TestItems.loadTextures(worldItemManager);
 
-        // Load initial level
-        loadLevel("Maps/prototype.tmx", null);
+        // Load game from save data or start new game
+        if (saveData != null) {
+            // Store save name for auto-save
+            currentSaveName = saveData.saveName;
+            loadFromSaveData(saveData);
+        } else {
+            // Load initial level for new game
+            loadLevel("Maps/prototype.tmx", null);
+        }
     }
 
     @Override
@@ -428,6 +465,23 @@ public class GameScreen implements Screen {
         if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_RESET_SPEED)) {
             timeScale = 1.0f;
             System.out.println("Time scale reset to: " + timeScale + "x");
+        }
+
+        // Debug: Save game
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SAVE)) {
+            com.game.save.SaveManager.getInstance().save("debug_save");
+            System.out.println("=== SAVED GAME (F6) ===");
+        }
+
+        // Debug: Load game
+        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_LOAD)) {
+            com.game.save.SaveData saveData = com.game.save.SaveManager.getInstance().load("debug_save");
+            if (saveData != null) {
+                loadFromSaveData(saveData);
+                System.out.println("=== LOADED GAME (F7) ===");
+            } else {
+                System.out.println("=== NO SAVE FOUND (F7) ===");
+            }
         }
     }
 
@@ -749,6 +803,32 @@ public class GameScreen implements Screen {
             uiManager.setPlayerHealth(player.getHealthComponent());
             uiManager.setPlayer(player);
 
+            // Set pause menu callback
+            uiManager.setPauseMenuCallback(new com.game.systems.ui.UIManagerNew.PauseMenuCallback() {
+                @Override
+                public void onReturnToMainMenu() {
+                    // Auto-save before returning to main menu
+                    if (currentSaveName != null) {
+                        com.game.save.SaveManager.getInstance().save(currentSaveName);
+                        System.out.println("GameScreen: Auto-saved to: " + currentSaveName);
+                    } else {
+                        System.out.println("GameScreen: No save name set, skipping auto-save");
+                    }
+
+                    // Return to main menu
+                    com.badlogic.gdx.Game game = (com.badlogic.gdx.Game) Gdx.app.getApplicationListener();
+                    game.setScreen(new MainMenuScreen((Main) game));
+                }
+            });
+
+            // Initialize SaveManager
+            com.game.save.SaveManager.getInstance().initialize(
+                player,
+                player.getInventory(),
+                furnitureManager,
+                worldItemManager
+            );
+
             // Initialize debug console
             debugConsole = new DebugConsole(uiManager.getSkin(), this, debugManager);
             debugConsole.setSize(400, 600);
@@ -801,6 +881,13 @@ public class GameScreen implements Screen {
 
         // Load placed furniture for this level
         furnitureManager.loadFurnitureIntoWorld(levelSource.getLevelName(), world);
+
+        // Update SaveManager with current level info
+        String levelType = (levelSource instanceof com.game.systems.dungeon.DungeonLevelSource) ? "dungeon" : "tiled_map";
+        com.game.save.SaveManager.getInstance().setCurrentLevel(levelSource.getLevelName(), levelType);
+
+        // Update WorldItemManager with current level
+        worldItemManager.setCurrentLevel(levelSource.getLevelName());
     }
 
     /**
@@ -1430,5 +1517,53 @@ public class GameScreen implements Screen {
                 System.out.println("GameScreen: Auto-closed chest (player moved away)");
             }
         }
+    }
+
+    // ========== Save/Load Support ==========
+
+    /**
+     * Load game state from save data.
+     * Reloads the level and applies all saved state.
+     */
+    private void loadFromSaveData(com.game.save.SaveData saveData) {
+        if (saveData == null || saveData.world == null) {
+            System.err.println("GameScreen: Cannot load - invalid save data");
+            return;
+        }
+
+        // Close any open chests/UI before reloading
+        if (currentlyOpenChest != null) {
+            uiManager.closeChest(currentlyOpenChest);
+            currentlyOpenChest = null;
+        }
+
+        // IMPORTANT: Import furniture data BEFORE loading the level
+        // This is because loadLevel() calls furnitureManager.loadFurnitureIntoWorld()
+        // which needs the furniture data to already be in the manager
+        if (saveData.world != null && saveData.world.furnitureByLevel != null) {
+            furnitureManager.importSaveData(saveData.world.furnitureByLevel);
+        }
+
+        // First, reload the level (this will create a new world)
+        String levelId = saveData.world.currentLevelId;
+        String levelType = saveData.world.levelType;
+
+        if (levelType.equals("dungeon")) {
+            System.out.println("GameScreen: Cannot load dungeon levels (they are temporary)");
+            // Fallback to default map
+            levelId = "Maps/prototype.tmx";
+        }
+
+        // Reload the level (will load furniture from manager into world)
+        loadLevel(levelId, null);
+
+        // Now apply the rest of the save data (player, inventory, dropped items)
+        com.game.save.SaveManager.getInstance().applySaveData(saveData);
+
+        // Refresh UI to show loaded inventory
+        uiManager.refreshAllWindows();
+
+        System.out.println("GameScreen: Loaded save - Level: " + levelId +
+                         ", Position: (" + saveData.player.x + ", " + saveData.player.y + ")");
     }
 }

@@ -47,7 +47,8 @@ public class LootSystem {
      */
     public static void initialize(WorldItemManager worldItemManager) {
         if (instance != null) {
-            System.err.println("LootSystem already initialized! Replacing existing instance.");
+            System.out.println("LootSystem: Already initialized, skipping");
+            return;
         }
         instance = new LootSystem(worldItemManager);
     }

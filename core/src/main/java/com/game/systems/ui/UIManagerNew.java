@@ -43,8 +43,10 @@ public class UIManagerNew {
     private TooltipLabel tooltip;
     private ContextMenu contextMenu;
     private SettingsMenu settingsMenu;
+    private com.game.ui.PauseMenu pauseMenu;
     private GameSettings gameSettings;
     private ItemDropCallback itemDropCallback;
+    private PauseMenuCallback pauseMenuCallback;
     private Timer.Task tooltipDelayTask; // Task for delaying tooltip display
     private static final float TOOLTIP_DELAY = 0.5f; // 0.5 seconds delay
 
@@ -61,6 +63,10 @@ public class UIManagerNew {
     public interface FurniturePlacementCallback {
         void onPlaceFurniture(ItemStack furnitureItem, ItemSlotUI sourceSlot);
         void onCancelPlacement();
+    }
+
+    public interface PauseMenuCallback {
+        void onReturnToMainMenu();
     }
 
     public UIManagerNew(PlayerInventory playerInventory, WorldItemManager worldItemManager) {
@@ -144,6 +150,29 @@ public class UIManagerNew {
         // Create settings menu
         settingsMenu = new SettingsMenu(gameSettings, skin);
         stage.addActor(settingsMenu);
+
+        // Create pause menu
+        pauseMenu = new com.game.ui.PauseMenu(skin);
+        pauseMenu.setCallback(new com.game.ui.PauseMenu.PauseMenuCallback() {
+            @Override
+            public void onResume() {
+                pauseMenu.hide();
+            }
+
+            @Override
+            public void onSettings() {
+                pauseMenu.hide();
+                settingsMenu.toggle();
+            }
+
+            @Override
+            public void onReturnToMainMenu() {
+                if (pauseMenuCallback != null) {
+                    pauseMenuCallback.onReturnToMainMenu();
+                }
+            }
+        });
+        stage.addActor(pauseMenu);
 
         // Position inventory window
         positionInventoryWindow();
@@ -1061,17 +1090,26 @@ public class UIManagerNew {
     }
 
     public void toggleSettings() {
-        settingsMenu.toggle();
+        // Toggle pause menu instead of settings menu directly
+        if (pauseMenu.isVisible()) {
+            pauseMenu.hide();
+        } else {
+            pauseMenu.show();
+        }
 
-        // Ensure input processor is set to stage when settings menu is open
-        if (settingsMenu.isVisible()) {
+        // Ensure input processor is set to stage when pause menu is open
+        if (pauseMenu.isVisible()) {
             Gdx.input.setInputProcessor(stage);
-            System.out.println("UIManagerNew: Settings menu opened, input processor set to stage");
+            System.out.println("UIManagerNew: Pause menu opened, input processor set to stage");
         }
     }
 
     public void setItemDropCallback(ItemDropCallback callback) {
         this.itemDropCallback = callback;
+    }
+
+    public void setPauseMenuCallback(PauseMenuCallback callback) {
+        this.pauseMenuCallback = callback;
     }
 
     /**

@@ -465,4 +465,22 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     public interface DamageNumberCallback {
         void spawnDamageNumber(float x, float y, int damage);
     }
+
+    // ========== Save/Load Support ==========
+
+    /**
+     * Load player state from save data.
+     * Updates position and health (inventory is loaded separately via PlayerInventory).
+     */
+    public void loadFromSaveData(com.game.save.PlayerData data) {
+        // Update position
+        transform.setPosition(data.x, data.y);
+
+        // Update health
+        getHealthComponent().setMaxHealth(data.maxHealth);
+        getHealthComponent().setHealth(data.currentHealth);
+
+        System.out.println("PlayerEntity: Loaded from save - Position: (" + data.x + ", " + data.y +
+                         "), Health: " + data.currentHealth + "/" + data.maxHealth);
+    }
 }
