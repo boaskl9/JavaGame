@@ -309,8 +309,13 @@ public class DebugConsole extends Window {
             }
         }
 
-        // Get player position
-        Transform playerTransform = gameScreen.player.getTransform();
+        // Get player position (use first player)
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        if (player == null) {
+            error("No player found");
+            return;
+        }
+        Transform playerTransform = player.getTransform();
         float x = playerTransform.getX();
         float y = playerTransform.getY();
 
@@ -335,8 +340,13 @@ public class DebugConsole extends Window {
 
         String enemyType = parts[2].toLowerCase();
 
-        // Get player position
-        Transform playerTransform = gameScreen.player.getTransform();
+        // Get player position (use first player)
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        if (player == null) {
+            error("No player found");
+            return;
+        }
+        Transform playerTransform = player.getTransform();
         float x = playerTransform.getX() + 20; // Offset slightly
         float y = playerTransform.getY();
 
@@ -371,10 +381,16 @@ public class DebugConsole extends Window {
             return;
         }
 
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        if (player == null) {
+            error("No player found");
+            return;
+        }
+
         try {
             int amount = Integer.parseInt(parts[1]);
 
-            HealthComponent health = gameScreen.player.getHealthComponent();
+            HealthComponent health = player.getHealthComponent();
             health.damage(amount);
 
             int hearts = amount / 4;
@@ -396,10 +412,16 @@ public class DebugConsole extends Window {
             return;
         }
 
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        if (player == null) {
+            error("No player found");
+            return;
+        }
+
         try {
             int amount = Integer.parseInt(parts[1]);
 
-            HealthComponent health = gameScreen.player.getHealthComponent();
+            HealthComponent health = player.getHealthComponent();
             int beforeHeal = health.getCurrentHealth();
             health.heal(amount);
             int actualHealed = health.getCurrentHealth() - beforeHeal;
@@ -423,10 +445,16 @@ public class DebugConsole extends Window {
             return;
         }
 
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        if (player == null) {
+            error("No player found");
+            return;
+        }
+
         try {
             int amount = Integer.parseInt(parts[1]);
 
-            HealthComponent health = gameScreen.player.getHealthComponent();
+            HealthComponent health = player.getHealthComponent();
             health.setMaxHealth(amount);
 
             log("Player max health set to " + amount);

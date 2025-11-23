@@ -67,8 +67,8 @@ public class ItemPickupEntity extends WorldObject {
                 velocity.setVelocity(0, 0);
             }
         }
-        else if (velocity != null && transform != null
-                && com.game.systems.entity.entities.PlayerEntity.getInstance().getInventory().hasSpace(itemStack)) {
+        else if (velocity != null && transform != null) {
+            // Move the item based on velocity (from magnet system)
             transform.translate(
                 velocity.getVelocity().x * delta,
                 velocity.getVelocity().y * delta

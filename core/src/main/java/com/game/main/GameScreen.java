@@ -1503,9 +1503,12 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Pick up furniture and return it to player inventory.
+     * Pick up furniture and return it to first player's inventory.
      */
     private void pickupFurniture(com.game.systems.furniture.FurnitureEntity furniture) {
+        PlayerEntity player = playerManager.getFirstPlayer();
+        if (player == null) return;
+
         // Create item stack for the furniture
         String itemId = furniture.getItemId();
         ItemStack furnitureItem = ItemFactory.create(itemId, 1);
