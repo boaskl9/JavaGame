@@ -8,6 +8,8 @@ import com.game.systems.entity.entities.PlayerEntity;
 import com.game.systems.furniture.FurnitureManager;
 import com.game.integration.WorldItemManager;
 import com.game.systems.inventory.PlayerInventory;
+import com.game.util.GameSingleton;
+import com.game.util.SingletonManager;
 
 import java.util.*;
 
@@ -15,7 +17,7 @@ import java.util.*;
  * Singleton manager for saving and loading game state.
  * Uses LibGDX's Json class to serialize SaveData to/from JSON files.
  */
-public class SaveManager {
+public class SaveManager implements GameSingleton {
     private static SaveManager instance;
     private static final String SAVE_DIR = "saves/";
     private static final String SAVE_EXTENSION = ".json";
@@ -31,13 +33,44 @@ public class SaveManager {
     private int playtimeSeconds = 0;
 
     private SaveManager() {
+        SingletonManager.register(this);
     }
 
+    /**
+     * Get the singleton instance.
+     * Auto-initializes if not already created.
+     * @return The SaveManager instance
+     */
     public static SaveManager getInstance() {
         if (instance == null) {
             instance = new SaveManager();
+            System.out.println("SaveManager: Auto-initialized");
         }
         return instance;
+    }
+
+    /**
+     * Check if SaveManager has been initialized with game systems.
+     * @return true if initialized with player reference, false otherwise
+     */
+    public static boolean isInitialized() {
+        return instance != null && instance.player != null;
+    }
+
+    // ========== GameSingleton Implementation ==========
+
+    @Override
+    public void reset() {
+        System.out.println("SaveManager: Resetting instance");
+        // Clear all references
+        this.player = null;
+        this.playerInventory = null;
+        this.furnitureManager = null;
+        this.worldItemManager = null;
+        this.currentLevelId = null;
+        this.currentLevelType = null;
+        this.playtimeSeconds = 0;
+        instance = null;
     }
 
     /**

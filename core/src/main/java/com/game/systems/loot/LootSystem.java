@@ -7,6 +7,8 @@ import com.game.systems.entity.Transform;
 import com.game.systems.inventory.EquipmentSlot;
 import com.game.systems.inventory.PlayerEquipment;
 import com.game.systems.item.ItemStack;
+import com.game.util.GameSingleton;
+import com.game.util.SingletonManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +22,7 @@ import java.util.Map;
  * 1. Initialize once: LootSystem.initialize(worldItemManager)
  * 2. Use anywhere: LootSystem.getInstance().generateAndSpawnLoot(...)
  */
-public class LootSystem {
+public class LootSystem implements GameSingleton {
 
     private static LootSystem instance;
     private final WorldItemManager worldItemManager;
@@ -40,37 +42,59 @@ public class LootSystem {
     }
 
     /**
-     * Initializes the singleton instance.
-     * Should be called once during game startup.
+     * Initializes the singleton instance with dependencies.
+     * Can be called multiple times safely - will only initialize once unless reset.
      *
      * @param worldItemManager The world item manager for spawning drops
      */
     public static void initialize(WorldItemManager worldItemManager) {
-        if (instance != null) {
-            System.out.println("LootSystem: Already initialized, skipping");
-            return;
+        if (instance == null) {
+            instance = new LootSystem(worldItemManager);
+            SingletonManager.register(instance);
+            System.out.println("LootSystem: Initialized");
         }
-        instance = new LootSystem(worldItemManager);
     }
 
     /**
      * Gets the singleton instance.
-     * Throws exception if not initialized.
+     * Auto-initializes if needed, but requires WorldItemManager to be set via initialize() first.
      *
      * @return The LootSystem instance
+     * @throws IllegalStateException if not initialized with WorldItemManager
      */
     public static LootSystem getInstance() {
         if (instance == null) {
-            throw new IllegalStateException("LootSystem not initialized! Call LootSystem.initialize() first.");
+            throw new IllegalStateException("LootSystem not initialized! Call LootSystem.initialize(worldItemManager) first.");
         }
         return instance;
     }
 
     /**
-     * Checks if the LootSystem has been initialized.
+     * Check if LootSystem has been initialized.
+     * @return true if initialized, false otherwise
      */
     public static boolean isInitialized() {
         return instance != null;
+    }
+
+    /**
+     * Reset the singleton instance.
+     * Call this when creating a new GameScreen to prevent stale WorldItemManager references.
+     * @deprecated Use SingletonManager.resetAllGameSingletons() instead
+     */
+    @Deprecated
+    public static void resetInstance() {
+        if (instance != null) {
+            instance.reset();
+        }
+    }
+
+    // ========== GameSingleton Implementation ==========
+
+    @Override
+    public void reset() {
+        System.out.println("LootSystem: Resetting instance");
+        instance = null;
     }
 
     /**

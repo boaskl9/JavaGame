@@ -164,14 +164,18 @@ public class GameScreen implements Screen {
         damageFont = new BitmapFont();
         damageFont.setColor(1, 1, 1, 1);
 
+        // Reset all game singletons to prevent stale references
+        // This ensures clean state when creating new GameScreen (new game or load)
+        com.game.util.SingletonManager.resetAllGameSingletons();
+
         // Initialize systems
         worldItemManager = new WorldItemManager();
         inputManager = new InputManager();
         debugManager = new DebugManager();
 
-        // Reset FurnitureManager to prevent data contamination between saves
-        FurnitureManager.resetInstance();
+        // Initialize singleton systems with new dependencies
         furnitureManager = FurnitureManager.getInstance();
+        com.game.systems.loot.LootSystem.initialize(worldItemManager);
 
         damageNumbers = new java.util.ArrayList<>();
         deathAnimations = new java.util.ArrayList<>();
@@ -181,9 +185,6 @@ public class GameScreen implements Screen {
         dungeonController = new com.game.systems.dungeon.DungeonController();
         dungeonDebugRenderer = new com.game.systems.dungeon.DungeonDebugRenderer();
         dungeonDebugRenderer.setShowAll(false); // Off by default, toggle with F3
-
-        // Initialize LootSystem singleton
-        com.game.systems.loot.LootSystem.initialize(worldItemManager);
 
         // Initialize BreakableObjectRegistry
         com.game.systems.breakable.BreakableObjectRegistry.loadConfigs();

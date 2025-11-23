@@ -35,7 +35,7 @@ public class LoadGameScreen implements Screen {
         stage = new Stage(new ScreenViewport());
         Gdx.input.setInputProcessor(stage);
 
-        skin = new Skin(Gdx.files.internal("assets/ui/uiskin.json"));
+        skin = new Skin(Gdx.files.internal("assets/ui/wood-theme.json"));
 
         // Main table
         mainTable = new Table();

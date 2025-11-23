@@ -1,6 +1,8 @@
 package com.game.systems.dungeon;
 
 import com.game.systems.dungeon.parsing.DungeonThemeParser;
+import com.game.util.GameSingleton;
+import com.game.util.SingletonManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,7 +12,7 @@ import java.util.Map;
  * Uses singleton pattern with lazy loading and caching.
  * Themes are parsed once and cached for reuse.
  */
-public class DungeonThemeRegistry {
+public class DungeonThemeRegistry implements GameSingleton {
     private static DungeonThemeRegistry instance;
 
     private final Map<String, DungeonTheme> loadedThemes;
@@ -24,10 +26,14 @@ public class DungeonThemeRegistry {
         // Add more themes here as they are created
         registerThemePath("forest", "Maps/dungeons/forest_rooms.tmx");
         registerThemePath("cave", "Maps/dungeons/cave_rooms.tmx");
+
+        // Register with singleton manager
+        SingletonManager.register(this);
     }
 
     /**
      * Get the singleton instance (lazy initialization).
+     * Auto-initializes if not already created.
      */
     public static DungeonThemeRegistry getInstance() {
         if (instance == null) {
@@ -38,10 +44,20 @@ public class DungeonThemeRegistry {
     }
 
     /**
-     * Check if the registry has been initialized.
+     * Check if DungeonThemeRegistry has been initialized.
+     * @return true if initialized, false otherwise
      */
     public static boolean isInitialized() {
         return instance != null;
+    }
+
+    // ========== GameSingleton Implementation ==========
+
+    @Override
+    public void reset() {
+        System.out.println("DungeonThemeRegistry: Resetting instance");
+        clearCache();
+        instance = null;
     }
 
     /**

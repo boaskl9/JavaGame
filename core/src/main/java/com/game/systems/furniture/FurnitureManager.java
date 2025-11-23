@@ -1,6 +1,8 @@
 package com.game.systems.furniture;
 
 import com.game.integration.WorldManager;
+import com.game.util.GameSingleton;
+import com.game.util.SingletonManager;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,7 +14,7 @@ import java.util.Map;
  * Persists furniture when changing levels (similar to WorldItemManager).
  * Singleton pattern to maintain state across level transitions.
  */
-public class FurnitureManager {
+public class FurnitureManager implements GameSingleton {
     private static FurnitureManager instance;
 
     // Store furniture by level ID
@@ -20,29 +22,49 @@ public class FurnitureManager {
 
     private FurnitureManager() {
         this.furnitureByLevel = new HashMap<>();
+        SingletonManager.register(this);
     }
 
     /**
      * Get the singleton instance of FurnitureManager.
+     * Auto-initializes if not already created.
      * @return The furniture manager instance
      */
     public static FurnitureManager getInstance() {
         if (instance == null) {
             instance = new FurnitureManager();
+            System.out.println("FurnitureManager: Auto-initialized");
         }
         return instance;
     }
 
     /**
+     * Check if FurnitureManager has been initialized.
+     * @return true if initialized, false otherwise
+     */
+    public static boolean isInitialized() {
+        return instance != null;
+    }
+
+    /**
      * Reset the singleton instance.
      * Call this when starting a new game or loading a different save to prevent data contamination.
+     * @deprecated Use SingletonManager.resetAllGameSingletons() instead
      */
+    @Deprecated
     public static void resetInstance() {
         if (instance != null) {
-            instance.clearAll();
-            instance = null;
-            System.out.println("FurnitureManager: Instance reset");
+            instance.reset();
         }
+    }
+
+    // ========== GameSingleton Implementation ==========
+
+    @Override
+    public void reset() {
+        System.out.println("FurnitureManager: Resetting instance");
+        clearAll();
+        instance = null;
     }
 
     /**

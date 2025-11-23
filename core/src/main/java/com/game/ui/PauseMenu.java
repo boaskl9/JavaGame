@@ -19,6 +19,10 @@ public class PauseMenu extends Window {
     public PauseMenu(Skin skin) {
         super("Paused", skin);
 
+        this.getTitleLabel().setAlignment(0);
+
+        this.padTop(20);
+
         setModal(true);
         setMovable(false);
 

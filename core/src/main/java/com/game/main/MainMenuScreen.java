@@ -3,7 +3,9 @@ package com.game.main;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -28,6 +30,11 @@ public class MainMenuScreen implements Screen {
     private TextButton settingsButton;
     private TextButton exitButton;
 
+    // Background
+    // Uncomment to use a PNG background instead of a solid color
+    // private SpriteBatch batch;
+    // private Texture backgroundTexture;
+
     public MainMenuScreen(Main game) {
         this.game = game;
     }
@@ -38,15 +45,21 @@ public class MainMenuScreen implements Screen {
         Gdx.input.setInputProcessor(stage);
 
         // Use the same skin as UIManager
-        skin = new Skin(Gdx.files.internal("assets/ui/uiskin.json"));
+        skin = new Skin(Gdx.files.internal("assets/ui/wood-theme.json"));
+
+        // Uncomment to load PNG background
+        // batch = new SpriteBatch();
+        // backgroundTexture = new Texture(Gdx.files.internal("assets/ui/menu_background.png"));
 
         // Create main table
         table = new Table();
         table.setFillParent(true);
         stage.addActor(table);
 
+
+
         // Title
-        Label titleLabel = new Label("GAME TITLE", skin);
+        Label titleLabel = new Label("UNTITLED JAVA GAME", skin);
         titleLabel.setFontScale(2f);
         table.add(titleLabel).padBottom(50).row();
 
@@ -174,9 +187,16 @@ public class MainMenuScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        // Clear screen
-        Gdx.gl.glClearColor(0.1f, 0.1f, 0.2f, 1f);
+        // Clear screen with background color (RGB values: 0.1, 0.1, 0.2 = dark blue)
+        // You can change these values to set different background colors
+        // Format: glClearColor(red, green, blue, alpha) - values from 0.0 to 1.0
+        Gdx.gl.glClearColor(0.3f, 0.2f, 0.2f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        // Uncomment to render PNG background instead of solid color
+        // batch.begin();
+        // batch.draw(backgroundTexture, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        // batch.end();
 
         // Update and draw stage
         stage.act(delta);
@@ -204,5 +224,9 @@ public class MainMenuScreen implements Screen {
     public void dispose() {
         stage.dispose();
         skin.dispose();
+
+        // Uncomment when using PNG background
+        // if (batch != null) batch.dispose();
+        // if (backgroundTexture != null) backgroundTexture.dispose();
     }
 }

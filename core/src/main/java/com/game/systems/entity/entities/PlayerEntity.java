@@ -24,6 +24,8 @@ import com.game.systems.inventory.EquipmentSlot;
 import com.game.systems.inventory.PlayerInventory;
 import com.game.systems.item.ItemStack;
 import com.game.systems.loot.LootSystem;
+import com.game.util.GameSingleton;
+import com.game.util.SingletonManager;
 
 import static com.game.systems.audio.SoundRegistry.*;
 
@@ -31,7 +33,7 @@ import static com.game.systems.audio.SoundRegistry.*;
  * Player entity built using the new component-based architecture.
  * Extends Entity to get health and living entity features.
  */
-public class PlayerEntity extends com.game.systems.entity.Entity {
+public class PlayerEntity extends com.game.systems.entity.Entity implements GameSingleton {
     private static final float WALK_SPEED = 80f;
     private static final float RUN_SPEED = 160f;
     private static final int SIZE = 16;
@@ -71,19 +73,37 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
             System.err.println("Player already initialized! Replacing existing instance.");
         }
         instance = new PlayerEntity(worldItemManager, spawnX, spawnY);
+        SingletonManager.register(instance);
     }
 
     /**
      * Gets the singleton instance.
      * Throws exception if not initialized.
      *
-     * @return The LootSystem instance
+     * @return The PlayerEntity instance
      */
     public static PlayerEntity getInstance() {
         if (instance == null) {
-            throw new IllegalStateException("LootSystem not initialized! Call LootSystem.initialize() first.");
+            throw new IllegalStateException("PlayerEntity not initialized! Call PlayerEntity.initialize() first.");
         }
         return instance;
+    }
+
+    /**
+     * Check if PlayerEntity has been initialized.
+     * @return true if initialized, false otherwise
+     */
+    public static boolean isInitialized() {
+        return instance != null;
+    }
+
+    // ========== GameSingleton Implementation ==========
+
+    @Override
+    public void reset() {
+        System.out.println("PlayerEntity: Resetting instance");
+        // No resources to dispose for PlayerEntity (textures owned by AnimationComponent)
+        instance = null;
     }
 
     public PlayerEntity(WorldManager world, float x, float y) {

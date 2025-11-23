@@ -4,6 +4,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.audio.Sound;
 import com.game.systems.settings.GameSettings;
+import com.game.util.GameSingleton;
+import com.game.util.SingletonManager;
 
 import java.util.*;
 
@@ -24,7 +26,7 @@ import java.util.*;
  * - Play music: SoundSystem.getInstance().playMusic(MusicTrack.ADVENTURE_BEGIN, true)
  * - No explicit initialization required - instance is created automatically
  */
-public class SoundSystem {
+public class SoundSystem implements GameSingleton {
     private static SoundSystem instance;
 
     // Sound effect management
@@ -52,6 +54,9 @@ public class SoundSystem {
 
         // Load volume settings from persistent storage
         loadVolumeSettings();
+
+        // Register with singleton manager
+        SingletonManager.register(this);
     }
 
     /**
@@ -64,6 +69,24 @@ public class SoundSystem {
             System.out.println("SoundSystem auto-initialized on first access");
         }
         return instance;
+    }
+
+    /**
+     * Check if SoundSystem has been initialized.
+     * @return true if initialized, false otherwise
+     */
+    public static boolean isInitialized() {
+        return instance != null;
+    }
+
+    // ========== GameSingleton Implementation ==========
+
+    @Override
+    public void reset() {
+        System.out.println("SoundSystem: Resetting instance");
+        // Dispose all resources first
+        dispose();
+        instance = null;
     }
 
     // ==================== SOUND EFFECT METHODS ====================
