@@ -25,7 +25,9 @@ import com.game.systems.entity.entities.EnemyEntity;
 import com.game.systems.entity.entities.GatewayEntity;
 import com.game.systems.entity.entities.ItemPickupEntity;
 import com.game.systems.entity.entities.PlayerEntity;
+import com.game.systems.entity.PlayerManager;
 import com.game.systems.entity.entities.DamageNumberEntity;
+import com.game.systems.input.LocalKeyboardInput;
 import com.game.systems.entity.entities.DeathAnimationEntity;
 import com.game.systems.entity.entities.DestructionParticleEntity;
 import com.game.systems.entity.entities.BreakableEntity;
@@ -84,7 +86,7 @@ public class GameScreen implements Screen {
 
     public WorldManager world;
     public WorldItemManager worldItemManager;
-    public PlayerEntity player;
+    public PlayerManager playerManager;
     private TiledMap currentMap;
     private OrthogonalTiledMapRenderer mapRenderer;
     private YSortRenderer ySortRenderer;
@@ -172,6 +174,7 @@ public class GameScreen implements Screen {
         worldItemManager = new WorldItemManager();
         inputManager = new InputManager();
         debugManager = new DebugManager();
+        playerManager = new PlayerManager();
 
         // Initialize singleton systems with new dependencies
         furnitureManager = FurnitureManager.getInstance();
@@ -229,8 +232,8 @@ public class GameScreen implements Screen {
         // Only process game input when console is NOT open
         boolean consoleOpen = debugConsole != null && debugConsole.isVisible();
 
-        // Disable player movement when console is open
-        if (player != null) {
+        // Disable all players' movement when console is open
+        for (PlayerEntity player : playerManager.getAllPlayers()) {
             player.setInputEnabled(!consoleOpen);
         }
 
@@ -601,72 +604,76 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Updates item magnetism - registers nearby items with player's magnet component.
+     * Updates item magnetism - registers nearby items with all players' magnet components.
      */
     private void updateItemMagnetism() {
-        if (player == null) return;
+        // Update magnet for all players
+        for (PlayerEntity player : playerManager.getAllPlayers()) {
+            Vector2 playerPos = player.getTransform().getPosition();
+            float magnetRadius = player.getItemMagnet().getMagnetRadius();
 
-        Vector2 playerPos = player.getTransform().getPosition();
-        float magnetRadius = player.getItemMagnet().getMagnetRadius();
-
-        // Get nearby items
-        for (ItemPickupEntity item : worldItemManager.getItemsNear(playerPos, magnetRadius)) {
-            player.getItemMagnet().registerItem(item);
+            // Get nearby items
+            for (ItemPickupEntity item : worldItemManager.getItemsNear(playerPos, magnetRadius)) {
+                player.getItemMagnet().registerItem(item);
+            }
         }
     }
 
     /**
-     * Checks for item pickup collisions with player.
+     * Checks for item pickup collisions with all players.
      */
     private void checkItemPickups() {
-        if (player == null) return;
-
-        Transform playerTransform = player.getTransform();
-        ColliderComponent playerCollider = player.getEnvironmentCollider();
-
-        if (playerCollider == null) return;
-
-        Rectangle playerBounds = playerCollider.getBounds(player);
+        if (!playerManager.hasPlayers()) return;
 
         boolean inventoryChanged = false;
 
-        // Check all items
+        // Check all items against all players
         for (ItemPickupEntity item : worldItemManager.getAllItems()) {
             if (!item.canPickup() || !item.isActive()) continue;
 
             Transform itemTransform = item.getComponent(Transform.class);
             if (itemTransform == null) continue;
 
-            // Simple distance check (could use collider for more precision)
-            float distance = playerTransform.getPosition().dst(itemTransform.getPosition());
-            if (distance < 16f) { // Pickup radius
-                // Try to add to inventory
-                ItemStack itemStack = item.getItemStack();
-                ItemStack remaining = player.getInventory().addItem(itemStack);
+            // Check each player for pickup
+            for (PlayerEntity player : playerManager.getAllPlayers()) {
+                Transform playerTransform = player.getTransform();
+                ColliderComponent playerCollider = player.getEnvironmentCollider();
 
-                if (remaining == null) {
-                    // All picked up
-                    item.onPickup();
-                    worldItemManager.removeItem(item);
+                if (playerCollider == null) continue;
 
-                    // Play pickup sound
-                    SoundSystem.getInstance().playSound(COIN_PICKUP,0.6f);
+                // Simple distance check (could use collider for more precision)
+                float distance = playerTransform.getPosition().dst(itemTransform.getPosition());
+                if (distance < 16f) { // Pickup radius
+                    // Try to add to inventory
+                    ItemStack itemStack = item.getItemStack();
+                    ItemStack remaining = player.getInventory().addItem(itemStack);
 
-                    System.out.println("Picked up: " + itemStack.toString());
-                    inventoryChanged = true;
-                } else if (remaining.getQuantity() < itemStack.getQuantity()) {
-                    // Partial pickup
-                    item.getItemStack().setQuantity(remaining.getQuantity());
+                    if (remaining == null) {
+                        // All picked up
+                        item.onPickup();
+                        worldItemManager.removeItem(item);
 
-                    // Play pickup sound
-                    SoundSystem.getInstance().playSound(COIN_PICKUP,0.6f);
+                        // Play pickup sound
+                        SoundSystem.getInstance().playSound(COIN_PICKUP, 0.6f);
 
-                    inventoryChanged = true;
+                        System.out.println("Player " + player.getPlayerId() + " picked up: " + itemStack.toString());
+                        inventoryChanged = true;
+                        break; // Item was picked up, stop checking other players
+                    } else if (remaining.getQuantity() < itemStack.getQuantity()) {
+                        // Partial pickup
+                        item.getItemStack().setQuantity(remaining.getQuantity());
+
+                        // Play pickup sound
+                        SoundSystem.getInstance().playSound(COIN_PICKUP, 0.6f);
+
+                        inventoryChanged = true;
+                        break; // Partial pickup, stop checking other players
+                    }
                 }
             }
         }
 
-        // Notify UI if inventory changed
+        // Notify UI if inventory changed (for first player's UI)
         if (inventoryChanged && uiManager != null) {
             uiManager.notifyInventoryChanged();
         }
@@ -759,33 +766,60 @@ public class GameScreen implements Screen {
         spawnX = spawnGridX * world.getTileSize();
         spawnY = spawnGridY * world.getTileSize();
 
-        System.out.println("Spawning player at: (" + spawnX + ", " + spawnY + ") - Grid: (" + spawnGridX + ", " + spawnGridY + ")");
+        System.out.println("Spawning players at: (" + spawnX + ", " + spawnY + ") - Grid: (" + spawnGridX + ", " + spawnGridY + ")");
 
-        // Create or update player
-        if (player == null) {
-            com.game.systems.entity.entities.PlayerEntity.initialize(world, spawnX, spawnY);
-            player = com.game.systems.entity.entities.PlayerEntity.getInstance();
+        // Create or update players
+        if (playerManager.getPlayerCount() == 0) {
+            // Create Player 1 (WASD + Left Click)
+            PlayerEntity player1 = new PlayerEntity(world, spawnX, spawnY);
+            LocalKeyboardInput input1 = LocalKeyboardInput.createPlayer1();
+            input1.setCamera(camera);
+            input1.setPlayerTransform(player1.getTransform());
+            player1.setInputSource(input1);
+
+            // Set damage number callback
+            player1.setDamageNumberCallback((x, y, damage) -> {
+                DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
+                damageNumbers.add(damageNumber);
+            });
+
+            playerManager.addPlayer(player1);
+            world.addGameObject(player1);
+
+            // Create Player 2 (Arrow Keys + Right Click) - offset slightly to the right
+            PlayerEntity player2 = new PlayerEntity(world, spawnX + 20, spawnY);
+            LocalKeyboardInput input2 = LocalKeyboardInput.createPlayer2();
+            input2.setCamera(camera);
+            input2.setPlayerTransform(player2.getTransform());
+            player2.setInputSource(input2);
+
+            // Set damage number callback
+            player2.setDamageNumberCallback((x, y, damage) -> {
+                DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
+                damageNumbers.add(damageNumber);
+            });
+
+            playerManager.addPlayer(player2);
+            world.addGameObject(player2);
+
+            System.out.println("Created 2 local players:");
+            System.out.println("  Player 1: WASD + Left Click");
+            System.out.println("  Player 2: Arrow Keys + Right Click");
         } else {
-            player.setWorld(world);
-            player.getTransform().setPosition(spawnX, spawnY);
+            // Update existing players' world
+            for (PlayerEntity player : playerManager.getAllPlayers()) {
+                player.setWorld(world);
+                player.getTransform().setPosition(spawnX, spawnY);
+            }
         }
 
-        // Set camera for mouse position tracking
-        player.setCamera(camera);
-
-        // Set damage number callback
-        player.setDamageNumberCallback((x, y, damage) -> {
-            DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-            damageNumbers.add(damageNumber);
-        });
-
-        world.addGameObject(player);
-
         // Initialize UI manager (if not already initialized)
-        if (uiManager == null) {
-            uiManager = new UIManagerNew(player.getInventory(), worldItemManager);
+        // Use first player for UI (single-player compatibility)
+        PlayerEntity firstPlayer = playerManager.getFirstPlayer();
+        if (uiManager == null && firstPlayer != null) {
+            uiManager = new UIManagerNew(firstPlayer.getInventory(), worldItemManager);
             uiManager.setItemDropCallback(itemStack -> {
-                Vector2 playerPos = player.getTransform().getPosition();
+                Vector2 playerPos = firstPlayer.getTransform().getPosition();
                 worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
             });
 
@@ -801,8 +835,8 @@ public class GameScreen implements Screen {
                 }
             });
 
-            uiManager.setPlayerHealth(player.getHealthComponent());
-            uiManager.setPlayer(player);
+            uiManager.setPlayerHealth(firstPlayer.getHealthComponent());
+            uiManager.setPlayer(firstPlayer);
 
             // Set pause menu callback
             uiManager.setPauseMenuCallback(new com.game.systems.ui.UIManagerNew.PauseMenuCallback() {
@@ -822,10 +856,10 @@ public class GameScreen implements Screen {
                 }
             });
 
-            // Initialize SaveManager
+            // Initialize SaveManager (use first player for now)
             com.game.save.SaveManager.getInstance().initialize(
-                player,
-                player.getInventory(),
+                firstPlayer,
+                firstPlayer.getInventory(),
                 furnitureManager,
                 worldItemManager
             );
@@ -903,16 +937,9 @@ public class GameScreen implements Screen {
     }
 
     private void checkGatewayCollisions() {
-        if (player == null) return;
+        if (!playerManager.hasPlayers()) return;
 
-        Transform playerTransform = player.getTransform();
-        ColliderComponent playerCollider = player.getComponent(ColliderComponent.class);
-
-        if (playerCollider == null) return;
-
-        Rectangle playerBounds = playerCollider.getBounds(player);
-
-        // Check all gateways
+        // Check all gateways against any player
         for (GameObject obj : world.getGameObjects()) {
             if (obj instanceof GatewayEntity) {
                 GatewayEntity gateway = (GatewayEntity) obj;
@@ -920,9 +947,17 @@ public class GameScreen implements Screen {
 
                 if (gatewayCollider != null) {
                     Rectangle gatewayBounds = gatewayCollider.getBounds(gateway);
-                    if (playerBounds.overlaps(gatewayBounds)) {
-                        pendingGateway = gateway;
-                        return;
+
+                    // Check if any player is touching the gateway
+                    for (PlayerEntity player : playerManager.getAllPlayers()) {
+                        ColliderComponent playerCollider = player.getComponent(ColliderComponent.class);
+                        if (playerCollider != null) {
+                            Rectangle playerBounds = playerCollider.getBounds(player);
+                            if (playerBounds.overlaps(gatewayBounds)) {
+                                pendingGateway = gateway;
+                                return;
+                            }
+                        }
                     }
                 }
             }
@@ -936,9 +971,22 @@ public class GameScreen implements Screen {
             camera.zoom = 1f / cameraScale; // Higher scale = zoomed in (lower zoom value)
         }
 
-        Transform playerTransform = player.getTransform();
-        float playerCenterX = playerTransform.getX() + (world.getTileSize() / 2f);
-        float playerCenterY = playerTransform.getY() + (world.getTileSize() / 2f);
+        if (!playerManager.hasPlayers()) return;
+
+        // Calculate midpoint of all players
+        float totalX = 0;
+        float totalY = 0;
+        int playerCount = 0;
+
+        for (PlayerEntity player : playerManager.getAllPlayers()) {
+            Transform playerTransform = player.getTransform();
+            totalX += playerTransform.getX() + (world.getTileSize() / 2f);
+            totalY += playerTransform.getY() + (world.getTileSize() / 2f);
+            playerCount++;
+        }
+
+        float midpointX = totalX / playerCount;
+        float midpointY = totalY / playerCount;
 
         float worldWidth = world.getWorldWidth() * world.getTileSize();
         float worldHeight = world.getWorldHeight() * world.getTileSize();
@@ -946,8 +994,8 @@ public class GameScreen implements Screen {
         float cameraHalfWidth = camera.viewportWidth * camera.zoom / 2f;
         float cameraHalfHeight = camera.viewportHeight * camera.zoom / 2f;
 
-        float camX = Math.max(cameraHalfWidth, Math.min(playerCenterX, worldWidth - cameraHalfWidth));
-        float camY = Math.max(cameraHalfHeight - 12, Math.min(playerCenterY, worldHeight - cameraHalfHeight));
+        float camX = Math.max(cameraHalfWidth, Math.min(midpointX, worldWidth - cameraHalfWidth));
+        float camY = Math.max(cameraHalfHeight - 12, Math.min(midpointY, worldHeight - cameraHalfHeight));
 
         camera.position.set(camX, camY, 0);
         camera.update();
@@ -967,8 +1015,8 @@ public class GameScreen implements Screen {
             shapeRenderer.polygon(poly.getTransformedVertices());
         }
 
-        // Render player colliders
-        if (player != null) {
+        // Render all players' colliders
+        for (PlayerEntity player : playerManager.getAllPlayers()) {
             // Environment collider (green) - feet
             shapeRenderer.setColor(0, 1, 0, 1);
             ColliderComponent envCollider = player.getEnvironmentCollider();
@@ -1206,20 +1254,27 @@ public class GameScreen implements Screen {
         long memUsed = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1048576;
         long memTotal = Runtime.getRuntime().totalMemory() / 1048576;
 
-        Transform playerTransform = player.getTransform();
-        float playerX = playerTransform.getX();
-        float playerY = playerTransform.getY();
-
         float x = 10;
         float y = VIEWPORT_HEIGHT - 10;
         float lineHeight = 9;
 
         debugFont.draw(batch, "FPS: " + fps, x, y);
         debugFont.draw(batch, "Memory: " + memUsed + "/" + memTotal + " MB", x, y - lineHeight);
-        debugFont.draw(batch, "Player Pos: (" + (int)playerX + ", " + (int)playerY + ")", x, y - lineHeight * 2);
-        debugFont.draw(batch, "Objects: " + world.getGameObjects().size(), x, y - lineHeight * 3);
-        debugFont.draw(batch, "Time Scale: " + String.format("%.2fx", timeScale) + " (+/- to adjust, 0 to reset)", x, y - lineHeight * 4);
-        debugFont.draw(batch, "Press F3 to toggle debug", x, y - lineHeight * 5);
+
+        // Show all players' positions
+        int lineOffset = 2;
+        for (PlayerEntity player : playerManager.getAllPlayers()) {
+            Transform playerTransform = player.getTransform();
+            float playerX = playerTransform.getX();
+            float playerY = playerTransform.getY();
+            debugFont.draw(batch, "Player " + player.getPlayerId() + " Pos: (" + (int)playerX + ", " + (int)playerY + ")",
+                         x, y - lineHeight * lineOffset);
+            lineOffset++;
+        }
+
+        debugFont.draw(batch, "Objects: " + world.getGameObjects().size(), x, y - lineHeight * lineOffset++);
+        debugFont.draw(batch, "Time Scale: " + String.format("%.2fx", timeScale) + " (+/- to adjust, 0 to reset)", x, y - lineHeight * lineOffset++);
+        debugFont.draw(batch, "Press F3 to toggle debug", x, y - lineHeight * lineOffset);
 
         batch.end();
     }
@@ -1399,9 +1454,10 @@ public class GameScreen implements Screen {
 
     /**
      * Handle interaction with nearby furniture.
-     * Checks for furniture near the player and opens UI or picks up.
+     * Checks for furniture near the first player and opens UI or picks up.
      */
     private void handleFurnitureInteraction() {
+        PlayerEntity player = playerManager.getFirstPlayer();
         if (player == null) return;
 
         // Find nearby furniture
@@ -1501,21 +1557,31 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Check if player has moved too far from open chest and auto-close it.
+     * Check if all players have moved too far from open chest and auto-close it.
      * Call this every frame in update loop.
      */
     private void updateOpenChestDistance() {
-        if (currentlyOpenChest != null && player != null) {
-            Vector2 playerPos = player.getTransform().getPosition();
+        if (currentlyOpenChest != null && playerManager.hasPlayers()) {
             Vector2 chestPos = new Vector2(
                 currentlyOpenChest.getTransform().getX(),
                 currentlyOpenChest.getTransform().getY()
             );
 
-            float distance = playerPos.dst(chestPos);
-            if (distance > CHEST_AUTO_CLOSE_DISTANCE) {
+            // Check if ANY player is still in range
+            boolean anyPlayerNear = false;
+            for (PlayerEntity player : playerManager.getAllPlayers()) {
+                Vector2 playerPos = player.getTransform().getPosition();
+                float distance = playerPos.dst(chestPos);
+                if (distance <= CHEST_AUTO_CLOSE_DISTANCE) {
+                    anyPlayerNear = true;
+                    break;
+                }
+            }
+
+            // Close chest if no players are nearby
+            if (!anyPlayerNear) {
                 closeChest(currentlyOpenChest);
-                System.out.println("GameScreen: Auto-closed chest (player moved away)");
+                System.out.println("GameScreen: Auto-closed chest (all players moved away)");
             }
         }
     }

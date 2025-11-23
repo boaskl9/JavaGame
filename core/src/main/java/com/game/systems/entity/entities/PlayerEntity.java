@@ -24,26 +24,30 @@ import com.game.systems.inventory.EquipmentSlot;
 import com.game.systems.inventory.PlayerInventory;
 import com.game.systems.item.ItemStack;
 import com.game.systems.loot.LootSystem;
-import com.game.util.GameSingleton;
-import com.game.util.SingletonManager;
+import com.game.systems.input.InputSource;
 
 import static com.game.systems.audio.SoundRegistry.*;
 
 /**
  * Player entity built using the new component-based architecture.
  * Extends Entity to get health and living entity features.
+ *
+ * MULTIPLAYER READY: No longer a singleton!
+ * - Each player has a unique playerId
+ * - Input handled via InputSource abstraction (supports local keyboard, network, AI, etc.)
  */
-public class PlayerEntity extends com.game.systems.entity.Entity implements GameSingleton {
+public class PlayerEntity extends com.game.systems.entity.Entity {
     private static final float WALK_SPEED = 80f;
     private static final float RUN_SPEED = 160f;
     private static final int SIZE = 16;
     private static final int DEFAULT_MAX_HEALTH = 28;
 
-    private static PlayerEntity instance;
+    // Multiplayer fields
+    private int playerId = -1; // Assigned by PlayerManager
+    private InputSource inputSource; // Input abstraction for local/network play
 
     private WorldManager world;
     private int lastDirectionAngle = 180; // Down
-    private boolean inputEnabled = true;
 
     // Component references (cached for performance)
     private Transform transform;
@@ -59,53 +63,20 @@ public class PlayerEntity extends com.game.systems.entity.Entity implements Game
     // Inventory
     private PlayerInventory inventory;
 
-    // Camera reference for mouse position tracking
-    private com.badlogic.gdx.graphics.Camera camera;
-
     // Damage number callback
     private DamageNumberCallback damageNumberCallback;
 
     // Debug: Store last attack hitbox for visualization
     private Rectangle lastAttackHitbox;
 
-    public static void initialize(WorldManager worldItemManager, float spawnX, float spawnY) {
-        if (instance != null) {
-            System.err.println("Player already initialized! Replacing existing instance.");
-        }
-        instance = new PlayerEntity(worldItemManager, spawnX, spawnY);
-        SingletonManager.register(instance);
-    }
-
     /**
-     * Gets the singleton instance.
-     * Throws exception if not initialized.
+     * Create a new player entity.
+     * NOTE: Use PlayerManager.addPlayer() to properly register the player.
      *
-     * @return The PlayerEntity instance
+     * @param world The world manager
+     * @param x Starting X position
+     * @param y Starting Y position
      */
-    public static PlayerEntity getInstance() {
-        if (instance == null) {
-            throw new IllegalStateException("PlayerEntity not initialized! Call PlayerEntity.initialize() first.");
-        }
-        return instance;
-    }
-
-    /**
-     * Check if PlayerEntity has been initialized.
-     * @return true if initialized, false otherwise
-     */
-    public static boolean isInitialized() {
-        return instance != null;
-    }
-
-    // ========== GameSingleton Implementation ==========
-
-    @Override
-    public void reset() {
-        System.out.println("PlayerEntity: Resetting instance");
-        // No resources to dispose for PlayerEntity (textures owned by AnimationComponent)
-        instance = null;
-    }
-
     public PlayerEntity(WorldManager world, float x, float y) {
         super(DEFAULT_MAX_HEALTH);
         this.world = world;
@@ -175,6 +146,11 @@ public class PlayerEntity extends com.game.systems.entity.Entity implements Game
 
     @Override
     public void update(float delta) {
+        // Update input source
+        if (inputSource != null) {
+            inputSource.update(delta);
+        }
+
         // Update velocity component (handles knockback decay)
         velocity.update(delta);
 
@@ -214,27 +190,15 @@ public class PlayerEntity extends com.game.systems.entity.Entity implements Game
     private void handleInput() {
         Vector2 inputVelocity = new Vector2();
 
-        // Only process input if enabled
-        if (inputEnabled) {
-            boolean isRunning = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
-
-            if (Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.UP)) {
-                inputVelocity.y += 1;
-            }
-            if (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN)) {
-                inputVelocity.y -= 1;
-            }
-            if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
-                inputVelocity.x -= 1;
-            }
-            if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
-                inputVelocity.x += 1;
-            }
+        // Get input from InputSource
+        if (inputSource != null && inputSource.isEnabled()) {
+            Vector2 movementInput = inputSource.getMovementInput();
+            boolean isRunning = inputSource.isRunning();
 
             // Apply speed
-            if (inputVelocity.len() > 0) {
+            if (movementInput.len() > 0) {
                 float speed = isRunning ? RUN_SPEED : WALK_SPEED;
-                inputVelocity.nor().scl(speed);
+                inputVelocity.set(movementInput).scl(speed);
 
                 // Apply movement penalty while attacking
                 if (attackComponent.isAttacking() && attackComponent.getCurrentWeapon() != null) {
@@ -248,8 +212,8 @@ public class PlayerEntity extends com.game.systems.entity.Entity implements Game
     }
 
     private void handleAttack() {
-        // Check for attack input (left mouse button)
-        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && inputEnabled) {
+        // Check for attack input from InputSource
+        if (inputSource != null && inputSource.isEnabled() && inputSource.isAttackJustPressed()) {
             performAttack();
         }
     }
@@ -268,16 +232,9 @@ public class PlayerEntity extends com.game.systems.entity.Entity implements Game
 
         WeaponStats weapon = weaponStack.getDefinition().getWeaponStats();
 
-        // Get mouse position in world coordinates
-        Vector2 mouseWorld = getMouseWorldPosition();
-        if (mouseWorld == null) return;
-
-        // Calculate attack direction
-        float playerCenterX = transform.getX() + SIZE / 2f;
-        float playerCenterY = transform.getY() + SIZE / 2f;
-        float attackAngle = com.game.systems.combat.CombatUtils.calculateAngle(
-            playerCenterX, playerCenterY, mouseWorld.x, mouseWorld.y
-        );
+        // Get attack direction from InputSource
+        Vector2 aimDirection = inputSource != null ? inputSource.getAimDirection() : new Vector2(1, 0);
+        float attackAngle = aimDirection.angleDeg();
 
         // Play weapon swing sound
             SoundSystem.getInstance().playSound(
@@ -289,20 +246,10 @@ public class PlayerEntity extends com.game.systems.entity.Entity implements Game
         attackComponent.startAttack(weapon, attackAngle);
     }
 
-    private Vector2 getMouseWorldPosition() {
-        if (camera == null) return null;
-
-        // Convert screen coordinates to world coordinates
-        Vector3 screenCoords = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
-        Vector3 worldCoords = camera.unproject(screenCoords);
-
-        return new Vector2(worldCoords.x, worldCoords.y);
-    }
-
     private void updateAnimation() {
         Vector2 vel = velocity.getVelocity();
         String state;
-        boolean isRunning = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
+        boolean isRunning = inputSource != null && inputSource.isRunning();
         int animationAngle = lastDirectionAngle;
 
         // Check if attacking
@@ -406,21 +353,48 @@ public class PlayerEntity extends com.game.systems.entity.Entity implements Game
     }
 
     /**
-     * Enable or disable player input (for UI dialogs, console, etc.)
+     * Get the player ID (assigned by PlayerManager).
+     * @return The player ID
      */
-    public void setInputEnabled(boolean enabled) {
-        this.inputEnabled = enabled;
-    }
-
-    public boolean isInputEnabled() {
-        return inputEnabled;
+    public int getPlayerId() {
+        return playerId;
     }
 
     /**
-     * Set the camera for mouse position tracking (needed for attack direction).
+     * Set the player ID (called by PlayerManager).
+     * @param playerId The player ID
      */
-    public void setCamera(com.badlogic.gdx.graphics.Camera camera) {
-        this.camera = camera;
+    public void setPlayerId(int playerId) {
+        this.playerId = playerId;
+    }
+
+    /**
+     * Get the input source for this player.
+     * @return The input source
+     */
+    public InputSource getInputSource() {
+        return inputSource;
+    }
+
+    /**
+     * Set the input source for this player.
+     * @param inputSource The input source (LocalKeyboardInput, NetworkInputSource, etc.)
+     */
+    public void setInputSource(InputSource inputSource) {
+        this.inputSource = inputSource;
+    }
+
+    /**
+     * Enable or disable player input (for UI dialogs, console, etc.)
+     */
+    public void setInputEnabled(boolean enabled) {
+        if (inputSource != null) {
+            inputSource.setEnabled(enabled);
+        }
+    }
+
+    public boolean isInputEnabled() {
+        return inputSource != null && inputSource.isEnabled();
     }
 
     public AttackComponent getAttackComponent() {
