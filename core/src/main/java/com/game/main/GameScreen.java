@@ -153,15 +153,14 @@ public class GameScreen implements Screen {
      */
     public GameScreen(com.game.save.SaveData saveData) {
         // Create split-screen cameras (vertical split - left/right)
-        int halfWidth = VIEWPORT_WIDTH / 2;
-
+        // Each camera gets full virtual height but half width
         player1Camera = new OrthographicCamera();
-        player1Viewport = new FitViewport(halfWidth, VIEWPORT_HEIGHT, player1Camera);
-        player1Camera.position.set(halfWidth / 2f, VIEWPORT_HEIGHT / 2f, 0);
+        player1Viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, player1Camera);
+        player1Camera.position.set(VIEWPORT_WIDTH / 2f, VIEWPORT_HEIGHT / 2f, 0);
 
         player2Camera = new OrthographicCamera();
-        player2Viewport = new FitViewport(halfWidth, VIEWPORT_HEIGHT, player2Camera);
-        player2Camera.position.set(halfWidth / 2f, VIEWPORT_HEIGHT / 2f, 0);
+        player2Viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, player2Camera);
+        player2Camera.position.set(VIEWPORT_WIDTH / 2f, VIEWPORT_HEIGHT / 2f, 0);
 
         // Legacy camera (use player1's camera for compatibility)
         camera = player1Camera;
@@ -336,8 +335,14 @@ public class GameScreen implements Screen {
             handleFurniturePlacement(delta);
         }
 
-        // Render UI
+        // Render UI for both players
         if (uiManager != null) {
+            // Render UI on left screen (Player 1)
+            player1Viewport.apply();
+            uiManager.render();
+
+            // Render UI on right screen (Player 2)
+            player2Viewport.apply();
             uiManager.render();
         }
 
