@@ -152,8 +152,8 @@ public class GameScreen implements Screen {
      * If saveData is null, starts a new game.
      */
     public GameScreen(com.game.save.SaveData saveData) {
-        // Create split-screen cameras (vertical split - left/right)
-        // Each camera gets full virtual height but half width
+        // Create split-screen cameras (horizontal split - top/bottom)
+        // Each camera gets full virtual dimensions, screen bounds split the rendering
         player1Camera = new OrthographicCamera();
         player1Viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, player1Camera);
         player1Camera.position.set(VIEWPORT_WIDTH / 2f, VIEWPORT_HEIGHT / 2f, 0);
@@ -321,13 +321,13 @@ public class GameScreen implements Screen {
         updateCamera();
 
         // === SPLIT-SCREEN RENDERING ===
-        // Render Player 1's view (left half of screen)
+        // Render Player 1's view (top half of screen)
         renderPlayerView(player1Camera, player1Viewport, 0);
 
-        // Render Player 2's view (right half of screen)
+        // Render Player 2's view (bottom half of screen)
         renderPlayerView(player2Camera, player2Viewport, 1);
 
-        // Draw split-screen divider
+        // Draw split-screen divider (horizontal line)
         renderSplitScreenDivider();
 
         // Handle furniture placement mode (only for player 1)
@@ -337,11 +337,11 @@ public class GameScreen implements Screen {
 
         // Render UI for both players
         if (uiManager != null) {
-            // Render UI on left screen (Player 1)
+            // Render UI on top screen (Player 1)
             player1Viewport.apply();
             uiManager.render();
 
-            // Render UI on right screen (Player 2)
+            // Render UI on bottom screen (Player 2)
             player2Viewport.apply();
             uiManager.render();
         }
@@ -1051,7 +1051,7 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Draws a vertical line between the two split-screen viewports.
+     * Draws a horizontal line between the two split-screen viewports.
      */
     private void renderSplitScreenDivider() {
         Gdx.gl.glEnable(com.badlogic.gdx.graphics.GL20.GL_SCISSOR_TEST);
@@ -1059,8 +1059,8 @@ public class GameScreen implements Screen {
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         shapeRenderer.setColor(1, 1, 1, 1); // White divider line
-        int centerX = Gdx.graphics.getWidth() / 2;
-        shapeRenderer.rect(centerX - 1, 0, 2, Gdx.graphics.getHeight()); // 2 pixel wide line
+        int centerY = Gdx.graphics.getHeight() / 2;
+        shapeRenderer.rect(0, centerY - 1, Gdx.graphics.getWidth(), 2); // 2 pixel tall line
         shapeRenderer.end();
 
         Gdx.gl.glDisable(com.badlogic.gdx.graphics.GL20.GL_SCISSOR_TEST);
@@ -1377,16 +1377,16 @@ public class GameScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        // Update both viewports for split-screen
-        int halfWidth = width / 2;
+        // Horizontal split-screen (top/bottom)
+        int halfHeight = height / 2;
 
-        // Player 1 viewport (left half)
-        player1Viewport.update(halfWidth, height, false);
-        player1Viewport.setScreenBounds(0, 0, halfWidth, height);
+        // Player 1 viewport (top half)
+        player1Viewport.update(width, halfHeight, false);
+        player1Viewport.setScreenBounds(0, halfHeight, width, halfHeight);
 
-        // Player 2 viewport (right half)
-        player2Viewport.update(halfWidth, height, false);
-        player2Viewport.setScreenBounds(halfWidth, 0, halfWidth, height);
+        // Player 2 viewport (bottom half)
+        player2Viewport.update(width, halfHeight, false);
+        player2Viewport.setScreenBounds(0, 0, width, halfHeight);
 
         // Legacy viewport
         viewport.update(width, height, false);
