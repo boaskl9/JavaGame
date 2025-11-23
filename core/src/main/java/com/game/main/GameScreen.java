@@ -80,9 +80,14 @@ public class GameScreen implements Screen {
     private static final float MIN_TIME_SCALE = 0.25f;
     private static final float MAX_TIME_SCALE = 4.0f;
 
-    private OrthographicCamera camera;
+    // Split-screen cameras and viewports
+    private OrthographicCamera camera; // Legacy, kept for compatibility
+    private OrthographicCamera player1Camera;
+    private OrthographicCamera player2Camera;
     private OrthographicCamera uiCamera;
-    private Viewport viewport;
+    private Viewport viewport; // Legacy
+    private Viewport player1Viewport;
+    private Viewport player2Viewport;
 
     public WorldManager world;
     public WorldItemManager worldItemManager;
@@ -147,13 +152,23 @@ public class GameScreen implements Screen {
      * If saveData is null, starts a new game.
      */
     public GameScreen(com.game.save.SaveData saveData) {
-        // Create cameras
-        camera = new OrthographicCamera();
+        // Create split-screen cameras (vertical split - left/right)
+        int halfWidth = VIEWPORT_WIDTH / 2;
+
+        player1Camera = new OrthographicCamera();
+        player1Viewport = new FitViewport(halfWidth, VIEWPORT_HEIGHT, player1Camera);
+        player1Camera.position.set(halfWidth / 2f, VIEWPORT_HEIGHT / 2f, 0);
+
+        player2Camera = new OrthographicCamera();
+        player2Viewport = new FitViewport(halfWidth, VIEWPORT_HEIGHT, player2Camera);
+        player2Camera.position.set(halfWidth / 2f, VIEWPORT_HEIGHT / 2f, 0);
+
+        // Legacy camera (use player1's camera for compatibility)
+        camera = player1Camera;
+        viewport = player1Viewport;
+
         uiCamera = new OrthographicCamera();
         uiCamera.setToOrtho(false, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
-
-        viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
-        camera.position.set(VIEWPORT_WIDTH / 2f, VIEWPORT_HEIGHT / 2f, 0);
 
         batch = new SpriteBatch();
         shapeRenderer = new ShapeRenderer();
@@ -306,52 +321,17 @@ public class GameScreen implements Screen {
         // Update camera
         updateCamera();
 
-        // Render map with Y-sorting
-        mapRenderer.setView(camera);
-        batch.setProjectionMatrix(camera.combined);
+        // === SPLIT-SCREEN RENDERING ===
+        // Render Player 1's view (left half of screen)
+        renderPlayerView(player1Camera, player1Viewport, 0);
 
-        if (ySortRenderer != null) {
-            // Y-sorted rendering (entities sorted with feature layers)
-            ySortRenderer.render(batch, world.getGameObjects(), this::renderEntity);
-        } else {
-            // Fallback: render map then entities (no Y-sorting)
-            mapRenderer.render();
-            batch.begin();
-            world.render(batch);
-            batch.end();
-        }
+        // Render Player 2's view (right half of screen)
+        renderPlayerView(player2Camera, player2Viewport, 1);
 
-        // Render world items
-        batch.setProjectionMatrix(camera.combined);
-        batch.begin();
-        worldItemManager.render(batch);
-        batch.end();
+        // Draw split-screen divider
+        renderSplitScreenDivider();
 
-        // Render damage numbers
-        batch.setProjectionMatrix(camera.combined);
-        batch.begin();
-        for (DamageNumberEntity damageNumber : damageNumbers) {
-            damageNumber.render(batch);
-        }
-        batch.end();
-
-        // Render death animations
-        batch.setProjectionMatrix(camera.combined);
-        batch.begin();
-        for (DeathAnimationEntity deathAnimation : deathAnimations) {
-            deathAnimation.render(batch);
-        }
-        batch.end();
-
-        // Render destruction particles
-        batch.setProjectionMatrix(camera.combined);
-        batch.begin();
-        for (DestructionParticleEntity particle : destructionParticles) {
-            particle.render(batch);
-        }
-        batch.end();
-
-        // Handle furniture placement mode
+        // Handle furniture placement mode (only for player 1)
         if (furniturePlacementMode) {
             handleFurniturePlacement(delta);
         }
@@ -361,12 +341,12 @@ public class GameScreen implements Screen {
             uiManager.render();
         }
 
-        // Render debug
+        // Render debug (for both viewports)
         if (debugMode || debugManager.isEnabled("colliders")) {
-            renderCollisionDebug();
+            renderCollisionDebugSplitScreen();
         }
         if (debugMode || debugManager.isEnabled("navmesh")) {
-            renderNavMeshDebug();
+            renderNavMeshDebugSplitScreen();
         }
         if (debugMode || debugManager.isEnabled("fps")) {
             renderDebugStats();
@@ -773,7 +753,7 @@ public class GameScreen implements Screen {
             // Create Player 1 (WASD + Left Click)
             PlayerEntity player1 = new PlayerEntity(world, spawnX, spawnY);
             LocalKeyboardInput input1 = LocalKeyboardInput.createPlayer1();
-            input1.setCamera(camera);
+            input1.setCamera(player1Camera); // Use player 1's camera
             input1.setPlayerTransform(player1.getTransform());
             player1.setInputSource(input1);
 
@@ -789,7 +769,7 @@ public class GameScreen implements Screen {
             // Create Player 2 (Arrow Keys + Right Click) - offset slightly to the right
             PlayerEntity player2 = new PlayerEntity(world, spawnX + 20, spawnY);
             LocalKeyboardInput input2 = LocalKeyboardInput.createPlayer2();
-            input2.setCamera(camera);
+            input2.setCamera(player2Camera); // Use player 2's camera
             input2.setPlayerTransform(player2.getTransform());
             player2.setInputSource(input2);
 
@@ -966,43 +946,149 @@ public class GameScreen implements Screen {
 
     private void updateCamera() {
         // Apply camera scale from settings
+        float cameraScale = 1f;
         if (uiManager != null) {
-            float cameraScale = uiManager.getGameSettings().getCameraScale();
-            camera.zoom = 1f / cameraScale; // Higher scale = zoomed in (lower zoom value)
+            cameraScale = uiManager.getGameSettings().getCameraScale();
         }
 
         if (!playerManager.hasPlayers()) return;
 
-        // Calculate midpoint of all players
-        float totalX = 0;
-        float totalY = 0;
-        int playerCount = 0;
-
-        for (PlayerEntity player : playerManager.getAllPlayers()) {
-            Transform playerTransform = player.getTransform();
-            totalX += playerTransform.getX() + (world.getTileSize() / 2f);
-            totalY += playerTransform.getY() + (world.getTileSize() / 2f);
-            playerCount++;
-        }
-
-        float midpointX = totalX / playerCount;
-        float midpointY = totalY / playerCount;
-
         float worldWidth = world.getWorldWidth() * world.getTileSize();
         float worldHeight = world.getWorldHeight() * world.getTileSize();
+
+        // Update Player 1's camera
+        PlayerEntity player1 = playerManager.getPlayerCount() > 0 ?
+            playerManager.getAllPlayers().get(0) : null;
+        if (player1 != null) {
+            updatePlayerCamera(player1Camera, player1, cameraScale, worldWidth, worldHeight);
+        }
+
+        // Update Player 2's camera
+        PlayerEntity player2 = playerManager.getPlayerCount() > 1 ?
+            playerManager.getAllPlayers().get(1) : null;
+        if (player2 != null) {
+            updatePlayerCamera(player2Camera, player2, cameraScale, worldWidth, worldHeight);
+        }
+    }
+
+    private void updatePlayerCamera(OrthographicCamera camera, PlayerEntity player,
+                                    float cameraScale, float worldWidth, float worldHeight) {
+        camera.zoom = 1f / cameraScale;
+
+        Transform playerTransform = player.getTransform();
+        float playerCenterX = playerTransform.getX() + (world.getTileSize() / 2f);
+        float playerCenterY = playerTransform.getY() + (world.getTileSize() / 2f);
 
         float cameraHalfWidth = camera.viewportWidth * camera.zoom / 2f;
         float cameraHalfHeight = camera.viewportHeight * camera.zoom / 2f;
 
-        float camX = Math.max(cameraHalfWidth, Math.min(midpointX, worldWidth - cameraHalfWidth));
-        float camY = Math.max(cameraHalfHeight - 12, Math.min(midpointY, worldHeight - cameraHalfHeight));
+        float camX = Math.max(cameraHalfWidth, Math.min(playerCenterX, worldWidth - cameraHalfWidth));
+        float camY = Math.max(cameraHalfHeight - 12, Math.min(playerCenterY, worldHeight - cameraHalfHeight));
 
         camera.position.set(camX, camY, 0);
         camera.update();
     }
 
-    private void renderCollisionDebug() {
-        shapeRenderer.setProjectionMatrix(camera.combined);
+    /**
+     * Renders the game world from a player's perspective.
+     * @param camera The camera to render with
+     * @param viewport The viewport to render to
+     * @param playerIndex Player index (0 or 1)
+     */
+    private void renderPlayerView(OrthographicCamera camera, Viewport viewport, int playerIndex) {
+        // Apply viewport (sets glViewport for split-screen)
+        viewport.apply();
+
+        // Render map with Y-sorting
+        mapRenderer.setView(camera);
+        batch.setProjectionMatrix(camera.combined);
+
+        if (ySortRenderer != null) {
+            // Y-sorted rendering (entities sorted with feature layers)
+            ySortRenderer.render(batch, world.getGameObjects(), this::renderEntity);
+        } else {
+            // Fallback: render map then entities (no Y-sorting)
+            mapRenderer.render();
+            batch.begin();
+            world.render(batch);
+            batch.end();
+        }
+
+        // Render world items
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        worldItemManager.render(batch);
+        batch.end();
+
+        // Render damage numbers
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (DamageNumberEntity damageNumber : damageNumbers) {
+            damageNumber.render(batch);
+        }
+        batch.end();
+
+        // Render death animations
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (DeathAnimationEntity deathAnimation : deathAnimations) {
+            deathAnimation.render(batch);
+        }
+        batch.end();
+
+        // Render destruction particles
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (DestructionParticleEntity particle : destructionParticles) {
+            particle.render(batch);
+        }
+        batch.end();
+    }
+
+    /**
+     * Draws a vertical line between the two split-screen viewports.
+     */
+    private void renderSplitScreenDivider() {
+        Gdx.gl.glEnable(com.badlogic.gdx.graphics.GL20.GL_SCISSOR_TEST);
+        Gdx.gl.glScissor(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(1, 1, 1, 1); // White divider line
+        int centerX = Gdx.graphics.getWidth() / 2;
+        shapeRenderer.rect(centerX - 1, 0, 2, Gdx.graphics.getHeight()); // 2 pixel wide line
+        shapeRenderer.end();
+
+        Gdx.gl.glDisable(com.badlogic.gdx.graphics.GL20.GL_SCISSOR_TEST);
+    }
+
+    /**
+     * Renders collision debug for both split-screen viewports.
+     */
+    private void renderCollisionDebugSplitScreen() {
+        // Render for Player 1's viewport
+        player1Viewport.apply();
+        renderCollisionDebugForCamera(player1Camera);
+
+        // Render for Player 2's viewport
+        player2Viewport.apply();
+        renderCollisionDebugForCamera(player2Camera);
+    }
+
+    /**
+     * Renders navmesh debug for both split-screen viewports.
+     */
+    private void renderNavMeshDebugSplitScreen() {
+        // Render for Player 1's viewport
+        player1Viewport.apply();
+        renderNavMeshDebugForCamera(player1Camera);
+
+        // Render for Player 2's viewport
+        player2Viewport.apply();
+        renderNavMeshDebugForCamera(player2Camera);
+    }
+
+    private void renderCollisionDebugForCamera(OrthographicCamera cam) {
+        shapeRenderer.setProjectionMatrix(cam.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
         // Render world collision (red)
@@ -1129,10 +1215,15 @@ public class GameScreen implements Screen {
         shapeRenderer.end();
     }
 
-    private void renderNavMeshDebug() {
+    // Legacy method - keep for compatibility
+    private void renderCollisionDebug() {
+        renderCollisionDebugForCamera(camera);
+    }
+
+    private void renderNavMeshDebugForCamera(OrthographicCamera cam) {
         if (world.getGridPathfinder() == null) return;
 
-        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.setProjectionMatrix(cam.combined);
 
         // Render grid pathfinder (only unwalkable cells for performance)
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -1281,7 +1372,20 @@ public class GameScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
+        // Update both viewports for split-screen
+        int halfWidth = width / 2;
+
+        // Player 1 viewport (left half)
+        player1Viewport.update(halfWidth, height, false);
+        player1Viewport.setScreenBounds(0, 0, halfWidth, height);
+
+        // Player 2 viewport (right half)
+        player2Viewport.update(halfWidth, height, false);
+        player2Viewport.setScreenBounds(halfWidth, 0, halfWidth, height);
+
+        // Legacy viewport
         viewport.update(width, height, false);
+
         uiCamera.setToOrtho(false, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
         if (uiManager != null) {
             uiManager.resize(width, height);
