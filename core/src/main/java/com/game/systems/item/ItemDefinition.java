@@ -1,6 +1,7 @@
 package com.game.systems.item;
 
 import com.game.systems.combat.WeaponStats;
+import com.game.systems.entity.Entity;
 import com.game.systems.inventory.EquipmentSlot;
 import com.game.systems.loot.LootModifier;
 
@@ -20,6 +21,7 @@ public class ItemDefinition {
     private final EquipmentSlot equipmentSlot; // Which equipment slot this item goes in (null if not equippable)
     private final WeaponStats weaponStats; // Combat stats for weapons (null if not a weapon)
     private final String weaponSpritePath; // Path to SpriteInHand.png for weapon rendering (null if not a weapon)
+    private final ConsumableEffect consumableEffect;
 
     private LootModifier lootModifier;
 
@@ -57,6 +59,17 @@ public class ItemDefinition {
                          int maxStackSize, String iconPath, boolean consumable,
                          Integer bagSize, EquipmentSlot equipmentSlot, WeaponStats weaponStats,
                          String weaponSpritePath) {
+        this(id, name, description, type, maxStackSize, iconPath, consumable, bagSize, equipmentSlot, weaponStats, weaponSpritePath, null);
+    }
+
+    public ItemDefinition(String id, String name, String description, ItemType type, int maxStackSize, String iconPath, boolean consumable, ConsumableEffect consumableEffect) {
+        this(id, name, description, type, maxStackSize, iconPath, consumable, null, null, null, null, consumableEffect);
+    }
+
+    public ItemDefinition(String id, String name, String description, ItemType type,
+                          int maxStackSize, String iconPath, boolean consumable,
+                          Integer bagSize, EquipmentSlot equipmentSlot, WeaponStats weaponStats,
+                          String weaponSpritePath, ConsumableEffect consumableEffect) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -68,6 +81,17 @@ public class ItemDefinition {
         this.equipmentSlot = equipmentSlot;
         this.weaponStats = weaponStats;
         this.weaponSpritePath = weaponSpritePath;
+        this.consumableEffect = consumableEffect;
+    }
+
+    public void consumeItem(Entity consumer) {
+        if (!consumable) {
+            throw new IllegalStateException("Trying to consume non-consumable item!");
+        } else if (consumableEffect == null) {
+            throw new IllegalStateException(consumer.toString() + " is trying to consume " + name + " but it has no consumeEffect!");
+        }
+
+        consumableEffect.applyEffect(consumer);
     }
 
     public String getId() {

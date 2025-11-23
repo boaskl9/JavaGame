@@ -7,6 +7,8 @@ import com.game.integration.WorldItemManager;
 import com.game.systems.combat.WeaponStats;
 import com.game.systems.combat.WeaponType;
 import com.game.systems.inventory.EquipmentSlot;
+import com.game.systems.item.ConsumableEffects.HealingPotionConsumeEffect;
+import com.game.systems.item.ConsumableEffects.PoisonConsumeEffect;
 import com.game.systems.loot.QuantityMultiplierModifier;
 
 /**
@@ -122,6 +124,7 @@ public class TestItems {
         ItemRegistry.register(coin);
 
         // Test consumable
+        ConsumableEffect healingPotionEffect = new HealingPotionConsumeEffect();
         ItemDefinition potion = new ItemDefinition(
             "health_potion",
             "Health Potion",
@@ -129,9 +132,24 @@ public class TestItems {
             ItemType.CONSUMABLE,
             10,
             "assets/Items/Potion/LifePot.png",
-            true
+            true,
+            healingPotionEffect
         );
         ItemRegistry.register(potion);
+
+        // Test consumable2
+        ConsumableEffect PoisonEffect = new PoisonConsumeEffect();
+        ItemDefinition poison_potion = new ItemDefinition(
+            "poison",
+            "Posion Potion",
+            "Deals damage to any who drink it when consumed.",
+            ItemType.CONSUMABLE,
+            10,
+            "assets/Items/Potion/WaterPot.png",
+            true,
+            PoisonEffect
+        );
+        ItemRegistry.register(poison_potion);
 
         // ===== EQUIPMENT ITEMS =====
 

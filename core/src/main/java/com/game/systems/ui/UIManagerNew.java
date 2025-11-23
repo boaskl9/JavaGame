@@ -840,6 +840,7 @@ public class UIManagerNew {
                     refreshAllWindows();
                     System.out.println("Context menu: Consumed " + stack.getDefinition().getName());
                     // Future: Apply consumable effects here
+                    stack.getDefinition().consumeItem(player);
                 }
                 break;
 
