@@ -193,13 +193,38 @@ public class MainMenuScreen implements Screen {
         dialog.setCallback(new com.game.ui.MultiplayerDialog.MultiplayerCallback() {
             @Override
             public void onConnect(String serverIp) {
-                System.out.println("MainMenu: Connecting to server: " + serverIp);
-                // Create a GameScreen in client mode (won't create local player yet)
+                System.out.println("MainMenu: Attempting to connect to server: " + serverIp);
+
+                // Test connection FIRST before creating GameScreen
+                com.game.networking.GameClient testClient = new com.game.networking.GameClient();
+                boolean connected = testClient.connect(serverIp);
+
+                if (!connected) {
+                    // Connection failed - show error and stay on menu
+                    System.err.println("MainMenu: Failed to connect to server: " + serverIp);
+                    testClient.disconnect();
+
+                    com.game.ui.ErrorDialog errorDialog = new com.game.ui.ErrorDialog(
+                        "Connection Failed",
+                        "Could not connect to server at " + serverIp + ".\n\n" +
+                        "Please check:\n" +
+                        "- The server is running\n" +
+                        "- The IP address is correct\n" +
+                        "- Port 25565 is not blocked",
+                        skin
+                    );
+                    errorDialog.show(stage);
+                    return;
+                }
+
+                System.out.println("MainMenu: Connection successful, creating game screen...");
+
+                // Connection successful - create GameScreen and pass the connected client
                 GameScreen gameScreen = new GameScreen(true);  // Pass true for client mode
+                gameScreen.setGameClient(testClient);  // Pass the already-connected client
                 game.setScreen(gameScreen);
 
-                // Connect to server after screen is shown
-                gameScreen.connectToServer(serverIp);
+                System.out.println("MainMenu: Game screen created and connected");
             }
 
             @Override

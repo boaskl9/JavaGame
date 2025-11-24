@@ -1767,21 +1767,30 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Connect to a multiplayer game as a client.
-     * @param serverIp Server IP address to connect to
+     * Set up an already-connected game client (called from main menu).
+     * @param client The already-connected GameClient
      */
-    public void connectToServer(String serverIp) {
-        if (isHost || isClient) {
+    public void setGameClient(com.game.networking.GameClient client) {
+        if (isHost || (isClient && gameClient != null)) {
             System.out.println("GameScreen: Already in multiplayer mode");
             return;
         }
 
         isClient = true;
+        gameClient = client;
 
-        // Create and connect client
-        gameClient = new com.game.networking.GameClient();
+        System.out.println("GameScreen: Setting up pre-connected client...");
 
         // Set up client callbacks
+        setupClientCallbacks();
+
+        System.out.println("GameScreen: Client callbacks configured");
+    }
+
+    /**
+     * Setup client callbacks for an existing gameClient.
+     */
+    private void setupClientCallbacks() {
         gameClient.setConnectionCallback((assignedPlayerId) -> {
             System.out.println("GameScreen: Connected to server with player ID: " + assignedPlayerId);
             localPlayerId = assignedPlayerId;
@@ -1833,6 +1842,26 @@ public class GameScreen implements Screen {
             System.out.println("GameScreen: Player " + playerId + " joined: " + playerName);
             // Players are managed by the server and state updates
         });
+    }
+
+    /**
+     * Connect to a multiplayer game as a client (legacy method - prefer setGameClient).
+     * @param serverIp Server IP address to connect to
+     * @deprecated Use setGameClient with a pre-connected client for better error handling
+     */
+    public void connectToServer(String serverIp) {
+        if (isHost || isClient) {
+            System.out.println("GameScreen: Already in multiplayer mode");
+            return;
+        }
+
+        isClient = true;
+
+        // Create and connect client
+        gameClient = new com.game.networking.GameClient();
+
+        // Set up client callbacks
+        setupClientCallbacks();
 
         // Connect to server
         boolean success = gameClient.connect(serverIp);
