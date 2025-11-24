@@ -127,6 +127,14 @@ public class GameScreen implements Screen {
     // Save name tracking for auto-save
     private String currentSaveName = null;
 
+    // Networking
+    private com.game.networking.GameServer gameServer;
+    private com.game.networking.GameClient gameClient;
+    private boolean isHost = false;
+    private boolean isClient = false;
+    private float stateSyncTimer = 0f;
+    private static final float STATE_SYNC_INTERVAL = 0.05f; // 20 times per second
+
     /**
      * Create a new game with default starting level.
      */
@@ -298,6 +306,9 @@ public class GameScreen implements Screen {
 
         // Check for gateway collisions
         checkGatewayCollisions();
+
+        // Update networking (send/receive packets)
+        updateNetworking(delta);
 
         // Update UI
         if (uiManager != null) {
@@ -826,7 +837,15 @@ public class GameScreen implements Screen {
             // Set pause menu callback
             uiManager.setPauseMenuCallback(new com.game.systems.ui.UIManagerNew.PauseMenuCallback() {
                 @Override
+                public void onOpenToLAN() {
+                    startHosting();
+                }
+
+                @Override
                 public void onReturnToMainMenu() {
+                    // Stop multiplayer before returning
+                    stopMultiplayer();
+
                     // Auto-save before returning to main menu
                     if (currentSaveName != null) {
                         com.game.save.SaveManager.getInstance().save(currentSaveName);
@@ -1280,6 +1299,9 @@ public class GameScreen implements Screen {
 
     @Override
     public void dispose() {
+        // Stop multiplayer connections
+        stopMultiplayer();
+
         batch.dispose();
         shapeRenderer.dispose();
         debugFont.dispose();
@@ -1613,5 +1635,258 @@ public class GameScreen implements Screen {
 
         System.out.println("GameScreen: Loaded save - Level: " + levelId +
                          ", Position: (" + saveData.player.x + ", " + saveData.player.y + ")");
+    }
+
+    // ========== Networking Support ==========
+
+    /**
+     * Start hosting a multiplayer game (Open to LAN).
+     * The current game becomes a server that others can connect to.
+     */
+    public void startHosting() {
+        if (isHost || isClient) {
+            System.out.println("GameScreen: Already in multiplayer mode");
+            return;
+        }
+
+        isHost = true;
+
+        // Create and start server
+        gameServer = new com.game.networking.GameServer();
+
+        // Set up server callbacks
+        gameServer.setClientConnectedCallback((clientId, playerName) -> {
+            System.out.println("GameScreen: Client " + clientId + " connected: " + playerName);
+
+            // Create a new player for the connected client
+            Gdx.app.postRunnable(() -> {
+                if (world != null && playerManager != null) {
+                    // Get spawn position from first player
+                    PlayerEntity firstPlayer = playerManager.getFirstPlayer();
+                    float spawnX = 50;
+                    float spawnY = 50;
+                    if (firstPlayer != null) {
+                        spawnX = firstPlayer.getTransform().getX() + 32; // Spawn near host
+                        spawnY = firstPlayer.getTransform().getY();
+                    }
+
+                    // Create new player with NetworkInputSource
+                    PlayerEntity newPlayer = new PlayerEntity(world, spawnX, spawnY);
+                    com.game.networking.NetworkInputSource networkInput = new com.game.networking.NetworkInputSource();
+                    newPlayer.setInputSource(networkInput);
+
+                    // Set damage number callback
+                    newPlayer.setDamageNumberCallback((x, y, damage) -> {
+                        DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
+                        damageNumbers.add(damageNumber);
+                    });
+
+                    playerManager.addPlayer(newPlayer);
+                    world.addGameObject(newPlayer);
+
+                    System.out.println("GameScreen: Created player for client " + clientId);
+                }
+            });
+        });
+
+        gameServer.setClientDisconnectedCallback((clientId, reason) -> {
+            System.out.println("GameScreen: Client " + clientId + " disconnected: " + reason);
+            // TODO: Remove player from game
+        });
+
+        gameServer.setInputReceivedCallback((clientId, inputPacket) -> {
+            // Apply input to the player
+            Gdx.app.postRunnable(() -> {
+                PlayerEntity player = playerManager.getPlayerById(clientId);
+                if (player != null && player.getInputSource() instanceof com.game.networking.NetworkInputSource) {
+                    com.game.networking.NetworkInputSource networkInput =
+                        (com.game.networking.NetworkInputSource) player.getInputSource();
+                    networkInput.updateFromPacket(inputPacket);
+                }
+            });
+        });
+
+        gameServer.start();
+
+        System.out.println("GameScreen: Hosting on port " + gameServer.getPort());
+        System.out.println("GameScreen: Other players can connect using 'localhost' or your LAN IP");
+    }
+
+    /**
+     * Connect to a multiplayer game as a client.
+     * @param serverIp Server IP address to connect to
+     */
+    public void connectToServer(String serverIp) {
+        if (isHost || isClient) {
+            System.out.println("GameScreen: Already in multiplayer mode");
+            return;
+        }
+
+        isClient = true;
+
+        // Create and connect client
+        gameClient = new com.game.networking.GameClient();
+
+        // Set up client callbacks
+        gameClient.setConnectionCallback((assignedPlayerId) -> {
+            System.out.println("GameScreen: Connected to server with player ID: " + assignedPlayerId);
+            // TODO: Wait for initial state sync
+        });
+
+        gameClient.setDisconnectionCallback((reason) -> {
+            System.out.println("GameScreen: Disconnected from server: " + reason);
+            isClient = false;
+            // TODO: Return to main menu or show error
+        });
+
+        gameClient.setStateUpdateCallback((statePacket) -> {
+            // Apply state update from server
+            Gdx.app.postRunnable(() -> {
+                applyStateUpdate(statePacket);
+            });
+        });
+
+        gameClient.setPlayerJoinCallback((playerId, playerName) -> {
+            System.out.println("GameScreen: Player " + playerId + " joined: " + playerName);
+            // Players are managed by the server and state updates
+        });
+
+        // Connect to server
+        boolean success = gameClient.connect(serverIp);
+        if (!success) {
+            System.err.println("GameScreen: Failed to connect to server: " + serverIp);
+            isClient = false;
+            // TODO: Show error dialog
+        }
+    }
+
+    /**
+     * Update networking - called every frame.
+     * Sends input to server (client) or broadcasts state (host).
+     */
+    private void updateNetworking(float delta) {
+        stateSyncTimer += delta;
+
+        if (isClient && gameClient != null && gameClient.isConnected()) {
+            // Send input to server
+            if (stateSyncTimer >= STATE_SYNC_INTERVAL) {
+                sendInputToServer();
+                stateSyncTimer = 0f;
+            }
+        } else if (isHost && gameServer != null && gameServer.isRunning()) {
+            // Broadcast state to all clients
+            if (stateSyncTimer >= STATE_SYNC_INTERVAL) {
+                broadcastStateToClients();
+                stateSyncTimer = 0f;
+            }
+        }
+    }
+
+    /**
+     * Send local player input to server (client mode).
+     */
+    private void sendInputToServer() {
+        PlayerEntity localPlayer = playerManager.getFirstPlayer();
+        if (localPlayer == null) return;
+
+        com.game.systems.input.InputSource input = localPlayer.getInputSource();
+        if (input == null) return;
+
+        com.badlogic.gdx.math.Vector2 movement = input.getMovementInput();
+        com.badlogic.gdx.math.Vector2 aim = input.getAimDirection();
+
+        gameClient.sendInput(
+            movement.x, movement.y,
+            input.isAttackPressed(), input.isAttackJustPressed(),
+            aim.x, aim.y,
+            input.isRunning()
+        );
+    }
+
+    /**
+     * Broadcast game state to all clients (host mode).
+     */
+    private void broadcastStateToClients() {
+        if (gameServer == null || !gameServer.isRunning()) return;
+
+        com.game.networking.StateUpdatePacket statePacket = new com.game.networking.StateUpdatePacket();
+
+        // Add all player states
+        for (PlayerEntity player : playerManager.getAllPlayers()) {
+            int playerId = player.getPlayerId();
+            com.badlogic.gdx.math.Vector2 pos = player.getTransform().getPosition();
+            com.game.components.HealthComponent health = player.getHealthComponent();
+
+            com.game.components.RenderComponent render = player.getComponent(com.game.components.RenderComponent.class);
+            String currentAnimation = "";
+            boolean facingRight = true;
+            if (render != null && render instanceof com.game.components.AnimationRenderComponent) {
+                com.game.components.AnimationRenderComponent animRender =
+                    (com.game.components.AnimationRenderComponent) render;
+                currentAnimation = animRender.getCurrentAnimationName();
+                facingRight = animRender.isFacingRight();
+            }
+
+            com.game.networking.StateUpdatePacket.PlayerState playerState =
+                new com.game.networking.StateUpdatePacket.PlayerState(
+                    pos.x, pos.y,
+                    health.getCurrentHealth(), health.getMaxHealth(),
+                    currentAnimation, facingRight
+                );
+
+            statePacket.addPlayerState(playerId, playerState);
+        }
+
+        gameServer.broadcastPacket(statePacket);
+    }
+
+    /**
+     * Apply state update from server (client mode).
+     */
+    private void applyStateUpdate(com.game.networking.StateUpdatePacket statePacket) {
+        for (PlayerEntity player : playerManager.getAllPlayers()) {
+            int playerId = player.getPlayerId();
+            com.game.networking.StateUpdatePacket.PlayerState state =
+                statePacket.getPlayerStates().get(playerId);
+
+            if (state != null) {
+                // Update position
+                player.getTransform().setPosition(state.x, state.y);
+
+                // Update health
+                com.game.components.HealthComponent health = player.getHealthComponent();
+                if (health != null) {
+                    health.setCurrentHealth(state.health);
+                    health.setMaxHealth(state.maxHealth);
+                }
+
+                // Update animation
+                com.game.components.RenderComponent render = player.getComponent(com.game.components.RenderComponent.class);
+                if (render instanceof com.game.components.AnimationRenderComponent) {
+                    com.game.components.AnimationRenderComponent animRender =
+                        (com.game.components.AnimationRenderComponent) render;
+                    // Animation name and facing direction from server
+                    // Note: We don't forcibly set animation as it may conflict with local rendering
+                }
+            }
+        }
+    }
+
+    /**
+     * Stop hosting or disconnect from server.
+     */
+    public void stopMultiplayer() {
+        if (gameServer != null) {
+            gameServer.stop();
+            gameServer = null;
+        }
+
+        if (gameClient != null) {
+            gameClient.disconnect();
+            gameClient = null;
+        }
+
+        isHost = false;
+        isClient = false;
     }
 }

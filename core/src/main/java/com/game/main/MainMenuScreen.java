@@ -27,6 +27,7 @@ public class MainMenuScreen implements Screen {
     private TextButton continueButton;
     private TextButton loadButton;
     private TextButton newGameButton;
+    private TextButton multiplayerButton;
     private TextButton settingsButton;
     private TextButton exitButton;
 
@@ -92,6 +93,16 @@ public class MainMenuScreen implements Screen {
             }
         });
         table.add(newGameButton).width(300).height(60).padBottom(20).row();
+
+        // Multiplayer button
+        multiplayerButton = new TextButton("Multiplayer", skin);
+        multiplayerButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(com.badlogic.gdx.scenes.scene2d.InputEvent event, float x, float y) {
+                onMultiplayer();
+            }
+        });
+        table.add(multiplayerButton).width(300).height(60).padBottom(20).row();
 
         // Settings button
         settingsButton = new TextButton("Settings", skin);
@@ -169,6 +180,31 @@ public class MainMenuScreen implements Screen {
             @Override
             public void onCancel() {
                 System.out.println("MainMenu: New game canceled");
+            }
+        });
+
+        dialog.show(stage);
+    }
+
+    private void onMultiplayer() {
+        System.out.println("MainMenu: Opening multiplayer dialog");
+
+        com.game.ui.MultiplayerDialog dialog = new com.game.ui.MultiplayerDialog(skin);
+        dialog.setCallback(new com.game.ui.MultiplayerDialog.MultiplayerCallback() {
+            @Override
+            public void onConnect(String serverIp) {
+                System.out.println("MainMenu: Connecting to server: " + serverIp);
+                // Create a GameScreen in client mode
+                GameScreen gameScreen = new GameScreen();
+                game.setScreen(gameScreen);
+
+                // Connect to server after screen is shown
+                gameScreen.connectToServer(serverIp);
+            }
+
+            @Override
+            public void onCancel() {
+                System.out.println("MainMenu: Multiplayer connection canceled");
             }
         });
 

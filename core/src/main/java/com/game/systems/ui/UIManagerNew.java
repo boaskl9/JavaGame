@@ -66,6 +66,7 @@ public class UIManagerNew {
     }
 
     public interface PauseMenuCallback {
+        void onOpenToLAN();
         void onReturnToMainMenu();
     }
 
@@ -163,6 +164,13 @@ public class UIManagerNew {
             public void onSettings() {
                 pauseMenu.hide();
                 settingsMenu.toggle();
+            }
+
+            @Override
+            public void onOpenToLAN() {
+                if (pauseMenuCallback != null) {
+                    pauseMenuCallback.onOpenToLAN();
+                }
             }
 
             @Override

@@ -13,6 +13,7 @@ public class PauseMenu extends Window {
     public interface PauseMenuCallback {
         void onResume();
         void onSettings();
+        void onOpenToLAN();
         void onReturnToMainMenu();
     }
 
@@ -53,6 +54,18 @@ public class PauseMenu extends Window {
             }
         });
         content.add(settingsButton).row();
+
+        // Open to LAN button
+        TextButton lanButton = new TextButton("Open to LAN", skin);
+        lanButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(com.badlogic.gdx.scenes.scene2d.InputEvent event, float x, float y) {
+                if (callback != null) {
+                    callback.onOpenToLAN();
+                }
+            }
+        });
+        content.add(lanButton).row();
 
         // Return to Main Menu button
         TextButton mainMenuButton = new TextButton("Return to Main Menu", skin);
