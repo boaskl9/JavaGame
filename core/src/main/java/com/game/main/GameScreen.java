@@ -1673,6 +1673,14 @@ public class GameScreen implements Screen {
         }
 
         isHost = true;
+        localPlayerId = 0; // Host is always Player 0
+
+        // Ensure the existing player is assigned Player 0
+        PlayerEntity existingPlayer = playerManager.getFirstPlayer();
+        if (existingPlayer != null) {
+            existingPlayer.setPlayerId(0);
+            System.out.println("GameScreen: Set existing player as host (Player 0)");
+        }
 
         // Create and start server
         gameServer = new com.game.networking.GameServer();
@@ -1704,10 +1712,12 @@ public class GameScreen implements Screen {
                         damageNumbers.add(damageNumber);
                     });
 
-                    playerManager.addPlayer(newPlayer);
+                    // CRITICAL: Set player ID to match client ID before adding to manager
+                    newPlayer.setPlayerId(clientId);
+                    playerManager.getAllPlayers().add(newPlayer);
                     world.addGameObject(newPlayer);
 
-                    System.out.println("GameScreen: Created player for client " + clientId);
+                    System.out.println("GameScreen: Created remote player " + clientId + " for connected client");
                 }
             });
         });
@@ -1838,8 +1848,12 @@ public class GameScreen implements Screen {
      * Send local player input to server (client mode).
      */
     private void sendInputToServer() {
-        PlayerEntity localPlayer = playerManager.getFirstPlayer();
-        if (localPlayer == null) return;
+        // Get the local controllable player by ID
+        PlayerEntity localPlayer = playerManager.getPlayerById(localPlayerId);
+        if (localPlayer == null) {
+            System.err.println("GameScreen: Cannot send input - local player " + localPlayerId + " not found");
+            return;
+        }
 
         com.game.systems.input.InputSource input = localPlayer.getInputSource();
         if (input == null) return;
