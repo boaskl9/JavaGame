@@ -1817,14 +1817,12 @@ public class GameScreen implements Screen {
             com.badlogic.gdx.math.Vector2 pos = player.getTransform().getPosition();
             com.game.components.HealthComponent health = player.getHealthComponent();
 
-            com.game.components.RenderComponent render = player.getComponent(com.game.components.RenderComponent.class);
+            com.game.components.AnimationComponent animComp = player.getComponent(com.game.components.AnimationComponent.class);
             String currentAnimation = "";
             boolean facingRight = true;
-            if (render != null && render instanceof com.game.components.AnimationRenderComponent) {
-                com.game.components.AnimationRenderComponent animRender =
-                    (com.game.components.AnimationRenderComponent) render;
-                currentAnimation = animRender.getCurrentAnimationName();
-                facingRight = animRender.isFacingRight();
+            if (animComp != null) {
+                currentAnimation = animComp.getCurrentState();
+                // Note: Facing direction is handled client-side based on movement
             }
 
             com.game.networking.StateUpdatePacket.PlayerState playerState =
@@ -1856,18 +1854,12 @@ public class GameScreen implements Screen {
                 // Update health
                 com.game.components.HealthComponent health = player.getHealthComponent();
                 if (health != null) {
-                    health.setCurrentHealth(state.health);
+                    health.setHealth(state.health);
                     health.setMaxHealth(state.maxHealth);
                 }
 
-                // Update animation
-                com.game.components.RenderComponent render = player.getComponent(com.game.components.RenderComponent.class);
-                if (render instanceof com.game.components.AnimationRenderComponent) {
-                    com.game.components.AnimationRenderComponent animRender =
-                        (com.game.components.AnimationRenderComponent) render;
-                    // Animation name and facing direction from server
-                    // Note: We don't forcibly set animation as it may conflict with local rendering
-                }
+                // Update animation (animations are handled locally based on movement)
+                // We don't sync animations from server as they conflict with local rendering
             }
         }
     }
