@@ -790,10 +790,11 @@ public class GameScreen implements Screen {
             System.out.println("Created local player:");
             System.out.println("  Player 1: WASD + Left Click");
         } else {
-            // Update existing players' world
+            // Update existing players' world and re-add to new world
             for (PlayerEntity player : playerManager.getAllPlayers()) {
                 player.setWorld(world);
                 player.getTransform().setPosition(spawnX, spawnY);
+                world.addGameObject(player);
             }
         }
 
