@@ -1810,9 +1810,27 @@ public class GameScreen implements Screen {
             return;
         }
 
-        // Get spawn position (use default if not set)
+        // Get spawn position from the loaded level
         float spawnX = 50;
-        float spawnY = 50;
+        float spawnY = 750;
+
+        if (currentLevelSource != null) {
+            com.game.systems.level.LevelData levelData = currentLevelSource.getLevelData();
+            com.game.systems.level.LevelData.SpawnPoint spawn = levelData.getDefaultSpawnPoint();
+
+            if (spawn != null) {
+                spawnX = spawn.getX();
+                spawnY = spawn.getY();
+
+                // Convert to grid and back to match loadLevel behavior
+                int spawnGridX = (int)(spawnX / world.getTileSize());
+                int spawnGridY = (int)(spawnY / world.getTileSize());
+                spawnX = spawnGridX * world.getTileSize();
+                spawnY = spawnGridY * world.getTileSize();
+            }
+        }
+
+        System.out.println("GameScreen: Creating local player " + playerId + " at (" + spawnX + ", " + spawnY + ")");
 
         // Create local controllable player with assigned ID
         PlayerEntity localPlayer = new PlayerEntity(world, spawnX, spawnY);
