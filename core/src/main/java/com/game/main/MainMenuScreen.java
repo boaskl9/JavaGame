@@ -194,8 +194,8 @@ public class MainMenuScreen implements Screen {
             @Override
             public void onConnect(String serverIp) {
                 System.out.println("MainMenu: Connecting to server: " + serverIp);
-                // Create a GameScreen in client mode
-                GameScreen gameScreen = new GameScreen();
+                // Create a GameScreen in client mode (won't create local player yet)
+                GameScreen gameScreen = new GameScreen(true);  // Pass true for client mode
                 game.setScreen(gameScreen);
 
                 // Connect to server after screen is shown

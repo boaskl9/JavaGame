@@ -140,7 +140,19 @@ public class GameScreen implements Screen {
      * Create a new game with default starting level.
      */
     public GameScreen() {
-        this((com.game.save.SaveData) null); // Delegate to save data constructor
+        this((com.game.save.SaveData) null, false); // Delegate to save data constructor
+    }
+
+    /**
+     * Create a new game in client mode (joining multiplayer).
+     * @param clientMode If true, this is a client joining a multiplayer game
+     */
+    public GameScreen(boolean clientMode) {
+        this((com.game.save.SaveData) null, clientMode);
+        if (clientMode) {
+            isClient = true;
+            System.out.println("GameScreen: Created in client mode");
+        }
     }
 
     /**
@@ -148,7 +160,7 @@ public class GameScreen implements Screen {
      * @param saveName The name for this save
      */
     public GameScreen(String saveName) {
-        this((com.game.save.SaveData) null);
+        this((com.game.save.SaveData) null, false);
         this.currentSaveName = saveName;
     }
 
@@ -157,6 +169,15 @@ public class GameScreen implements Screen {
      * If saveData is null, starts a new game.
      */
     public GameScreen(com.game.save.SaveData saveData) {
+        this(saveData, false);
+    }
+
+    /**
+     * Create game from save data or start new game.
+     * @param saveData Save data to load, or null for new game
+     * @param clientMode If true, this is a client joining multiplayer
+     */
+    public GameScreen(com.game.save.SaveData saveData, boolean clientMode) {
         // Create camera and viewport
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
@@ -1714,7 +1735,7 @@ public class GameScreen implements Screen {
 
                     // CRITICAL: Set player ID to match client ID before adding to manager
                     newPlayer.setPlayerId(clientId);
-                    playerManager.getAllPlayers().add(newPlayer);
+                    playerManager.addPlayerWithId(newPlayer);  // Use addPlayerWithId to preserve ID
                     world.addGameObject(newPlayer);
 
                     System.out.println("GameScreen: Created remote player " + clientId + " for connected client");
@@ -1787,7 +1808,7 @@ public class GameScreen implements Screen {
 
                     // Manually set the player ID to match server assignment
                     localPlayer.setPlayerId(assignedPlayerId);
-                    playerManager.getAllPlayers().add(localPlayer);
+                    playerManager.addPlayerWithId(localPlayer);  // Use addPlayerWithId to preserve ID
                     world.addGameObject(localPlayer);
 
                     System.out.println("GameScreen: Created local player with ID: " + assignedPlayerId);
@@ -1938,7 +1959,7 @@ public class GameScreen implements Screen {
                     damageNumbers.add(damageNumber);
                 });
 
-                playerManager.getAllPlayers().add(remotePlayer);
+                playerManager.addPlayerWithId(remotePlayer);  // Use addPlayerWithId to preserve ID
                 world.addGameObject(remotePlayer);
 
                 System.out.println("GameScreen: Created remote player " + playerId + " from state update");

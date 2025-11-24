@@ -46,6 +46,19 @@ public class PlayerManager {
     }
 
     /**
+     * Add a player with an explicit ID (for networked players).
+     * The player's ID must already be set via setPlayerId().
+     * Does NOT auto-assign an ID.
+     *
+     * @param player The PlayerEntity to add (with ID already set)
+     */
+    public void addPlayerWithId(PlayerEntity player) {
+        players.add(player);
+        System.out.println("PlayerManager: Added player " + player.getPlayerId() +
+                         " at (" + player.getTransform().getX() + ", " + player.getTransform().getY() + ")");
+    }
+
+    /**
      * Remove a player from the game.
      * @param player The player to remove
      */
