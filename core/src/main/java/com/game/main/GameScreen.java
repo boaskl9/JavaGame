@@ -149,10 +149,7 @@ public class GameScreen implements Screen {
      */
     public GameScreen(boolean clientMode) {
         this((com.game.save.SaveData) null, clientMode);
-        if (clientMode) {
-            isClient = true;
-            System.out.println("GameScreen: Created in client mode");
-        }
+        // isClient is already set in the main constructor
     }
 
     /**
@@ -178,6 +175,12 @@ public class GameScreen implements Screen {
      * @param clientMode If true, this is a client joining multiplayer
      */
     public GameScreen(com.game.save.SaveData saveData, boolean clientMode) {
+        // Set client mode FIRST, before any level loading
+        if (clientMode) {
+            isClient = true;
+            System.out.println("GameScreen: Created in client mode");
+        }
+
         // Create camera and viewport
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
@@ -1781,10 +1784,55 @@ public class GameScreen implements Screen {
 
         System.out.println("GameScreen: Setting up pre-connected client...");
 
-        // Set up client callbacks
+        // Check if client already received player ID during initial connection
+        int existingPlayerId = gameClient.getAssignedPlayerId();
+        if (existingPlayerId != -1) {
+            System.out.println("GameScreen: Client already has player ID: " + existingPlayerId);
+            localPlayerId = existingPlayerId;
+
+            // Create the local player immediately
+            createLocalPlayer(existingPlayerId);
+        }
+
+        // Set up client callbacks for future events
         setupClientCallbacks();
 
         System.out.println("GameScreen: Client callbacks configured");
+    }
+
+    /**
+     * Create the local controllable player for multiplayer.
+     * @param playerId The player ID assigned by the server
+     */
+    private void createLocalPlayer(int playerId) {
+        if (world == null) {
+            System.err.println("GameScreen: Cannot create local player - world not loaded yet");
+            return;
+        }
+
+        // Get spawn position (use default if not set)
+        float spawnX = 50;
+        float spawnY = 50;
+
+        // Create local controllable player with assigned ID
+        PlayerEntity localPlayer = new PlayerEntity(world, spawnX, spawnY);
+        LocalKeyboardInput input = LocalKeyboardInput.createPlayer1();
+        input.setCamera(camera);
+        input.setPlayerTransform(localPlayer.getTransform());
+        localPlayer.setInputSource(input);
+
+        // Set damage number callback
+        localPlayer.setDamageNumberCallback((x, y, damage) -> {
+            DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
+            damageNumbers.add(damageNumber);
+        });
+
+        // Manually set the player ID to match server assignment
+        localPlayer.setPlayerId(playerId);
+        playerManager.addPlayerWithId(localPlayer);  // Use addPlayerWithId to preserve ID
+        world.addGameObject(localPlayer);
+
+        System.out.println("GameScreen: Created local player with ID: " + playerId);
     }
 
     /**
@@ -1797,31 +1845,7 @@ public class GameScreen implements Screen {
 
             // Create the local player on the main thread
             Gdx.app.postRunnable(() -> {
-                if (world != null) {
-                    // Get spawn position (use default if not set)
-                    float spawnX = 50;
-                    float spawnY = 50;
-
-                    // Create local controllable player with assigned ID
-                    PlayerEntity localPlayer = new PlayerEntity(world, spawnX, spawnY);
-                    LocalKeyboardInput input = LocalKeyboardInput.createPlayer1();
-                    input.setCamera(camera);
-                    input.setPlayerTransform(localPlayer.getTransform());
-                    localPlayer.setInputSource(input);
-
-                    // Set damage number callback
-                    localPlayer.setDamageNumberCallback((x, y, damage) -> {
-                        DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-                        damageNumbers.add(damageNumber);
-                    });
-
-                    // Manually set the player ID to match server assignment
-                    localPlayer.setPlayerId(assignedPlayerId);
-                    playerManager.addPlayerWithId(localPlayer);  // Use addPlayerWithId to preserve ID
-                    world.addGameObject(localPlayer);
-
-                    System.out.println("GameScreen: Created local player with ID: " + assignedPlayerId);
-                }
+                createLocalPlayer(assignedPlayerId);
             });
         });
 
