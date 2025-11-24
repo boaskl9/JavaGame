@@ -136,6 +136,10 @@ public class GameScreen implements Screen {
     private float stateSyncTimer = 0f;
     private static final float STATE_SYNC_INTERVAL = 0.05f; // 20 times per second
 
+    // Client prediction with periodic checkpoints
+    private static final float POSITION_CORRECTION_THRESHOLD = 2.0f; // pixels - only correct if off by more than this
+    private static final float CORRECTION_SPEED = 0.15f; // How fast to lerp to server position (0-1, higher = faster)
+
     /**
      * Create a new game with default starting level.
      */
@@ -1998,7 +2002,9 @@ public class GameScreen implements Screen {
 
     /**
      * Apply state update from server (client mode).
-     * Server is authoritative - apply ALL state, including local player.
+     * Uses client prediction with periodic checkpoints:
+     * - Local player: only corrects if prediction error exceeds threshold
+     * - Remote players: applies server state directly
      */
     private void applyStateUpdate(com.game.networking.StateUpdatePacket statePacket) {
         if (world == null) return;
@@ -2033,10 +2039,35 @@ public class GameScreen implements Screen {
                 System.out.println("GameScreen: Created remote player " + playerId + " from state update");
             }
 
-            // Apply server's authoritative state to ALL players (including local)
-            player.getTransform().setPosition(state.x, state.y);
+            // CLIENT PREDICTION: Handle local player differently
+            boolean isLocalPlayer = (playerId == localPlayerId);
 
-            // Update health
+            if (isLocalPlayer) {
+                // For local player: use client prediction with periodic checkpoints
+                com.badlogic.gdx.math.Vector2 currentPos = player.getTransform().getPosition();
+                float dx = state.x - currentPos.x;
+                float dy = state.y - currentPos.y;
+                float distanceSquared = dx * dx + dy * dy;
+                float distance = (float) Math.sqrt(distanceSquared);
+
+                // Only correct if prediction error exceeds threshold
+                if (distance > POSITION_CORRECTION_THRESHOLD) {
+                    // Smoothly interpolate towards server position
+                    float newX = currentPos.x + dx * CORRECTION_SPEED;
+                    float newY = currentPos.y + dy * CORRECTION_SPEED;
+                    player.getTransform().setPosition(newX, newY);
+
+                    System.out.println("GameScreen: Correcting local player position by " +
+                                     String.format("%.2f", distance) + " pixels");
+                }
+                // If within threshold: do nothing, client prediction was accurate!
+
+            } else {
+                // For remote players: apply server state directly (no prediction)
+                player.getTransform().setPosition(state.x, state.y);
+            }
+
+            // Update health (always trust server for health)
             com.game.components.HealthComponent health = player.getHealthComponent();
             if (health != null) {
                 health.setHealth(state.health);
