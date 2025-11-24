@@ -132,6 +132,7 @@ public class GameScreen implements Screen {
     private com.game.networking.GameClient gameClient;
     private boolean isHost = false;
     private boolean isClient = false;
+    private int localPlayerId = -1; // The player ID controlled by this client (-1 = not set)
     private float stateSyncTimer = 0f;
     private static final float STATE_SYNC_INTERVAL = 0.05f; // 20 times per second
 
@@ -781,41 +782,63 @@ public class GameScreen implements Screen {
 
         // Create or update players
         if (playerManager.getPlayerCount() == 0) {
-            // Create Player 1 (WASD + Left Click)
-            PlayerEntity player1 = new PlayerEntity(world, spawnX, spawnY);
-            LocalKeyboardInput input1 = LocalKeyboardInput.createPlayer1();
-            input1.setCamera(camera);
-            input1.setPlayerTransform(player1.getTransform());
-            player1.setInputSource(input1);
+            // If we're a client waiting for player assignment, don't create a player yet
+            if (isClient && localPlayerId == -1) {
+                System.out.println("Client mode: Waiting for server to assign player ID...");
+            } else {
+                // Create local player (host or single-player)
+                PlayerEntity player1 = new PlayerEntity(world, spawnX, spawnY);
+                LocalKeyboardInput input1 = LocalKeyboardInput.createPlayer1();
+                input1.setCamera(camera);
+                input1.setPlayerTransform(player1.getTransform());
+                player1.setInputSource(input1);
 
-            // Set damage number callback
-            player1.setDamageNumberCallback((x, y, damage) -> {
-                DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-                damageNumbers.add(damageNumber);
-            });
+                // Set damage number callback
+                player1.setDamageNumberCallback((x, y, damage) -> {
+                    DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
+                    damageNumbers.add(damageNumber);
+                });
 
-            playerManager.addPlayer(player1);
-            world.addGameObject(player1);
+                playerManager.addPlayer(player1);
+                world.addGameObject(player1);
 
-            // TODO: Player 2 will connect via network in LAN mode
-            System.out.println("Created local player:");
-            System.out.println("  Player 1: WASD + Left Click");
+                if (isHost) {
+                    System.out.println("Created host player (Player 0)");
+                    localPlayerId = 0; // Host is always Player 0
+                } else {
+                    System.out.println("Created local player:");
+                    System.out.println("  Player 1: WASD + Left Click");
+                }
+            }
         } else {
             // Update existing players' world and re-add to new world
             for (PlayerEntity player : playerManager.getAllPlayers()) {
                 player.setWorld(world);
-                player.getTransform().setPosition(spawnX, spawnY);
+
+                // In multiplayer, only teleport the local player to spawn
+                // Remote players keep their positions (they move independently)
+                if (isHost || isClient) {
+                    // Only teleport if this is the local player
+                    if (player.getPlayerId() == localPlayerId) {
+                        player.getTransform().setPosition(spawnX, spawnY);
+                    }
+                    // Remote players: don't change position
+                } else {
+                    // Single-player: teleport all players (usually just one)
+                    player.getTransform().setPosition(spawnX, spawnY);
+                }
+
                 world.addGameObject(player);
             }
         }
 
         // Initialize UI manager (if not already initialized)
-        // Use first player for UI (single-player compatibility)
-        PlayerEntity firstPlayer = playerManager.getFirstPlayer();
-        if (uiManager == null && firstPlayer != null) {
-            uiManager = new UIManagerNew(firstPlayer.getInventory(), worldItemManager);
+        // Use the local player for UI
+        PlayerEntity localPlayer = (localPlayerId >= 0) ? playerManager.getPlayerById(localPlayerId) : playerManager.getFirstPlayer();
+        if (uiManager == null && localPlayer != null) {
+            uiManager = new UIManagerNew(localPlayer.getInventory(), worldItemManager);
             uiManager.setItemDropCallback(itemStack -> {
-                Vector2 playerPos = firstPlayer.getTransform().getPosition();
+                Vector2 playerPos = localPlayer.getTransform().getPosition();
                 worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
             });
 
@@ -831,8 +854,8 @@ public class GameScreen implements Screen {
                 }
             });
 
-            uiManager.setPlayerHealth(firstPlayer.getHealthComponent());
-            uiManager.setPlayer(firstPlayer);
+            uiManager.setPlayerHealth(localPlayer.getHealthComponent());
+            uiManager.setPlayer(localPlayer);
 
             // Set pause menu callback
             uiManager.setPauseMenuCallback(new com.game.systems.ui.UIManagerNew.PauseMenuCallback() {
@@ -860,10 +883,10 @@ public class GameScreen implements Screen {
                 }
             });
 
-            // Initialize SaveManager (use first player for now)
+            // Initialize SaveManager (use local player)
             com.game.save.SaveManager.getInstance().initialize(
-                firstPlayer,
-                firstPlayer.getInventory(),
+                localPlayer,
+                localPlayer.getInventory(),
                 furnitureManager,
                 worldItemManager
             );
@@ -977,8 +1000,8 @@ public class GameScreen implements Screen {
 
         if (!playerManager.hasPlayers()) return;
 
-        // Follow first player (host)
-        PlayerEntity player = playerManager.getFirstPlayer();
+        // Follow local player (or first player in single-player mode)
+        PlayerEntity player = (localPlayerId >= 0) ? playerManager.getPlayerById(localPlayerId) : playerManager.getFirstPlayer();
         if (player == null) return;
 
         Transform playerTransform = player.getTransform();
@@ -1730,7 +1753,36 @@ public class GameScreen implements Screen {
         // Set up client callbacks
         gameClient.setConnectionCallback((assignedPlayerId) -> {
             System.out.println("GameScreen: Connected to server with player ID: " + assignedPlayerId);
-            // TODO: Wait for initial state sync
+            localPlayerId = assignedPlayerId;
+
+            // Create the local player on the main thread
+            Gdx.app.postRunnable(() -> {
+                if (world != null) {
+                    // Get spawn position (use default if not set)
+                    float spawnX = 50;
+                    float spawnY = 50;
+
+                    // Create local controllable player with assigned ID
+                    PlayerEntity localPlayer = new PlayerEntity(world, spawnX, spawnY);
+                    LocalKeyboardInput input = LocalKeyboardInput.createPlayer1();
+                    input.setCamera(camera);
+                    input.setPlayerTransform(localPlayer.getTransform());
+                    localPlayer.setInputSource(input);
+
+                    // Set damage number callback
+                    localPlayer.setDamageNumberCallback((x, y, damage) -> {
+                        DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
+                        damageNumbers.add(damageNumber);
+                    });
+
+                    // Manually set the player ID to match server assignment
+                    localPlayer.setPlayerId(assignedPlayerId);
+                    playerManager.getAllPlayers().add(localPlayer);
+                    world.addGameObject(localPlayer);
+
+                    System.out.println("GameScreen: Created local player with ID: " + assignedPlayerId);
+                }
+            });
         });
 
         gameClient.setDisconnectionCallback((reason) -> {
@@ -1840,26 +1892,52 @@ public class GameScreen implements Screen {
 
     /**
      * Apply state update from server (client mode).
+     * Creates remote players on-the-fly and updates their positions.
      */
     private void applyStateUpdate(com.game.networking.StateUpdatePacket statePacket) {
-        for (PlayerEntity player : playerManager.getAllPlayers()) {
-            int playerId = player.getPlayerId();
-            com.game.networking.StateUpdatePacket.PlayerState state =
-                statePacket.getPlayerStates().get(playerId);
+        if (world == null) return;
 
-            if (state != null) {
-                // Update position
-                player.getTransform().setPosition(state.x, state.y);
+        // Iterate through all player states from server
+        for (java.util.Map.Entry<Integer, com.game.networking.StateUpdatePacket.PlayerState> entry :
+             statePacket.getPlayerStates().entrySet()) {
 
-                // Update health
-                com.game.components.HealthComponent health = player.getHealthComponent();
-                if (health != null) {
-                    health.setHealth(state.health);
-                    health.setMaxHealth(state.maxHealth);
-                }
+            int playerId = entry.getKey();
+            com.game.networking.StateUpdatePacket.PlayerState state = entry.getValue();
 
-                // Update animation (animations are handled locally based on movement)
-                // We don't sync animations from server as they conflict with local rendering
+            // Skip local player - we control it directly
+            if (playerId == localPlayerId) {
+                continue;
+            }
+
+            // Find or create the remote player
+            PlayerEntity remotePlayer = playerManager.getPlayerById(playerId);
+
+            if (remotePlayer == null) {
+                // Create a new remote player (read-only, no input)
+                remotePlayer = new PlayerEntity(world, state.x, state.y);
+                remotePlayer.setPlayerId(playerId);
+                // No InputSource - this player is controlled by server state updates
+
+                // Set damage number callback
+                remotePlayer.setDamageNumberCallback((x, y, damage) -> {
+                    DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
+                    damageNumbers.add(damageNumber);
+                });
+
+                playerManager.getAllPlayers().add(remotePlayer);
+                world.addGameObject(remotePlayer);
+
+                System.out.println("GameScreen: Created remote player " + playerId + " from state update");
+            }
+
+            // Update remote player's state
+            remotePlayer.getTransform().setPosition(state.x, state.y);
+
+            // Update health
+            com.game.components.HealthComponent health = remotePlayer.getHealthComponent();
+            if (health != null) {
+                health.setHealth(state.health);
+                health.setMaxHealth(state.maxHealth);
             }
         }
     }
