@@ -1998,7 +1998,7 @@ public class GameScreen implements Screen {
 
     /**
      * Apply state update from server (client mode).
-     * Creates remote players on-the-fly and updates their positions.
+     * Server is authoritative - apply ALL state, including local player.
      */
     private void applyStateUpdate(com.game.networking.StateUpdatePacket statePacket) {
         if (world == null) return;
@@ -2010,37 +2010,34 @@ public class GameScreen implements Screen {
             int playerId = entry.getKey();
             com.game.networking.StateUpdatePacket.PlayerState state = entry.getValue();
 
-            // Skip local player - we control it directly
-            if (playerId == localPlayerId) {
-                continue;
-            }
+            // Find or create the player
+            PlayerEntity player = playerManager.getPlayerById(playerId);
 
-            // Find or create the remote player
-            PlayerEntity remotePlayer = playerManager.getPlayerById(playerId);
-
-            if (remotePlayer == null) {
-                // Create a new remote player (read-only, no input)
-                remotePlayer = new PlayerEntity(world, state.x, state.y);
-                remotePlayer.setPlayerId(playerId);
-                // No InputSource - this player is controlled by server state updates
+            if (player == null) {
+                // Create a new player (server told us about them)
+                player = new PlayerEntity(world, state.x, state.y);
+                player.setPlayerId(playerId);
 
                 // Set damage number callback
-                remotePlayer.setDamageNumberCallback((x, y, damage) -> {
+                player.setDamageNumberCallback((x, y, damage) -> {
                     DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
                     damageNumbers.add(damageNumber);
                 });
 
-                playerManager.addPlayerWithId(remotePlayer);  // Use addPlayerWithId to preserve ID
-                world.addGameObject(remotePlayer);
+                // Only remote players get no input source
+                // Local player already has LocalKeyboardInput from createLocalPlayer()
+
+                playerManager.addPlayerWithId(player);
+                world.addGameObject(player);
 
                 System.out.println("GameScreen: Created remote player " + playerId + " from state update");
             }
 
-            // Update remote player's state
-            remotePlayer.getTransform().setPosition(state.x, state.y);
+            // Apply server's authoritative state to ALL players (including local)
+            player.getTransform().setPosition(state.x, state.y);
 
             // Update health
-            com.game.components.HealthComponent health = remotePlayer.getHealthComponent();
+            com.game.components.HealthComponent health = player.getHealthComponent();
             if (health != null) {
                 health.setHealth(state.health);
                 health.setMaxHealth(state.maxHealth);
