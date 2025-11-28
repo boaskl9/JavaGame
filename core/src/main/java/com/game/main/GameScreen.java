@@ -870,6 +870,10 @@ public class GameScreen implements Screen {
         PlayerEntity localPlayer = (localPlayerId >= 0) ? playerManager.getPlayerById(localPlayerId) : playerManager.getFirstPlayer();
         if (uiManager == null && localPlayer != null) {
             uiManager = new UIManagerNew(localPlayer.getInventory(), worldItemManager);
+
+            // IMPORTANT: Resize the UI manager to match current window size
+            uiManager.resize(com.badlogic.gdx.Gdx.graphics.getWidth(), com.badlogic.gdx.Gdx.graphics.getHeight());
+
             uiManager.setItemDropCallback(itemStack -> {
                 Vector2 playerPos = localPlayer.getTransform().getPosition();
                 worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
