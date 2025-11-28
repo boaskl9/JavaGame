@@ -2078,14 +2078,13 @@ public class GameScreen implements Screen {
                 // If within threshold: do nothing, client prediction was accurate!
 
             } else {
-                // For remote players: calculate velocity from position change
-                // This allows their updateAnimation() to work correctly
+                // For remote players (network-controlled): apply server state directly
+                // Calculate velocity from position change for smooth interpolation later
                 com.badlogic.gdx.math.Vector2 currentPos = player.getTransform().getPosition();
                 float deltaX = state.x - currentPos.x;
                 float deltaY = state.y - currentPos.y;
 
-                // Set velocity based on position change (approximate)
-                // Assumes 20Hz state updates (0.05s interval)
+                // Set velocity based on position change so updateAnimation() works correctly
                 com.game.components.VelocityComponent velocityComp =
                     player.getComponent(com.game.components.VelocityComponent.class);
                 if (velocityComp != null) {
@@ -2094,7 +2093,7 @@ public class GameScreen implements Screen {
                     velocityComp.setVelocity(estimatedVelX, estimatedVelY);
                 }
 
-                // Apply server state directly (no prediction)
+                // Apply server position directly
                 player.getTransform().setPosition(state.x, state.y);
             }
 
@@ -2104,9 +2103,6 @@ public class GameScreen implements Screen {
                 health.setHealth(state.health);
                 health.setMaxHealth(state.maxHealth);
             }
-
-            // Note: We don't set animation state here anymore - let updateAnimation()
-            // handle it based on velocity (which we've set above for remote players)
         }
     }
 
