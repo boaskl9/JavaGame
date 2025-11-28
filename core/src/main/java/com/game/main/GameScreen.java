@@ -2078,30 +2078,45 @@ public class GameScreen implements Screen {
                 // If within threshold: do nothing, client prediction was accurate!
 
             } else {
-                // For remote players (network-controlled): apply server state directly
-                // Calculate velocity from position change for smooth interpolation later
+                // For remote players (network-controlled): enqueue snapshot for interpolation
+                // Calculate velocity from previous position
                 com.badlogic.gdx.math.Vector2 currentPos = player.getTransform().getPosition();
                 float deltaX = state.x - currentPos.x;
                 float deltaY = state.y - currentPos.y;
+                float vx = deltaX / STATE_SEND_INTERVAL;
+                float vy = deltaY / STATE_SEND_INTERVAL;
 
-                // Set velocity based on position change so updateAnimation() works correctly
-                com.game.components.VelocityComponent velocityComp =
-                    player.getComponent(com.game.components.VelocityComponent.class);
-                if (velocityComp != null) {
-                    float estimatedVelX = deltaX / STATE_SEND_INTERVAL;
-                    float estimatedVelY = deltaY / STATE_SEND_INTERVAL;
-                    velocityComp.setVelocity(estimatedVelX, estimatedVelY);
+                // Create snapshot with current timestamp
+                long timestamp = System.currentTimeMillis();
+                com.game.networking.EntitySnapshot snapshot = new com.game.networking.EntitySnapshot(
+                    timestamp,
+                    state.x, state.y,
+                    vx, vy,
+                    state.currentAnimation,
+                    state.currentDirection,
+                    state.flipX,
+                    state.health,
+                    state.maxHealth
+                );
+
+                // Enqueue snapshot for interpolation (rendering will use this)
+                player.enqueueSnapshot(snapshot);
+
+                // Also update health directly (trust server for health)
+                com.game.components.HealthComponent health = player.getHealthComponent();
+                if (health != null) {
+                    health.setHealth(state.health);
+                    health.setMaxHealth(state.maxHealth);
                 }
-
-                // Apply server position directly
-                player.getTransform().setPosition(state.x, state.y);
             }
 
-            // Update health (always trust server for health)
-            com.game.components.HealthComponent health = player.getHealthComponent();
-            if (health != null) {
-                health.setHealth(state.health);
-                health.setMaxHealth(state.maxHealth);
+            // Local player health is also updated from server
+            if (isLocalPlayer) {
+                com.game.components.HealthComponent health = player.getHealthComponent();
+                if (health != null) {
+                    health.setHealth(state.health);
+                    health.setMaxHealth(state.maxHealth);
+                }
             }
         }
     }
