@@ -23,6 +23,9 @@ public class GameClient {
     private int serverPort;
     private int assignedPlayerId = -1;
 
+    // Input sequence tracking for reconciliation
+    private int nextInputSequence = 1; // Start at 1 (0 reserved for "no input")
+
     // Callbacks for game integration
     private ConnectionCallback connectionCallback;
     private DisconnectionCallback disconnectionCallback;
@@ -189,18 +192,22 @@ public class GameClient {
     }
 
     /**
-     * Send input packet to server.
+     * Send input packet to server with sequence number.
+     * @return The sequence number assigned to this input
      */
-    public void sendInput(float movementX, float movementY,
+    public int sendInput(float movementX, float movementY,
                          boolean attackPressed, boolean attackJustPressed,
                          float aimDirectionX, float aimDirectionY,
                          boolean running) {
+        int sequenceNumber = nextInputSequence++;
         InputPacket packet = new InputPacket(
-            assignedPlayerId, movementX, movementY,
+            assignedPlayerId, sequenceNumber,
+            movementX, movementY,
             attackPressed, attackJustPressed,
             aimDirectionX, aimDirectionY, running
         );
         sendPacket(packet);
+        return sequenceNumber;
     }
 
     /**
