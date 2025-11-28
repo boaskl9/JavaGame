@@ -2075,7 +2075,23 @@ public class GameScreen implements Screen {
                 // If within threshold: do nothing, client prediction was accurate!
 
             } else {
-                // For remote players: apply server state directly (no prediction)
+                // For remote players: calculate velocity from position change
+                // This allows their updateAnimation() to work correctly
+                com.badlogic.gdx.math.Vector2 currentPos = player.getTransform().getPosition();
+                float deltaX = state.x - currentPos.x;
+                float deltaY = state.y - currentPos.y;
+
+                // Set velocity based on position change (approximate)
+                // Assumes 20Hz state updates (0.05s interval)
+                com.game.components.VelocityComponent velocityComp =
+                    player.getComponent(com.game.components.VelocityComponent.class);
+                if (velocityComp != null) {
+                    float estimatedVelX = deltaX / STATE_SEND_INTERVAL;
+                    float estimatedVelY = deltaY / STATE_SEND_INTERVAL;
+                    velocityComp.setVelocity(estimatedVelX, estimatedVelY);
+                }
+
+                // Apply server state directly (no prediction)
                 player.getTransform().setPosition(state.x, state.y);
             }
 
@@ -2086,12 +2102,8 @@ public class GameScreen implements Screen {
                 health.setMaxHealth(state.maxHealth);
             }
 
-            // Update animation state and direction (for all players, including local)
-            // This ensures remote players show correct animations
-            com.game.components.AnimationComponent animComp = player.getComponent(com.game.components.AnimationComponent.class);
-            if (animComp != null && state.currentAnimation != null) {
-                animComp.setState(state.currentAnimation, state.currentDirection, state.flipX);
-            }
+            // Note: We don't set animation state here anymore - let updateAnimation()
+            // handle it based on velocity (which we've set above for remote players)
         }
     }
 
