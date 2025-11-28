@@ -149,8 +149,19 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         // NETWORK-CONTROLLED entities (remote players) skip game logic
         // They're puppets controlled by server state updates
         if (networkControlled) {
-            // Only update animation based on velocity set by network
-            updateAnimation();
+            // Apply interpolated snapshot for smooth rendering
+            com.game.networking.EntitySnapshot snapshot = getInterpolatedSnapshot(System.currentTimeMillis());
+            if (snapshot != null) {
+                // Update position from interpolated snapshot
+                transform.setPosition(snapshot.x, snapshot.y);
+
+                // Update velocity for animation system
+                velocity.setVelocity(snapshot.vx, snapshot.vy);
+
+                // Update animation state from snapshot
+                animation.setState(snapshot.animation, snapshot.direction, snapshot.flipX);
+            }
+
             // Update components for rendering (animations, etc)
             super.update(delta);
             return;

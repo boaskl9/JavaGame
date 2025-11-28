@@ -1,6 +1,10 @@
 package com.game.systems.entity;
 
 import com.game.components.HealthComponent;
+import com.game.networking.EntitySnapshot;
+
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 /**
  * Base class for living/interactive entities (Player, NPCs, Enemies).
@@ -18,6 +22,15 @@ public abstract class Entity extends GameObject {
      * Remote players/enemies are network-controlled puppets that only render.
      */
     protected boolean networkControlled = false;
+
+    /**
+     * Interpolation buffer for network-controlled entities.
+     * Stores recent snapshots (100-200ms) for smooth rendering.
+     * Client renders from this buffer, not directly from latest snapshot.
+     */
+    private final Deque<EntitySnapshot> snapshotBuffer = new ArrayDeque<>();
+    private static final int MAX_SNAPSHOT_BUFFER_SIZE = 10; // ~200ms at 20Hz
+    private static final long INTERPOLATION_DELAY_MS = 150; // Render 150ms behind server time
 
     public Entity(int maxHealth) {
         super();
@@ -123,5 +136,80 @@ public abstract class Entity extends GameObject {
     public float getHealthPercent() {
         HealthComponent health = getHealthComponent();
         return health != null ? health.getHealthPercent() : 0f;
+    }
+
+    // ===== NETWORK INTERPOLATION METHODS =====
+
+    /**
+     * Enqueue a snapshot for interpolation (network-controlled entities only).
+     * Called when receiving state updates from server.
+     */
+    public void enqueueSnapshot(EntitySnapshot snapshot) {
+        if (!networkControlled) {
+            return; // Only network-controlled entities use interpolation
+        }
+
+        snapshotBuffer.addLast(snapshot);
+
+        // Keep buffer size manageable (drop old snapshots)
+        while (snapshotBuffer.size() > MAX_SNAPSHOT_BUFFER_SIZE) {
+            snapshotBuffer.removeFirst();
+        }
+    }
+
+    /**
+     * Get interpolated snapshot for rendering.
+     * Returns a snapshot interpolated between buffered snapshots at (currentTime - delay).
+     *
+     * @param currentTimeMs Current client time in milliseconds
+     * @return Interpolated snapshot, or null if no snapshots available
+     */
+    public EntitySnapshot getInterpolatedSnapshot(long currentTimeMs) {
+        if (snapshotBuffer.isEmpty()) {
+            return null;
+        }
+
+        // Calculate render time (current time - interpolation delay)
+        long renderTime = currentTimeMs - INTERPOLATION_DELAY_MS;
+
+        // Find two snapshots surrounding renderTime
+        EntitySnapshot older = null;
+        EntitySnapshot newer = null;
+
+        for (EntitySnapshot snapshot : snapshotBuffer) {
+            if (snapshot.timestamp <= renderTime) {
+                older = snapshot;
+            } else {
+                newer = snapshot;
+                break;
+            }
+        }
+
+        // Interpolate between snapshots
+        if (older != null && newer != null) {
+            return EntitySnapshot.interpolate(older, newer, renderTime);
+        } else if (older != null) {
+            // No newer snapshot - extrapolate slightly (max 50ms)
+            return EntitySnapshot.extrapolate(older, renderTime, 50);
+        } else if (newer != null) {
+            // No older snapshot - use the newer one directly
+            return newer;
+        }
+
+        return null;
+    }
+
+    /**
+     * Get number of buffered snapshots (for debugging).
+     */
+    public int getSnapshotBufferSize() {
+        return snapshotBuffer.size();
+    }
+
+    /**
+     * Clear snapshot buffer (e.g., on disconnect or teleport).
+     */
+    public void clearSnapshotBuffer() {
+        snapshotBuffer.clear();
     }
 }
