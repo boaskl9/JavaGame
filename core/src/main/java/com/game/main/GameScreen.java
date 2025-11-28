@@ -138,7 +138,7 @@ public class GameScreen implements Screen {
 
     // Client prediction with periodic checkpoints
     private static final float POSITION_CORRECTION_THRESHOLD = 2.0f; // pixels - only correct if off by more than this
-    private static final float CORRECTION_SPEED = 0.15f; // How fast to lerp to server position (0-1, higher = faster)
+    private static final float CORRECTION_SPEED = 1.0f; // How fast to lerp to server position (0-1, higher = faster)
 
     /**
      * Create a new game with default starting level.
