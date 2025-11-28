@@ -65,8 +65,8 @@ import static com.game.systems.audio.SoundRegistry.*;
  * All systems are now independent and reusable.
  */
 public class GameScreen implements Screen {
-    private static final int VIEWPORT_WIDTH = 350;
-    private static final int VIEWPORT_HEIGHT = 200;
+    private static final int VIEWPORT_WIDTH = 640;
+    private static final int VIEWPORT_HEIGHT = 360;
 
     private SpriteBatch batch;
     private BitmapFont debugFont;

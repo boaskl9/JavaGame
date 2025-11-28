@@ -24,8 +24,9 @@ import java.util.List;
  * Main game screen that manages the game loop
  */
 public class GameScreen implements Screen {
-    private static final int VIEWPORT_WIDTH = 350;
-    private static final int VIEWPORT_HEIGHT = 200;
+    private static final int VIEWPORT_WIDTH = 1440;
+    private static final int VIEWPORT_HEIGHT = 960;
+
 
     private SpriteBatch batch;
 
