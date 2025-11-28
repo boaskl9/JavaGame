@@ -1,19 +1,22 @@
 package com.game.networking;
 
-import java.io.*;
-import java.net.Socket;
+import com.esotericsoftware.kryonet.Client;
+import com.esotericsoftware.kryonet.Connection;
+import com.esotericsoftware.kryonet.Listener;
+
+import java.io.IOException;
 
 /**
- * Game client that connects to a GameServer.
+ * Game client that connects to a GameServer using KryoNet.
  * Sends input to server and receives game state updates.
  */
 public class GameClient {
     private static final int DEFAULT_PORT = 25565;
+    private static final int WRITE_BUFFER_SIZE = 16384;
+    private static final int READ_BUFFER_SIZE = 16384;
+    private static final int TIMEOUT_MS = 5000;
 
-    private Socket socket;
-    private ObjectOutputStream out;
-    private ObjectInputStream in;
-    private Thread receiveThread;
+    private Client client;
     private boolean connected = false;
 
     private String serverHost;
@@ -27,6 +30,52 @@ public class GameClient {
     private PlayerJoinCallback playerJoinCallback;
 
     public GameClient() {
+        this.client = new Client(WRITE_BUFFER_SIZE, READ_BUFFER_SIZE);
+
+        // Register packet classes with Kryo
+        NetworkRegistrar.register(client);
+
+        // Set up listener for network events
+        client.addListener(new Listener() {
+            @Override
+            public void connected(Connection connection) {
+                System.out.println("GameClient: Connected to server");
+                connected = true;
+
+                // Send connection packet
+                client.sendTCP(new ConnectionPacket("Player"));
+            }
+
+            @Override
+            public void disconnected(Connection connection) {
+                System.out.println("GameClient: Disconnected from server");
+                connected = false;
+
+                // Notify callback
+                if (disconnectionCallback != null) {
+                    disconnectionCallback.onDisconnected("Connection closed");
+                }
+            }
+
+            @Override
+            public void received(Connection connection, Object object) {
+                if (object instanceof PlayerJoinPacket) {
+                    PlayerJoinPacket packet = (PlayerJoinPacket) object;
+                    onPlayerJoined(packet);
+
+                } else if (object instanceof StateUpdatePacket) {
+                    StateUpdatePacket packet = (StateUpdatePacket) object;
+                    onStateUpdate(packet);
+
+                } else if (object instanceof DisconnectPacket) {
+                    DisconnectPacket packet = (DisconnectPacket) object;
+                    disconnect(packet.getReason());
+                }
+            }
+        });
+
+        // Start client thread
+        client.start();
     }
 
     /**
@@ -54,25 +103,8 @@ public class GameClient {
         this.serverPort = port;
 
         try {
-            socket = new Socket(host, port);
-
-            // Create streams (output first to avoid deadlock)
-            out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush();
-            in = new ObjectInputStream(socket.getInputStream());
-
-            connected = true;
-
-            // Start receive thread
-            receiveThread = new Thread(this::receiveLoop, "Client-Receive");
-            receiveThread.setDaemon(true);
-            receiveThread.start();
-
-            System.out.println("GameClient: Connected to " + host + ":" + port);
-
-            // Send connection packet
-            sendPacket(new ConnectionPacket("Player " + (assignedPlayerId + 1)));
-
+            client.connect(TIMEOUT_MS, host, port, port + 1); // TCP port, UDP port
+            System.out.println("GameClient: Attempting to connect to " + host + ":" + port);
             return true;
 
         } catch (IOException e) {
@@ -96,17 +128,12 @@ public class GameClient {
         if (!connected) return;
 
         // Send disconnect packet
-        sendPacket(new DisconnectPacket(assignedPlayerId, reason));
+        if (assignedPlayerId != -1) {
+            client.sendTCP(new DisconnectPacket(assignedPlayerId, reason));
+        }
 
         connected = false;
-
-        try {
-            if (socket != null && !socket.isClosed()) {
-                socket.close();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        client.close();
 
         System.out.println("GameClient: Disconnected: " + reason);
 
@@ -117,50 +144,12 @@ public class GameClient {
     }
 
     /**
-     * Receive loop running in separate thread.
-     */
-    private void receiveLoop() {
-        while (connected) {
-            try {
-                Packet packet = (Packet) in.readObject();
-
-                switch (packet.getType()) {
-                    case PLAYER_JOIN:
-                        PlayerJoinPacket joinPacket = (PlayerJoinPacket) packet;
-                        onPlayerJoined(joinPacket);
-                        break;
-
-                    case STATE_UPDATE:
-                        StateUpdatePacket statePacket = (StateUpdatePacket) packet;
-                        onStateUpdate(statePacket);
-                        break;
-
-                    case DISCONNECT:
-                        DisconnectPacket discPacket = (DisconnectPacket) packet;
-                        disconnect(discPacket.getReason());
-                        break;
-
-                    default:
-                        System.out.println("GameClient: Unknown packet type: " + packet.getType());
-                        break;
-                }
-
-            } catch (IOException | ClassNotFoundException e) {
-                if (connected) {
-                    disconnect("Connection error");
-                }
-                break;
-            }
-        }
-    }
-
-    /**
      * Handle player join packet.
      */
     private void onPlayerJoined(PlayerJoinPacket packet) {
         System.out.println("GameClient: Player " + packet.getPlayerId() + " joined: " + packet.getPlayerName());
 
-        // If this is us, store our player ID
+        // If this is us (first join packet we receive), store our player ID
         if (assignedPlayerId == -1) {
             assignedPlayerId = packet.getPlayerId();
             System.out.println("GameClient: Assigned player ID: " + assignedPlayerId);
@@ -190,23 +179,13 @@ public class GameClient {
     /**
      * Send a packet to the server.
      */
-    public void sendPacket(Packet packet) {
+    public void sendPacket(Object packet) {
         if (!connected) {
             System.err.println("GameClient: Cannot send packet - not connected");
             return;
         }
 
-        try {
-            synchronized (out) {
-                out.writeObject(packet);
-                out.flush();
-                out.reset(); // Prevent memory leak from object caching
-            }
-        } catch (IOException e) {
-            System.err.println("GameClient: Failed to send packet");
-            e.printStackTrace();
-            disconnect("Failed to send packet");
-        }
+        client.sendTCP(packet);
     }
 
     /**
@@ -228,7 +207,7 @@ public class GameClient {
      * Check if client is connected.
      */
     public boolean isConnected() {
-        return connected;
+        return connected && client.isConnected();
     }
 
     /**
