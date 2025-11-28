@@ -2036,19 +2036,22 @@ public class GameScreen implements Screen {
                 player = new PlayerEntity(world, state.x, state.y);
                 player.setPlayerId(playerId);
 
+                // Mark as network-controlled (remote player - puppet controlled by server)
+                player.setNetworkControlled(true);
+
                 // Set damage number callback
                 player.setDamageNumberCallback((x, y, damage) -> {
                     DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
                     damageNumbers.add(damageNumber);
                 });
 
-                // Only remote players get no input source
+                // Remote players have no input source - they're controlled by server state
                 // Local player already has LocalKeyboardInput from createLocalPlayer()
 
                 playerManager.addPlayerWithId(player);
                 world.addGameObject(player);
 
-                System.out.println("GameScreen: Created remote player " + playerId + " from state update");
+                System.out.println("GameScreen: Created remote player " + playerId + " as network-controlled puppet");
             }
 
             // CLIENT PREDICTION: Handle local player differently

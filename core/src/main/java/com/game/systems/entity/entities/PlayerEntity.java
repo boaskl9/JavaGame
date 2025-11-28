@@ -146,6 +146,17 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     @Override
     public void update(float delta) {
+        // NETWORK-CONTROLLED entities (remote players) skip game logic
+        // They're puppets controlled by server state updates
+        if (networkControlled) {
+            // Only update animation based on velocity set by network
+            updateAnimation();
+            // Update components for rendering (animations, etc)
+            super.update(delta);
+            return;
+        }
+
+        // FULL SIMULATION for server or local player
         // Update input source
         if (inputSource != null) {
             inputSource.update(delta);
