@@ -133,8 +133,10 @@ public class GameScreen implements Screen {
     private boolean isHost = false;
     private boolean isClient = false;
     private int localPlayerId = -1; // The player ID controlled by this client (-1 = not set)
-    private float stateSyncTimer = 0f;
-    private static final float STATE_SYNC_INTERVAL = 0.05f; // 20 times per second
+    private float inputSendTimer = 0f;
+    private float stateSendTimer = 0f;
+    private static final float INPUT_SEND_INTERVAL = 0.0166f; // ~60 times per second (every frame)
+    private static final float STATE_SEND_INTERVAL = 0.05f; // 20 times per second (server broadcasts)
 
     // Client prediction with periodic checkpoints
     private static final float POSITION_CORRECTION_THRESHOLD = 2.0f; // pixels - only correct if off by more than this
@@ -1923,19 +1925,20 @@ public class GameScreen implements Screen {
      * Sends input to server (client) or broadcasts state (host).
      */
     private void updateNetworking(float delta) {
-        stateSyncTimer += delta;
+        inputSendTimer += delta;
+        stateSendTimer += delta;
 
         if (isClient && gameClient != null && gameClient.isConnected()) {
-            // Send input to server
-            if (stateSyncTimer >= STATE_SYNC_INTERVAL) {
+            // Send input to server at high frequency (every frame)
+            if (inputSendTimer >= INPUT_SEND_INTERVAL) {
                 sendInputToServer();
-                stateSyncTimer = 0f;
+                inputSendTimer = 0f;
             }
         } else if (isHost && gameServer != null && gameServer.isRunning()) {
-            // Broadcast state to all clients
-            if (stateSyncTimer >= STATE_SYNC_INTERVAL) {
+            // Broadcast state to all clients at lower frequency (20Hz)
+            if (stateSendTimer >= STATE_SEND_INTERVAL) {
                 broadcastStateToClients();
-                stateSyncTimer = 0f;
+                stateSendTimer = 0f;
             }
         }
     }
