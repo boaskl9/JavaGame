@@ -44,19 +44,21 @@ public class StateUpdatePacket extends Packet {
         public int health;
         public int maxHealth;
         public String currentAnimation;
-        public boolean facingRight;
+        public int currentDirection; // Animation direction angle (0=down, 90=left, 180=up, 270=right)
+        public boolean flipX; // Horizontal flip for sprite
 
         public PlayerState() {
         }
 
         public PlayerState(float x, float y, int health, int maxHealth,
-                          String currentAnimation, boolean facingRight) {
+                          String currentAnimation, int currentDirection, boolean flipX) {
             this.x = x;
             this.y = y;
             this.health = health;
             this.maxHealth = maxHealth;
             this.currentAnimation = currentAnimation;
-            this.facingRight = facingRight;
+            this.currentDirection = currentDirection;
+            this.flipX = flipX;
         }
     }
 }

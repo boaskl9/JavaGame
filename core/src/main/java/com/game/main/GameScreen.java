@@ -1982,19 +1982,28 @@ public class GameScreen implements Screen {
             com.badlogic.gdx.math.Vector2 pos = player.getTransform().getPosition();
             com.game.components.HealthComponent health = player.getHealthComponent();
 
+            // Get animation state, direction, and flip from AnimationComponent
             com.game.components.AnimationComponent animComp = player.getComponent(com.game.components.AnimationComponent.class);
-            String currentAnimation = "";
-            boolean facingRight = true;
+            String currentAnimation = "idle";
+            int currentDirection = 180; // Default: facing down
+            boolean flipX = false;
+
             if (animComp != null) {
                 currentAnimation = animComp.getCurrentState();
-                // Note: Facing direction is handled client-side based on movement
+                currentDirection = animComp.getCurrentDirection();
+
+                // Get flip state from the animator
+                com.game.systems.animation.SpriteAnimator animator = animComp.getAnimator();
+                if (animator != null) {
+                    flipX = animator.isFlipX();
+                }
             }
 
             com.game.networking.StateUpdatePacket.PlayerState playerState =
                 new com.game.networking.StateUpdatePacket.PlayerState(
                     pos.x, pos.y,
                     health.getCurrentHealth(), health.getMaxHealth(),
-                    currentAnimation, facingRight
+                    currentAnimation, currentDirection, flipX
                 );
 
             statePacket.addPlayerState(playerId, playerState);
@@ -2075,6 +2084,13 @@ public class GameScreen implements Screen {
             if (health != null) {
                 health.setHealth(state.health);
                 health.setMaxHealth(state.maxHealth);
+            }
+
+            // Update animation state and direction (for all players, including local)
+            // This ensures remote players show correct animations
+            com.game.components.AnimationComponent animComp = player.getComponent(com.game.components.AnimationComponent.class);
+            if (animComp != null && state.currentAnimation != null) {
+                animComp.setState(state.currentAnimation, state.currentDirection, state.flipX);
             }
         }
     }

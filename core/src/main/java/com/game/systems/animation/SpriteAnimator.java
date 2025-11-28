@@ -130,6 +130,10 @@ public class SpriteAnimator {
         return currentDirection;
     }
 
+    public boolean isFlipX() {
+        return flipX;
+    }
+
     /**
      * Internal key class for storing animations.
      */
