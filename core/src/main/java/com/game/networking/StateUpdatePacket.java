@@ -6,18 +6,28 @@ import java.util.Map;
 /**
  * Sent by server to all clients with current game state.
  * Contains positions, health, and other state for all players.
+ * Includes input sequence acknowledgments for client prediction reconciliation.
  */
 public class StateUpdatePacket extends Packet {
     private static final long serialVersionUID = 1L;
 
     private Map<Integer, PlayerState> playerStates;
 
+    /**
+     * Map of playerId -> lastProcessedInputSequence.
+     * Tells each client which of their inputs the server has confirmed processing.
+     * Used for client prediction reconciliation.
+     */
+    private Map<Integer, Integer> lastProcessedInputs;
+
     public StateUpdatePacket() {
         this.playerStates = new HashMap<>();
+        this.lastProcessedInputs = new HashMap<>();
     }
 
     public StateUpdatePacket(Map<Integer, PlayerState> playerStates) {
         this.playerStates = playerStates;
+        this.lastProcessedInputs = new HashMap<>();
     }
 
     @Override
@@ -31,6 +41,18 @@ public class StateUpdatePacket extends Packet {
 
     public void addPlayerState(int playerId, PlayerState state) {
         playerStates.put(playerId, state);
+    }
+
+    public Map<Integer, Integer> getLastProcessedInputs() {
+        return lastProcessedInputs;
+    }
+
+    public void setLastProcessedInput(int playerId, int sequenceNumber) {
+        lastProcessedInputs.put(playerId, sequenceNumber);
+    }
+
+    public Integer getLastProcessedInput(int playerId) {
+        return lastProcessedInputs.get(playerId);
     }
 
     /**

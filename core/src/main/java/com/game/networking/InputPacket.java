@@ -3,11 +3,13 @@ package com.game.networking;
 /**
  * Sent by client to server with player input for this frame.
  * Contains movement, attack, and aim information.
+ * Includes sequence number for client prediction reconciliation.
  */
 public class InputPacket extends Packet {
     private static final long serialVersionUID = 1L;
 
     private int playerId;
+    private int sequenceNumber; // For reconciliation - identifies this input uniquely
     private float movementX;
     private float movementY;
     private boolean attackPressed;
@@ -19,10 +21,11 @@ public class InputPacket extends Packet {
     public InputPacket() {
     }
 
-    public InputPacket(int playerId, float movementX, float movementY,
+    public InputPacket(int playerId, int sequenceNumber, float movementX, float movementY,
                        boolean attackPressed, boolean attackJustPressed,
                        float aimDirectionX, float aimDirectionY, boolean running) {
         this.playerId = playerId;
+        this.sequenceNumber = sequenceNumber;
         this.movementX = movementX;
         this.movementY = movementY;
         this.attackPressed = attackPressed;
@@ -39,6 +42,10 @@ public class InputPacket extends Packet {
 
     public int getPlayerId() {
         return playerId;
+    }
+
+    public int getSequenceNumber() {
+        return sequenceNumber;
     }
 
     public float getMovementX() {

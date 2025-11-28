@@ -138,6 +138,9 @@ public class GameScreen implements Screen {
     private static final float INPUT_SEND_INTERVAL = 0.0166f; // ~60 times per second (every frame)
     private static final float STATE_SEND_INTERVAL = 0.05f; // 20 times per second (server broadcasts)
 
+    // Server: Track last processed input sequence for each player (for reconciliation)
+    private final java.util.Map<Integer, Integer> lastProcessedInputSequence = new java.util.concurrent.ConcurrentHashMap<>();
+
     // Client prediction with periodic checkpoints
     private static final float POSITION_CORRECTION_THRESHOLD = 4.5f; // pixels - only correct if off by more than this
     private static final float CORRECTION_SPEED = 0.1f; // How fast to lerp to server position (0-1, higher = faster)
@@ -1758,6 +1761,9 @@ public class GameScreen implements Screen {
         });
 
         gameServer.setInputReceivedCallback((clientId, inputPacket) -> {
+            // Track sequence number for reconciliation
+            lastProcessedInputSequence.put(clientId, inputPacket.getSequenceNumber());
+
             // Apply input to the player
             Gdx.app.postRunnable(() -> {
                 PlayerEntity player = playerManager.getPlayerById(clientId);
@@ -2007,6 +2013,11 @@ public class GameScreen implements Screen {
                 );
 
             statePacket.addPlayerState(playerId, playerState);
+        }
+
+        // Add last processed input sequences for reconciliation
+        for (java.util.Map.Entry<Integer, Integer> entry : lastProcessedInputSequence.entrySet()) {
+            statePacket.setLastProcessedInput(entry.getKey(), entry.getValue());
         }
 
         gameServer.broadcastPacket(statePacket);
