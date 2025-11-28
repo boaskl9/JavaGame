@@ -12,12 +12,30 @@ import com.game.components.HealthComponent;
  * Health is managed via HealthComponent - all health operations delegate to it.
  */
 public abstract class Entity extends GameObject {
+    /**
+     * If true, this entity is controlled by network updates and should NOT run game logic.
+     * Only the server or local player should run full simulation.
+     * Remote players/enemies are network-controlled puppets that only render.
+     */
+    protected boolean networkControlled = false;
 
     public Entity(int maxHealth) {
         super();
         // Add HealthComponent to manage health
         HealthComponent healthComponent = new HealthComponent(maxHealth);
         addComponent(healthComponent);
+    }
+
+    /**
+     * Mark this entity as network-controlled (remote player/enemy).
+     * Network-controlled entities skip game logic and only render based on server state.
+     */
+    public void setNetworkControlled(boolean networkControlled) {
+        this.networkControlled = networkControlled;
+    }
+
+    public boolean isNetworkControlled() {
+        return networkControlled;
     }
 
     /**

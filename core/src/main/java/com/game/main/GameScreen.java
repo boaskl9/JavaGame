@@ -2036,19 +2036,22 @@ public class GameScreen implements Screen {
                 player = new PlayerEntity(world, state.x, state.y);
                 player.setPlayerId(playerId);
 
+                // Mark as network-controlled (remote player - puppet controlled by server)
+                player.setNetworkControlled(true);
+
                 // Set damage number callback
                 player.setDamageNumberCallback((x, y, damage) -> {
                     DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
                     damageNumbers.add(damageNumber);
                 });
 
-                // Only remote players get no input source
+                // Remote players have no input source - they're controlled by server state
                 // Local player already has LocalKeyboardInput from createLocalPlayer()
 
                 playerManager.addPlayerWithId(player);
                 world.addGameObject(player);
 
-                System.out.println("GameScreen: Created remote player " + playerId + " from state update");
+                System.out.println("GameScreen: Created remote player " + playerId + " as network-controlled puppet");
             }
 
             // CLIENT PREDICTION: Handle local player differently
@@ -2075,14 +2078,13 @@ public class GameScreen implements Screen {
                 // If within threshold: do nothing, client prediction was accurate!
 
             } else {
-                // For remote players: calculate velocity from position change
-                // This allows their updateAnimation() to work correctly
+                // For remote players (network-controlled): apply server state directly
+                // Calculate velocity from position change for smooth interpolation later
                 com.badlogic.gdx.math.Vector2 currentPos = player.getTransform().getPosition();
                 float deltaX = state.x - currentPos.x;
                 float deltaY = state.y - currentPos.y;
 
-                // Set velocity based on position change (approximate)
-                // Assumes 20Hz state updates (0.05s interval)
+                // Set velocity based on position change so updateAnimation() works correctly
                 com.game.components.VelocityComponent velocityComp =
                     player.getComponent(com.game.components.VelocityComponent.class);
                 if (velocityComp != null) {
@@ -2091,7 +2093,7 @@ public class GameScreen implements Screen {
                     velocityComp.setVelocity(estimatedVelX, estimatedVelY);
                 }
 
-                // Apply server state directly (no prediction)
+                // Apply server position directly
                 player.getTransform().setPosition(state.x, state.y);
             }
 
@@ -2101,9 +2103,6 @@ public class GameScreen implements Screen {
                 health.setHealth(state.health);
                 health.setMaxHealth(state.maxHealth);
             }
-
-            // Note: We don't set animation state here anymore - let updateAnimation()
-            // handle it based on velocity (which we've set above for remote players)
         }
     }
 
