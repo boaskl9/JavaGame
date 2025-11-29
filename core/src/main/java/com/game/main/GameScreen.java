@@ -1867,6 +1867,12 @@ public class GameScreen implements Screen {
                         System.out.println("GameScreen (Server): Added player " + clientId + " to world " + newLevelId +
                                          " at spawn '" + spawnPointName + "' (" + spawnX + ", " + spawnY + ")");
                     }
+
+                    // DEBUG: Check playerLevels map
+                    System.out.println("GameScreen (Server): playerLevels after level change:");
+                    for (java.util.Map.Entry<Integer, String> entry : playerLevels.entrySet()) {
+                        System.out.println("  Player " + entry.getKey() + " -> " + entry.getValue());
+                    }
                 }
 
                 // Apply input to the player in their current world
@@ -2102,6 +2108,7 @@ public class GameScreen implements Screen {
 
         // Add all player states
         String hostLevel = (currentLevelSource != null) ? currentLevelSource.getLevelName() : "unknown";
+        System.out.println("GameScreen (Server Broadcast): hostLevel = " + hostLevel + ", localPlayerId = " + localPlayerId);
 
         for (PlayerEntity player : playerManager.getAllPlayers()) {
             int playerId = player.getPlayerId();
