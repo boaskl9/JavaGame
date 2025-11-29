@@ -1729,6 +1729,14 @@ public class GameScreen implements Screen {
         isHost = true;
         localPlayerId = 0; // Host is always Player 0
 
+        // CRITICAL: Register the current world in activeWorlds for multi-world simulation
+        if (world != null && currentLevelSource != null) {
+            String currentLevel = currentLevelSource.getLevelName();
+            activeWorlds.put(currentLevel, world);
+            playerLevels.put(0, currentLevel); // Track host's level
+            System.out.println("GameScreen (Server): Registered host world: " + currentLevel);
+        }
+
         // Ensure the existing player is assigned Player 0
         PlayerEntity existingPlayer = playerManager.getFirstPlayer();
         if (existingPlayer != null) {
@@ -1770,6 +1778,11 @@ public class GameScreen implements Screen {
                     newPlayer.setPlayerId(clientId);
                     playerManager.addPlayerWithId(newPlayer);  // Use addPlayerWithId to preserve ID
                     world.addGameObject(newPlayer);
+
+                    // Track which level this client's player is in (initially same as host)
+                    if (currentLevelSource != null) {
+                        playerLevels.put(clientId, currentLevelSource.getLevelName());
+                    }
 
                     System.out.println("GameScreen: Created remote player " + clientId + " for connected client");
                 }
