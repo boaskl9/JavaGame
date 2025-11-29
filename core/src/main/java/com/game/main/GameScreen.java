@@ -1829,20 +1829,24 @@ public class GameScreen implements Screen {
                         System.out.println("GameScreen (Server): Removed player " + clientId + " from world " + currentLevelId);
                     }
 
-                    // IMPORTANT: Keep player's current position!
-                    // The client already loaded the level with the correct gateway spawn point.
-                    // Don't override their position - they're already where the gateway placed them.
-                    // Just move them to the new world container.
-                    float currentX = player.getTransform().getX();
-                    float currentY = player.getTransform().getY();
+                    // Get safe spawn position for new level (default spawn point)
+                    // This ensures player spawns in-bounds while we wait for client position to sync
+                    com.game.systems.level.LevelSource tempLevelSource = new com.game.systems.level.TiledMapLevelSource(newLevelId);
+                    com.game.systems.level.LevelData levelData = tempLevelSource.getLevelData();
+                    com.game.systems.level.LevelData.SpawnPoint defaultSpawn = levelData.getDefaultSpawnPoint();
 
-                    // Set player's world reference and add to new world (keep their position)
+                    float safeX = defaultSpawn != null ? defaultSpawn.getX() : 100;
+                    float safeY = defaultSpawn != null ? defaultSpawn.getY() : 100;
+                    tempLevelSource.dispose();
+
+                    // Set player's world and position
                     player.setWorld(newWorld);
+                    player.getTransform().setPosition(safeX, safeY);
 
                     if (!newWorld.getGameObjects().contains(player)) {
                         newWorld.addGameObject(player);
                         System.out.println("GameScreen (Server): Added player " + clientId + " to world " + newLevelId +
-                                         " at position (" + currentX + ", " + currentY + ") from gateway");
+                                         " at safe spawn (" + safeX + ", " + safeY + ")");
                     }
                 }
 
