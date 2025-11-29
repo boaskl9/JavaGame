@@ -801,6 +801,7 @@ public class GameScreen implements Screen {
         if (isHost) {
             String levelId = levelSource.getLevelName();
             activeWorlds.put(levelId, world);
+            playerLevels.put(localPlayerId, levelId); // Update host's level tracking
             System.out.println("GameScreen (Server): Registered host world for level: " + levelId);
         }
 
@@ -862,23 +863,24 @@ public class GameScreen implements Screen {
             }
         } else {
             // Update existing players' world and re-add to new world
-            for (PlayerEntity player : playerManager.getAllPlayers()) {
-                player.setWorld(world);
-
-                // In multiplayer, only teleport the local player to spawn
-                // Remote players keep their positions (they move independently)
-                if (isHost || isClient) {
-                    // Only teleport if this is the local player
-                    if (player.getPlayerId() == localPlayerId) {
-                        player.getTransform().setPosition(spawnX, spawnY);
-                    }
-                    // Remote players: don't change position
-                } else {
-                    // Single-player: teleport all players (usually just one)
-                    player.getTransform().setPosition(spawnX, spawnY);
+            if (isHost || isClient) {
+                // MULTIPLAYER MODE: Only move the local player to the new world
+                // Remote players stay in their own worlds (managed by multi-world system)
+                PlayerEntity localPlayer = playerManager.getPlayerById(localPlayerId);
+                if (localPlayer != null) {
+                    localPlayer.setWorld(world);
+                    localPlayer.getTransform().setPosition(spawnX, spawnY);
+                    world.addGameObject(localPlayer);
+                    System.out.println("GameScreen: Moved local player " + localPlayerId + " to new level");
                 }
-
-                world.addGameObject(player);
+                // Remote players: DO NOT TOUCH - they're managed by the server's multi-world system
+            } else {
+                // SINGLE-PLAYER MODE: Move all players to the new world
+                for (PlayerEntity player : playerManager.getAllPlayers()) {
+                    player.setWorld(world);
+                    player.getTransform().setPosition(spawnX, spawnY);
+                    world.addGameObject(player);
+                }
             }
         }
 
