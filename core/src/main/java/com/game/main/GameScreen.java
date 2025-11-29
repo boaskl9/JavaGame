@@ -1829,30 +1829,20 @@ public class GameScreen implements Screen {
                         System.out.println("GameScreen (Server): Removed player " + clientId + " from world " + currentLevelId);
                     }
 
-                    // Get spawn position for the new level
-                    // Load level data to get default spawn point
-                    com.game.systems.level.LevelSource levelSource = new com.game.systems.level.TiledMapLevelSource(newLevelId);
-                    com.game.systems.level.LevelData levelData = levelSource.getLevelData();
-                    com.game.systems.level.LevelData.SpawnPoint spawn = levelData.getDefaultSpawnPoint();
+                    // IMPORTANT: Keep player's current position!
+                    // The client already loaded the level with the correct gateway spawn point.
+                    // Don't override their position - they're already where the gateway placed them.
+                    // Just move them to the new world container.
+                    float currentX = player.getTransform().getX();
+                    float currentY = player.getTransform().getY();
 
-                    float spawnX = spawn != null ? spawn.getX() : 50;
-                    float spawnY = spawn != null ? spawn.getY() : 50;
-
-                    // Convert to grid and back to match loadLevel behavior
-                    int spawnGridX = (int)(spawnX / newWorld.getTileSize());
-                    int spawnGridY = (int)(spawnY / newWorld.getTileSize());
-                    spawnX = spawnGridX * newWorld.getTileSize();
-                    spawnY = spawnGridY * newWorld.getTileSize();
-
-                    levelSource.dispose(); // Clean up
-
-                    // Set player's world reference, position, and add to new world
+                    // Set player's world reference and add to new world (keep their position)
                     player.setWorld(newWorld);
-                    player.getTransform().setPosition(spawnX, spawnY);
 
                     if (!newWorld.getGameObjects().contains(player)) {
                         newWorld.addGameObject(player);
-                        System.out.println("GameScreen (Server): Added player " + clientId + " to world " + newLevelId + " at spawn (" + spawnX + ", " + spawnY + ")");
+                        System.out.println("GameScreen (Server): Added player " + clientId + " to world " + newLevelId +
+                                         " at position (" + currentX + ", " + currentY + ") from gateway");
                     }
                 }
 
