@@ -61,6 +61,7 @@ public class StateUpdatePacket extends Packet {
     public static class PlayerState implements java.io.Serializable {
         private static final long serialVersionUID = 1L;
 
+        public String levelId; // What level this player is currently in
         public float x;
         public float y;
         public int health;
@@ -72,8 +73,9 @@ public class StateUpdatePacket extends Packet {
         public PlayerState() {
         }
 
-        public PlayerState(float x, float y, int health, int maxHealth,
+        public PlayerState(String levelId, float x, float y, int health, int maxHealth,
                           String currentAnimation, int currentDirection, boolean flipX) {
+            this.levelId = levelId;
             this.x = x;
             this.y = y;
             this.health = health;

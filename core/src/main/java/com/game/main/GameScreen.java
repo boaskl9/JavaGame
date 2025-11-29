@@ -141,6 +141,9 @@ public class GameScreen implements Screen {
     // Server: Track last processed input sequence for each player (for reconciliation)
     private final java.util.Map<Integer, Integer> lastProcessedInputSequence = new java.util.concurrent.ConcurrentHashMap<>();
 
+    // Track which level each player is currently in (for independent level transitions)
+    private final java.util.Map<Integer, String> playerLevels = new java.util.concurrent.ConcurrentHashMap<>();
+
     // Client prediction with periodic checkpoints
     private static final float POSITION_CORRECTION_THRESHOLD = 4.5f; // pixels - only correct if off by more than this
     private static final float CORRECTION_SPEED = 0.1f; // How fast to lerp to server position (0-1, higher = faster)
@@ -1769,6 +1772,9 @@ public class GameScreen implements Screen {
             // Track sequence number for reconciliation
             lastProcessedInputSequence.put(clientId, inputPacket.getSequenceNumber());
 
+            // Track which level the client is in
+            playerLevels.put(clientId, inputPacket.getCurrentLevelId());
+
             // Apply input to the player
             Gdx.app.postRunnable(() -> {
                 PlayerEntity player = playerManager.getPlayerById(clientId);
@@ -1971,7 +1977,11 @@ public class GameScreen implements Screen {
         com.badlogic.gdx.math.Vector2 movement = input.getMovementInput();
         com.badlogic.gdx.math.Vector2 aim = input.getAimDirection();
 
+        // Get current level ID
+        String currentLevel = (currentLevelSource != null) ? currentLevelSource.getLevelName() : "unknown";
+
         gameClient.sendInput(
+            currentLevel,
             movement.x, movement.y,
             input.isAttackPressed(), input.isAttackJustPressed(),
             aim.x, aim.y,
@@ -1988,10 +1998,21 @@ public class GameScreen implements Screen {
         com.game.networking.StateUpdatePacket statePacket = new com.game.networking.StateUpdatePacket();
 
         // Add all player states
+        String hostLevel = (currentLevelSource != null) ? currentLevelSource.getLevelName() : "unknown";
+
         for (PlayerEntity player : playerManager.getAllPlayers()) {
             int playerId = player.getPlayerId();
             com.badlogic.gdx.math.Vector2 pos = player.getTransform().getPosition();
             com.game.components.HealthComponent health = player.getHealthComponent();
+
+            // Get level for this player (host uses current level, clients use tracked level)
+            String playerLevel;
+            if (playerId == localPlayerId) {
+                playerLevel = hostLevel;
+                playerLevels.put(playerId, hostLevel); // Track host's level too
+            } else {
+                playerLevel = playerLevels.getOrDefault(playerId, hostLevel);
+            }
 
             // Get animation state, direction, and flip from AnimationComponent
             com.game.components.AnimationComponent animComp = player.getComponent(com.game.components.AnimationComponent.class);
@@ -2012,6 +2033,7 @@ public class GameScreen implements Screen {
 
             com.game.networking.StateUpdatePacket.PlayerState playerState =
                 new com.game.networking.StateUpdatePacket.PlayerState(
+                    playerLevel,
                     pos.x, pos.y,
                     health.getCurrentHealth(), health.getMaxHealth(),
                     currentAnimation, currentDirection, flipX
@@ -2033,9 +2055,13 @@ public class GameScreen implements Screen {
      * Uses client prediction with periodic checkpoints:
      * - Local player: only corrects if prediction error exceeds threshold
      * - Remote players: applies server state directly
+     * Only updates players that are in the same level as the local player.
      */
     private void applyStateUpdate(com.game.networking.StateUpdatePacket statePacket) {
         if (world == null) return;
+
+        // Get local player's current level
+        String localLevel = (currentLevelSource != null) ? currentLevelSource.getLevelName() : "unknown";
 
         // Iterate through all player states from server
         for (java.util.Map.Entry<Integer, com.game.networking.StateUpdatePacket.PlayerState> entry :
@@ -2044,11 +2070,31 @@ public class GameScreen implements Screen {
             int playerId = entry.getKey();
             com.game.networking.StateUpdatePacket.PlayerState state = entry.getValue();
 
+            // Track which level this player is in
+            playerLevels.put(playerId, state.levelId);
+
+            // Skip players that are in a different level than us
+            boolean isLocalPlayer = (playerId == localPlayerId);
+            if (!isLocalPlayer && !state.levelId.equals(localLevel)) {
+                // Player is in a different level - skip updating them
+                // Hide them if they exist in our world
+                PlayerEntity existingPlayer = playerManager.getPlayerById(playerId);
+                if (existingPlayer != null && world.getGameObjects().contains(existingPlayer, true)) {
+                    world.removeGameObject(existingPlayer);
+                    System.out.println("GameScreen: Player " + playerId + " moved to level " + state.levelId + ", hiding them");
+                }
+                continue;
+            }
+
             // Find or create the player
             PlayerEntity player = playerManager.getPlayerById(playerId);
 
             if (player == null) {
-                // Create a new player (server told us about them)
+                // Create a new player (server told us about them) - only if they're in our level
+                if (!state.levelId.equals(localLevel)) {
+                    continue; // Don't create players in other levels
+                }
+
                 player = new PlayerEntity(world, state.x, state.y);
                 player.setPlayerId(playerId);
 
@@ -2068,10 +2114,14 @@ public class GameScreen implements Screen {
                 world.addGameObject(player);
 
                 System.out.println("GameScreen: Created remote player " + playerId + " as network-controlled puppet");
+            } else if (!world.getGameObjects().contains(player, true) && state.levelId.equals(localLevel)) {
+                // Player exists in playerManager but not in world (they were in a different level)
+                // Re-add them to the world since they're back in our level
+                world.addGameObject(player);
+                System.out.println("GameScreen: Player " + playerId + " returned to level " + localLevel + ", showing them");
             }
 
             // CLIENT PREDICTION: Handle local player differently
-            boolean isLocalPlayer = (playerId == localPlayerId);
 
             if (isLocalPlayer) {
                 // For local player: use client prediction with periodic checkpoints
