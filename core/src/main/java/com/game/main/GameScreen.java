@@ -15,7 +15,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.game.components.AttackComponent;
 import com.game.components.ColliderComponent;
@@ -191,8 +191,9 @@ public class GameScreen implements Screen {
         }
 
         // Create camera and viewport
+        // ExtendViewport shows more of the game world instead of adding black bars
         camera = new OrthographicCamera();
-        viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
+        viewport = new ExtendViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
         camera.position.set(VIEWPORT_WIDTH / 2f, VIEWPORT_HEIGHT / 2f, 0);
 
         uiCamera = new OrthographicCamera();

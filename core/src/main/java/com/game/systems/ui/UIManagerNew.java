@@ -1041,15 +1041,13 @@ public class UIManagerNew {
     }
 
     public void resize(int width, int height) {
-        // Apply UI scale to viewport
-        float uiScale = gameSettings.getUIScale();
+        // ScreenViewport maintains 1:1 pixel mapping for pixel-perfect UI
         ScreenViewport viewport = (ScreenViewport) stage.getViewport();
-        viewport.setUnitsPerPixel(1f / uiScale);
         viewport.update(width, height, true);
 
-        // Resize bottom HUD to match screen width
+        // Resize bottom HUD to match screen width (no scaling needed - 1:1 pixel mapping)
         float hudHeight = 60;
-        bottomHUD.setSize(width / uiScale, hudHeight);
+        bottomHUD.setSize(width, hudHeight);
         bottomHUD.setPosition(0, 0);
 
         positionInventoryWindow();
@@ -1062,19 +1060,21 @@ public class UIManagerNew {
 
     /**
      * Applies UI scale to the stage viewport.
+     * Note: UI scaling is now handled through stage scaling, not viewport units.
      */
     private void applyUIScale(float scale) {
+        // For now, we maintain 1:1 pixel mapping for consistent UI rendering
+        // UI scale settings can be implemented later through stage.setScale() if needed
         ScreenViewport viewport = (ScreenViewport) stage.getViewport();
-        viewport.setUnitsPerPixel(1f / scale);
         viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
 
         // Reposition UI elements after scale change
         float hudHeight = 60;
-        bottomHUD.setSize(Gdx.graphics.getWidth() / scale, hudHeight);
+        bottomHUD.setSize(Gdx.graphics.getWidth(), hudHeight);
         bottomHUD.setPosition(0, 0);
         positionInventoryWindow();
 
-        System.out.println("UIManagerNew: Applied UI scale " + scale);
+        System.out.println("UIManagerNew: Applied UI scale " + scale + " (currently using 1:1 pixel mapping)");
     }
 
     public void dispose() {
