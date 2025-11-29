@@ -1809,14 +1809,14 @@ public class GameScreen implements Screen {
                     WorldManager newWorld = getOrCreateWorld(newLevelId);
 
                     // Remove player from old world
-                    if (oldWorld != null && oldWorld.getGameObjects().contains(player, true)) {
+                    if (oldWorld != null && oldWorld.getGameObjects().contains(player)) {
                         oldWorld.removeGameObject(player);
                         System.out.println("GameScreen (Server): Removed player " + clientId + " from world " + currentLevelId);
                     }
 
                     // Set player's world reference and add to new world
                     player.setWorld(newWorld);
-                    if (!newWorld.getGameObjects().contains(player, true)) {
+                    if (!newWorld.getGameObjects().contains(player)) {
                         newWorld.addGameObject(player);
                         System.out.println("GameScreen (Server): Added player " + clientId + " to world " + newLevelId);
                     }
@@ -2124,7 +2124,7 @@ public class GameScreen implements Screen {
                 // Player is in a different level - skip updating them
                 // Hide them if they exist in our world
                 PlayerEntity existingPlayer = playerManager.getPlayerById(playerId);
-                if (existingPlayer != null && world.getGameObjects().contains(existingPlayer, true)) {
+                if (existingPlayer != null && world.getGameObjects().contains(existingPlayer)) {
                     world.removeGameObject(existingPlayer);
                     System.out.println("GameScreen: Player " + playerId + " moved to level " + state.levelId + ", hiding them");
                 }
@@ -2159,7 +2159,7 @@ public class GameScreen implements Screen {
                 world.addGameObject(player);
 
                 System.out.println("GameScreen: Created remote player " + playerId + " as network-controlled puppet");
-            } else if (!world.getGameObjects().contains(player, true) && state.levelId.equals(localLevel)) {
+            } else if (!world.getGameObjects().contains(player) && state.levelId.equals(localLevel)) {
                 // Player exists in playerManager but not in world (they were in a different level)
                 // Re-add them to the world since they're back in our level
                 world.addGameObject(player);
