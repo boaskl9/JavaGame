@@ -85,7 +85,13 @@ public class GameScreen implements Screen {
     private OrthographicCamera uiCamera;
     private Viewport viewport;
 
-    public WorldManager world;
+    // World management
+    public WorldManager world; // Local world (what this client/host sees)
+
+    // Multi-world support for server (host simulates multiple worlds)
+    // Map: levelId -> WorldManager
+    private final java.util.Map<String, WorldManager> activeWorlds = new java.util.concurrent.ConcurrentHashMap<>();
+
     public WorldItemManager worldItemManager;
     public PlayerManager playerManager;
     private TiledMap currentMap;
@@ -309,8 +315,8 @@ public class GameScreen implements Screen {
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Update world
-        world.update(scaledDelta);
+        // Update world(s) - in multiplayer server mode, updates all active worlds
+        updateAllWorlds(scaledDelta);
 
         // Check if player has moved away from open chest
         updateOpenChestDistance();
@@ -790,6 +796,13 @@ public class GameScreen implements Screen {
 
         // Build grid pathfinder for pathfinding
         world.buildGridPathfinder(currentMap);
+
+        // Register world in activeWorlds if we're the host
+        if (isHost) {
+            String levelId = levelSource.getLevelName();
+            activeWorlds.put(levelId, world);
+            System.out.println("GameScreen (Server): Registered host world for level: " + levelId);
+        }
 
         // Get spawn position - with proper fallback logic
         LevelData.SpawnPoint spawn;
@@ -1772,13 +1785,45 @@ public class GameScreen implements Screen {
             // Track sequence number for reconciliation
             lastProcessedInputSequence.put(clientId, inputPacket.getSequenceNumber());
 
-            // Track which level the client is in
-            playerLevels.put(clientId, inputPacket.getCurrentLevelId());
+            String newLevelId = inputPacket.getCurrentLevelId();
+            String currentLevelId = playerLevels.get(clientId);
+
+            // Detect level change
+            boolean levelChanged = currentLevelId != null && !currentLevelId.equals(newLevelId);
+
+            if (levelChanged) {
+                System.out.println("GameScreen (Server): Player " + clientId + " changed level from " + currentLevelId + " to " + newLevelId);
+            }
+
+            // Update level tracking
+            playerLevels.put(clientId, newLevelId);
 
             // Apply input to the player
             Gdx.app.postRunnable(() -> {
                 PlayerEntity player = playerManager.getPlayerById(clientId);
-                if (player != null && player.getInputSource() instanceof com.game.networking.NetworkInputSource) {
+                if (player == null) return;
+
+                if (levelChanged) {
+                    // Player changed levels - move them between worlds
+                    WorldManager oldWorld = activeWorlds.get(currentLevelId);
+                    WorldManager newWorld = getOrCreateWorld(newLevelId);
+
+                    // Remove player from old world
+                    if (oldWorld != null && oldWorld.getGameObjects().contains(player, true)) {
+                        oldWorld.removeGameObject(player);
+                        System.out.println("GameScreen (Server): Removed player " + clientId + " from world " + currentLevelId);
+                    }
+
+                    // Set player's world reference and add to new world
+                    player.setWorld(newWorld);
+                    if (!newWorld.getGameObjects().contains(player, true)) {
+                        newWorld.addGameObject(player);
+                        System.out.println("GameScreen (Server): Added player " + clientId + " to world " + newLevelId);
+                    }
+                }
+
+                // Apply input to the player in their current world
+                if (player.getInputSource() instanceof com.game.networking.NetworkInputSource) {
                     com.game.networking.NetworkInputSource networkInput =
                         (com.game.networking.NetworkInputSource) player.getInputSource();
                     networkInput.updateFromPacket(inputPacket);
@@ -2183,6 +2228,81 @@ public class GameScreen implements Screen {
                     health.setHealth(state.health);
                     health.setMaxHealth(state.maxHealth);
                 }
+            }
+        }
+    }
+
+    // ========== Multi-World Server Support ==========
+
+    /**
+     * Get or create a world for a specific level (server-side).
+     * This loads the level if it's not already loaded.
+     */
+    private WorldManager getOrCreateWorld(String levelId) {
+        // Check if world is already loaded
+        if (activeWorlds.containsKey(levelId)) {
+            return activeWorlds.get(levelId);
+        }
+
+        // Load the level
+        System.out.println("GameScreen (Server): Loading world for level: " + levelId);
+
+        // Create level source
+        com.game.systems.level.LevelSource levelSource = new com.game.systems.level.TiledMapLevelSource(levelId);
+        com.game.systems.level.LevelData levelData = levelSource.getLevelData();
+
+        // Create world manager
+        WorldManager newWorld = new WorldManager(levelData.getWidth(), levelData.getHeight());
+
+        // Load collision system
+        SpatialQuery collisionSystem = new SpatialQuery();
+        levelSource.loadCollision(collisionSystem);
+        newWorld.setCollisionSystem(collisionSystem);
+
+        // Build grid pathfinder
+        TiledMap tiledMap = levelSource.getTiledMap();
+        newWorld.buildGridPathfinder(tiledMap);
+
+        // Store in active worlds
+        activeWorlds.put(levelId, newWorld);
+
+        // Dispose the level source (we only needed it for loading)
+        levelSource.dispose();
+
+        System.out.println("GameScreen (Server): World loaded for level: " + levelId);
+        return newWorld;
+    }
+
+    /**
+     * Get the world that contains a specific player.
+     */
+    private WorldManager getPlayerWorld(int playerId) {
+        String levelId = playerLevels.get(playerId);
+        if (levelId == null) {
+            return world; // Default to local world
+        }
+
+        if (isHost) {
+            return activeWorlds.getOrDefault(levelId, world);
+        } else {
+            return world; // Clients only have one world
+        }
+    }
+
+    /**
+     * Update all active worlds (server-side multi-world simulation).
+     */
+    private void updateAllWorlds(float delta) {
+        if (isHost) {
+            // Server: update all active worlds
+            for (java.util.Map.Entry<String, WorldManager> entry : activeWorlds.entrySet()) {
+                WorldManager worldToUpdate = entry.getValue();
+                worldToUpdate.update(delta);
+            }
+        } else {
+            // Client: only update local world
+            if (world != null) {
+                world.update(delta);
             }
         }
     }
