@@ -194,15 +194,16 @@ public class GameClient {
     /**
      * Send input packet to server with sequence number.
      * @param currentLevelId The level the client is currently in
+     * @param spawnPointName The spawn point used if level just changed (can be null)
      * @return The sequence number assigned to this input
      */
-    public int sendInput(String currentLevelId, float movementX, float movementY,
+    public int sendInput(String currentLevelId, String spawnPointName, float movementX, float movementY,
                          boolean attackPressed, boolean attackJustPressed,
                          float aimDirectionX, float aimDirectionY,
                          boolean running) {
         int sequenceNumber = nextInputSequence++;
         InputPacket packet = new InputPacket(
-            assignedPlayerId, sequenceNumber, currentLevelId,
+            assignedPlayerId, sequenceNumber, currentLevelId, spawnPointName,
             movementX, movementY,
             attackPressed, attackJustPressed,
             aimDirectionX, aimDirectionY, running

@@ -139,6 +139,8 @@ public class GameScreen implements Screen {
     private boolean isHost = false;
     private boolean isClient = false;
     private int localPlayerId = -1; // The player ID controlled by this client (-1 = not set)
+    private String lastSpawnPointUsed = null; // Track spawn point for next level change packet
+    private String lastLevelSentToServer = null; // Track last level sent to detect changes
     private float inputSendTimer = 0f;
     private float stateSendTimer = 0f;
     private static final float INPUT_SEND_INTERVAL = 0.0166f; // ~60 times per second (every frame)
@@ -778,6 +780,12 @@ public class GameScreen implements Screen {
 
         // Store the new level source
         currentLevelSource = levelSource;
+
+        // Store spawn point for multiplayer level change notification
+        if (isClient) {
+            lastSpawnPointUsed = spawnPointName;
+            System.out.println("GameScreen: Stored spawn point '" + spawnPointName + "' for level change packet");
+        }
 
         // Get TiledMap and LevelData from the source
         currentMap = levelSource.getTiledMap();
@@ -1829,24 +1837,35 @@ public class GameScreen implements Screen {
                         System.out.println("GameScreen (Server): Removed player " + clientId + " from world " + currentLevelId);
                     }
 
-                    // Get safe spawn position for new level (default spawn point)
-                    // This ensures player spawns in-bounds while we wait for client position to sync
+                    // Get spawn position from client's spawn point (from gateway)
                     com.game.systems.level.LevelSource tempLevelSource = new com.game.systems.level.TiledMapLevelSource(newLevelId);
                     com.game.systems.level.LevelData levelData = tempLevelSource.getLevelData();
-                    com.game.systems.level.LevelData.SpawnPoint defaultSpawn = levelData.getDefaultSpawnPoint();
 
-                    float safeX = defaultSpawn != null ? defaultSpawn.getX() : 100;
-                    float safeY = defaultSpawn != null ? defaultSpawn.getY() : 100;
+                    // Use the spawn point name provided by client (from gateway), or default
+                    String spawnPointName = inputPacket.getSpawnPointName();
+                    com.game.systems.level.LevelData.SpawnPoint spawnPoint;
+                    if (spawnPointName != null) {
+                        spawnPoint = levelData.getSpawnPoint(spawnPointName);
+                        if (spawnPoint == null) {
+                            System.out.println("GameScreen (Server): Spawn point '" + spawnPointName + "' not found, using default");
+                            spawnPoint = levelData.getDefaultSpawnPoint();
+                        }
+                    } else {
+                        spawnPoint = levelData.getDefaultSpawnPoint();
+                    }
+
+                    float spawnX = spawnPoint != null ? spawnPoint.getX() : 100;
+                    float spawnY = spawnPoint != null ? spawnPoint.getY() : 100;
                     tempLevelSource.dispose();
 
                     // Set player's world and position
                     player.setWorld(newWorld);
-                    player.getTransform().setPosition(safeX, safeY);
+                    player.getTransform().setPosition(spawnX, spawnY);
 
                     if (!newWorld.getGameObjects().contains(player)) {
                         newWorld.addGameObject(player);
                         System.out.println("GameScreen (Server): Added player " + clientId + " to world " + newLevelId +
-                                         " at safe spawn (" + safeX + ", " + safeY + ")");
+                                         " at spawn '" + spawnPointName + "' (" + spawnX + ", " + spawnY + ")");
                     }
                 }
 
@@ -2053,8 +2072,19 @@ public class GameScreen implements Screen {
         // Get current level ID
         String currentLevel = (currentLevelSource != null) ? currentLevelSource.getLevelName() : "unknown";
 
+        // Detect level change and send spawn point (only once per level change)
+        String spawnPointToSend = null;
+        if (!currentLevel.equals(lastLevelSentToServer)) {
+            // Level changed! Send the spawn point this time
+            spawnPointToSend = lastSpawnPointUsed;
+            lastLevelSentToServer = currentLevel;
+            lastSpawnPointUsed = null; // Clear after sending
+            System.out.println("GameScreen: Sending level change to server - level: " + currentLevel + ", spawn: " + spawnPointToSend);
+        }
+
         gameClient.sendInput(
             currentLevel,
+            spawnPointToSend,
             movement.x, movement.y,
             input.isAttackPressed(), input.isAttackJustPressed(),
             aim.x, aim.y,

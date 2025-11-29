@@ -11,6 +11,7 @@ public class InputPacket extends Packet {
     private int playerId;
     private int sequenceNumber; // For reconciliation - identifies this input uniquely
     private String currentLevelId; // What level the client is currently in
+    private String spawnPointName; // If just changed levels, which spawn point was used (nullable)
     private float movementX;
     private float movementY;
     private boolean attackPressed;
@@ -22,12 +23,14 @@ public class InputPacket extends Packet {
     public InputPacket() {
     }
 
-    public InputPacket(int playerId, int sequenceNumber, String currentLevelId, float movementX, float movementY,
+    public InputPacket(int playerId, int sequenceNumber, String currentLevelId, String spawnPointName,
+                       float movementX, float movementY,
                        boolean attackPressed, boolean attackJustPressed,
                        float aimDirectionX, float aimDirectionY, boolean running) {
         this.playerId = playerId;
         this.sequenceNumber = sequenceNumber;
         this.currentLevelId = currentLevelId;
+        this.spawnPointName = spawnPointName;
         this.movementX = movementX;
         this.movementY = movementY;
         this.attackPressed = attackPressed;
@@ -52,6 +55,10 @@ public class InputPacket extends Packet {
 
     public String getCurrentLevelId() {
         return currentLevelId;
+    }
+
+    public String getSpawnPointName() {
+        return spawnPointName;
     }
 
     public float getMovementX() {
