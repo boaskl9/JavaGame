@@ -460,8 +460,10 @@ public abstract class EnemyEntity extends Entity {
      * Performs an attack using the unified attack system.
      */
     protected void performAttack(float delta) {
-        // Start attack on first frame of ATTACK state
-        if (ai.getStateTimer() < delta) {
+        // Start an attack whenever the weapon is ready (its cooldown limits the attack rate).
+        // Note: don't compare the state timer against delta to detect "first frame" - the timer
+        // already holds one frame's delta by then, so that only worked when frame times varied.
+        if (attackComponent.canAttack()) {
             // Calculate attack direction toward player
             if (target != null) {
                 Transform targetTransform = target.getComponent(Transform.class);
