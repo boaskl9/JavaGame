@@ -18,6 +18,7 @@ public class NetworkRegistrar {
         Kryo kryo = endPoint.getKryo();
 
         // Register all packet classes in a consistent order
+        // IMPORTANT: Order matters! Both server and client must register in same order
         kryo.register(ConnectionPacket.class);
         kryo.register(PlayerJoinPacket.class);
         kryo.register(InputPacket.class);
@@ -25,7 +26,15 @@ public class NetworkRegistrar {
         kryo.register(StateUpdatePacket.PlayerState.class);
         kryo.register(DisconnectPacket.class);
 
-        // Register HashMap for StateUpdatePacket's playerStates map
+        // Phase 1: Event-driven protocol packets
+        kryo.register(LevelChangeRequestPacket.class);
+        kryo.register(LevelChangeConfirmPacket.class);
+        kryo.register(EntitySpawnPacket.class);
+        kryo.register(EntityDespawnPacket.class);
+        kryo.register(PickupRequestPacket.class);
+        kryo.register(ItemPickupEvent.class);
+
+        // Register HashMap for StateUpdatePacket's playerStates map and EntitySpawnPacket's metadata
         kryo.register(HashMap.class);
     }
 }

@@ -31,6 +31,7 @@ public class GameClient {
     private DisconnectionCallback disconnectionCallback;
     private StateUpdateCallback stateUpdateCallback;
     private PlayerJoinCallback playerJoinCallback;
+    private LevelChangeConfirmCallback levelChangeConfirmCallback;
 
     public GameClient() {
         this.client = new Client(WRITE_BUFFER_SIZE, READ_BUFFER_SIZE);
@@ -73,6 +74,10 @@ public class GameClient {
                 } else if (object instanceof DisconnectPacket) {
                     DisconnectPacket packet = (DisconnectPacket) object;
                     disconnect(packet.getReason());
+
+                } else if (object instanceof LevelChangeConfirmPacket) {
+                    LevelChangeConfirmPacket packet = (LevelChangeConfirmPacket) object;
+                    onLevelChangeConfirm(packet);
                 }
             }
         });
@@ -180,6 +185,19 @@ public class GameClient {
     }
 
     /**
+     * Handle level change confirmation packet.
+     */
+    private void onLevelChangeConfirm(LevelChangeConfirmPacket packet) {
+        System.out.println("GameClient: Received level change confirm for player " + packet.playerId +
+                           " to level " + packet.levelId + " at (" + packet.spawnX + ", " + packet.spawnY + ")");
+
+        // Notify game to load level and teleport player
+        if (levelChangeConfirmCallback != null) {
+            levelChangeConfirmCallback.onLevelChangeConfirm(packet);
+        }
+    }
+
+    /**
      * Send a packet to the server.
      */
     public void sendPacket(Object packet) {
@@ -213,6 +231,22 @@ public class GameClient {
     }
 
     /**
+     * Send level change request to server.
+     * @param targetLevelId The level to change to
+     * @param spawnPointName The spawn point to use in the target level
+     */
+    public void sendLevelChangeRequest(String targetLevelId, String spawnPointName) {
+        if (assignedPlayerId == -1) {
+            System.err.println("GameClient: Cannot send level change request - not assigned player ID yet");
+            return;
+        }
+
+        LevelChangeRequestPacket packet = new LevelChangeRequestPacket(assignedPlayerId, targetLevelId, spawnPointName);
+        sendPacket(packet);
+        System.out.println("GameClient: Sent level change request to " + targetLevelId + " at spawn " + spawnPointName);
+    }
+
+    /**
      * Check if client is connected.
      */
     public boolean isConnected() {
@@ -243,6 +277,10 @@ public class GameClient {
         this.playerJoinCallback = callback;
     }
 
+    public void setLevelChangeConfirmCallback(LevelChangeConfirmCallback callback) {
+        this.levelChangeConfirmCallback = callback;
+    }
+
     // Callback interfaces
     public interface ConnectionCallback {
         void onConnected(int assignedPlayerId);
@@ -258,5 +296,9 @@ public class GameClient {
 
     public interface PlayerJoinCallback {
         void onPlayerJoined(int playerId, String playerName);
+    }
+
+    public interface LevelChangeConfirmCallback {
+        void onLevelChangeConfirm(LevelChangeConfirmPacket packet);
     }
 }

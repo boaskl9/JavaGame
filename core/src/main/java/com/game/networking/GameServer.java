@@ -29,6 +29,7 @@ public class GameServer {
     private ClientConnectedCallback clientConnectedCallback;
     private ClientDisconnectedCallback clientDisconnectedCallback;
     private InputReceivedCallback inputReceivedCallback;
+    private LevelChangeRequestCallback levelChangeRequestCallback;
 
     public GameServer() {
         this(DEFAULT_PORT);
@@ -83,6 +84,13 @@ public class GameServer {
                     Integer clientId = connectionToClientId.get(connection.getID());
                     if (clientId != null) {
                         onClientDisconnected(clientId, packet.getReason());
+                    }
+
+                } else if (object instanceof LevelChangeRequestPacket) {
+                    LevelChangeRequestPacket packet = (LevelChangeRequestPacket) object;
+                    Integer clientId = connectionToClientId.get(connection.getID());
+                    if (clientId != null) {
+                        onLevelChangeRequest(clientId, packet);
                     }
                 }
             }
@@ -171,6 +179,19 @@ public class GameServer {
     }
 
     /**
+     * Called when a client requests a level change.
+     */
+    private void onLevelChangeRequest(int clientId, LevelChangeRequestPacket packet) {
+        System.out.println("GameServer: Client " + clientId + " requests level change to " +
+                           packet.targetLevelId + " at spawn " + packet.spawnPointName);
+
+        // Notify game to process level change
+        if (levelChangeRequestCallback != null) {
+            levelChangeRequestCallback.onLevelChangeRequest(clientId, packet);
+        }
+    }
+
+    /**
      * Broadcast a packet to all connected clients.
      */
     public void broadcastPacket(Object packet) {
@@ -230,6 +251,10 @@ public class GameServer {
         this.inputReceivedCallback = callback;
     }
 
+    public void setLevelChangeRequestCallback(LevelChangeRequestCallback callback) {
+        this.levelChangeRequestCallback = callback;
+    }
+
     // Callback interfaces
     public interface ClientConnectedCallback {
         void onClientConnected(int clientId, String playerName);
@@ -241,5 +266,9 @@ public class GameServer {
 
     public interface InputReceivedCallback {
         void onInputReceived(int clientId, InputPacket packet);
+    }
+
+    public interface LevelChangeRequestCallback {
+        void onLevelChangeRequest(int clientId, LevelChangeRequestPacket packet);
     }
 }

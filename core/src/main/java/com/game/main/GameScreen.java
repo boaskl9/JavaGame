@@ -57,6 +57,7 @@ import com.game.systems.item.ItemDefinition;
 import com.game.systems.item.ItemRegistry;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Color;
+import com.game.networking.LevelChangeConfirmPacket;
 
 import static com.game.systems.audio.SoundRegistry.*;
 
@@ -269,7 +270,14 @@ public class GameScreen implements Screen {
     public void render(float delta) {
         // Handle pending gateway transition
         if (pendingGateway != null) {
-            loadLevel(pendingGateway.getTargetLevel(), pendingGateway.getTargetSpawn());
+            if (isClient) {
+                // Client: Send level change request to server
+                gameClient.sendLevelChangeRequest(pendingGateway.getTargetLevel(), pendingGateway.getTargetSpawn());
+                System.out.println("GameScreen (Client): Sent level change request for " + pendingGateway.getTargetLevel());
+            } else {
+                // Host or single-player: Load level immediately
+                loadLevel(pendingGateway.getTargetLevel(), pendingGateway.getTargetSpawn());
+            }
             pendingGateway = null;
         }
 
@@ -1884,6 +1892,77 @@ public class GameScreen implements Screen {
             });
         });
 
+        gameServer.setLevelChangeRequestCallback((clientId, requestPacket) -> {
+            System.out.println("GameScreen (Server): Received level change request from player " + clientId +
+                             " to level " + requestPacket.targetLevelId + " at spawn " + requestPacket.spawnPointName);
+
+            Gdx.app.postRunnable(() -> {
+                // Get or create the target world
+                WorldManager targetWorld = getOrCreateWorld(requestPacket.targetLevelId);
+
+                // Load level data to get spawn point
+                com.game.systems.level.LevelSource tempLevelSource = new com.game.systems.level.TiledMapLevelSource(requestPacket.targetLevelId);
+                com.game.systems.level.LevelData levelData = tempLevelSource.getLevelData();
+
+                // Get spawn position from requested spawn point
+                com.game.systems.level.LevelData.SpawnPoint spawnPoint;
+                if (requestPacket.spawnPointName != null) {
+                    spawnPoint = levelData.getSpawnPoint(requestPacket.spawnPointName);
+                    if (spawnPoint == null) {
+                        System.out.println("GameScreen (Server): Spawn point '" + requestPacket.spawnPointName + "' not found, using default");
+                        spawnPoint = levelData.getDefaultSpawnPoint();
+                    }
+                } else {
+                    spawnPoint = levelData.getDefaultSpawnPoint();
+                }
+
+                float spawnX = spawnPoint != null ? spawnPoint.getX() : 100;
+                float spawnY = spawnPoint != null ? spawnPoint.getY() : 100;
+
+                // Convert to grid and back to match loadLevel behavior
+                int spawnGridX = (int)(spawnX / targetWorld.getTileSize());
+                int spawnGridY = (int)(spawnY / targetWorld.getTileSize());
+                spawnX = spawnGridX * targetWorld.getTileSize();
+                spawnY = spawnGridY * targetWorld.getTileSize();
+
+                tempLevelSource.dispose();
+
+                // Move player between worlds
+                PlayerEntity player = playerManager.getPlayerById(clientId);
+                if (player != null) {
+                    String oldLevelId = playerLevels.get(clientId);
+                    WorldManager oldWorld = activeWorlds.get(oldLevelId);
+
+                    // Remove from old world
+                    if (oldWorld != null && oldWorld.getGameObjects().contains(player)) {
+                        oldWorld.removeGameObject(player);
+                        System.out.println("GameScreen (Server): Removed player " + clientId + " from world " + oldLevelId);
+                    }
+
+                    // Add to new world
+                    player.setWorld(targetWorld);
+                    player.getTransform().setPosition(spawnX, spawnY);
+                    if (!targetWorld.getGameObjects().contains(player)) {
+                        targetWorld.addGameObject(player);
+                    }
+
+                    // Update level tracking
+                    playerLevels.put(clientId, requestPacket.targetLevelId);
+
+                    System.out.println("GameScreen (Server): Moved player " + clientId + " to " + requestPacket.targetLevelId +
+                                     " at (" + spawnX + ", " + spawnY + ")");
+                }
+
+                // Send confirmation back to client
+                LevelChangeConfirmPacket confirmPacket = LevelChangeConfirmPacket.success(
+                    clientId, requestPacket.targetLevelId, spawnX, spawnY
+                );
+                gameServer.sendPacketToClient(clientId, confirmPacket);
+
+                System.out.println("GameScreen (Server): Sent level change confirmation to player " + clientId);
+            });
+        });
+
         gameServer.start();
 
         System.out.println("GameScreen: Hosting on port " + gameServer.getPort());
@@ -2004,6 +2083,27 @@ public class GameScreen implements Screen {
         gameClient.setPlayerJoinCallback((playerId, playerName) -> {
             System.out.println("GameScreen: Player " + playerId + " joined: " + playerName);
             // Players are managed by the server and state updates
+        });
+
+        gameClient.setLevelChangeConfirmCallback((confirmPacket) -> {
+            System.out.println("GameScreen (Client): Received level change confirm to " + confirmPacket.levelId +
+                             " at (" + confirmPacket.spawnX + ", " + confirmPacket.spawnY + ")");
+
+            Gdx.app.postRunnable(() -> {
+                if (confirmPacket.success) {
+                    // Load the new level locally
+                    loadLevel(confirmPacket.levelId, null);
+
+                    // Teleport local player to confirmed spawn position
+                    PlayerEntity localPlayer = playerManager.getPlayerById(localPlayerId);
+                    if (localPlayer != null) {
+                        localPlayer.getTransform().setPosition(confirmPacket.spawnX, confirmPacket.spawnY);
+                        System.out.println("GameScreen (Client): Teleported to (" + confirmPacket.spawnX + ", " + confirmPacket.spawnY + ")");
+                    }
+                } else {
+                    System.err.println("GameScreen (Client): Level change failed: " + confirmPacket.errorMessage);
+                }
+            });
         });
     }
 
@@ -2248,8 +2348,8 @@ public class GameScreen implements Screen {
                     float newY = currentPos.y + dy * CORRECTION_SPEED;
                     player.getTransform().setPosition(newX, newY);
 
-                    System.out.println("GameScreen: Correcting local player position by " +
-                                     String.format("%.2f", distance) + " pixels");
+                    //System.out.println("GameScreen: Correcting local player position by " +
+                    //                 String.format("%.2f", distance) + " pixels");
                 }
                 // If within threshold: do nothing, client prediction was accurate!
 
