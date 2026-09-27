@@ -80,6 +80,8 @@
 Co-op LAN multiplayer (host + guests). **Read `Notes/Multiplayer.md` before touching networking, entities or level loading.**
 Key rules: each machine owns its own player's movement; the host owns everything else. Levels are built only via `LevelInstanceFactory`. New enemy/breakable types must be added to `networking/ReplicatedEntities`.
 
+**Tests:** `./gradlew test` (JUnit 5, headless libGDX, ~7s). Game logic lives in `world/GameWorld` so it can be tested without a window; see the Tests section of `Notes/Multiplayer.md`. Add tests alongside changes.
+
 ## 🔧 Active Refactors / In Progress
 
 ### Dungeon Generation System Refactor (IN PROGRESS)

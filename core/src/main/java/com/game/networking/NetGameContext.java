@@ -37,6 +37,12 @@ public interface NetGameContext {
     /** Client: the host told us where to start. Build that level and create the local player. */
     void startAsClient(int playerId, String levelId, float x, float y, String savedPlayerJson);
 
+    /** Place furniture in a level (authoritative). @return the furniture, or null if it can't go there */
+    com.game.systems.furniture.FurnitureEntity placeFurniture(String levelId, String itemId, float x, float y);
+
+    /** Remove furniture from a level and from the saved furniture. */
+    void removeFurniture(String levelId, com.game.systems.furniture.FurnitureEntity furniture);
+
     void showDamageNumber(float x, float y, int amount);
 
     void showDeathAnimation(float x, float y);

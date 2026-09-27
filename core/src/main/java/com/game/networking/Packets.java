@@ -45,13 +45,22 @@ public final class Packets {
         kryo.register(ItemGrant.class);
         kryo.register(DropItem.class);
         kryo.register(InventorySync.class);
+        kryo.register(PlaceFurnitureRequest.class);
+        kryo.register(PlaceFurnitureResult.class);
+        kryo.register(PickUpFurnitureRequest.class);
+        kryo.register(ChestOpenRequest.class);
+        kryo.register(ChestOpenResult.class);
+        kryo.register(ChestContents.class);
+        kryo.register(ChestClose.class);
     }
 
     // ========== Join / leave ==========
 
     /** Client → host, first message after connecting. */
     public static class Hello {
-        public String playerName;
+        public String playerName;       // Display name
+        public String identityProvider; // e.g. "local", later "steam"
+        public String identityId;       // Unique within the provider
     }
 
     /** Host → client, reply to {@link Hello}. The client builds its level from this. */
@@ -180,5 +189,50 @@ public final class Packets {
     /** Client → host: full player data (inventory, equipment, health) so the host can save it. */
     public static class InventorySync {
         public String playerJson;
+    }
+
+    // ========== Furniture ==========
+
+    /** Client → host: place a furniture item from my inventory here. */
+    public static class PlaceFurnitureRequest {
+        public int requestId;
+        public String itemId;
+        public float x, y;
+    }
+
+    /** Host → client: whether the placement happened (only then does the client use up the item). */
+    public static class PlaceFurnitureResult {
+        public int requestId;
+        public boolean placed;
+    }
+
+    /** Client → host: pick this furniture up into my inventory (answered with ItemGrant). */
+    public static class PickUpFurnitureRequest {
+        public int netId;
+    }
+
+    /** Client → host: I want to use this chest. Only one player can use a chest at a time. */
+    public static class ChestOpenRequest {
+        public int netId;
+    }
+
+    /** Host → client: granted (with the current contents) or refused because someone else has it open. */
+    public static class ChestOpenResult {
+        public int netId;
+        public boolean granted;
+        public String[] itemIds; // One per slot, null = empty
+        public int[] quantities;
+    }
+
+    /** Client → host: the chest I have open now contains this. */
+    public static class ChestContents {
+        public int netId;
+        public String[] itemIds;
+        public int[] quantities;
+    }
+
+    /** Client → host: I closed the chest. */
+    public static class ChestClose {
+        public int netId;
     }
 }

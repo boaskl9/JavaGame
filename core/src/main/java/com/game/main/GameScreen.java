@@ -57,14 +57,9 @@ import com.game.systems.item.ItemDefinition;
 import com.game.systems.item.ItemRegistry;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Color;
-import com.game.networking.ClientSession;
-import com.game.networking.HostSession;
-import com.game.networking.NetGameContext;
-import com.game.networking.NetSession;
-import com.game.networking.Packets;
 import com.game.networking.PlayerDataCodec;
 import com.game.world.LevelInstance;
-import com.game.world.LevelInstanceFactory;
+import com.game.world.GameWorld;
 
 import static com.game.systems.audio.SoundRegistry.*;
 
@@ -72,7 +67,7 @@ import static com.game.systems.audio.SoundRegistry.*;
  * Refactored GameScreen using the new decoupled architecture.
  * All systems are now independent and reusable.
  */
-public class GameScreen implements Screen, NetGameContext {
+public class GameScreen implements Screen, GameWorld.Presenter {
     private static final int VIEWPORT_WIDTH = 640;
     private static final int VIEWPORT_HEIGHT = 360;
 
@@ -97,16 +92,14 @@ public class GameScreen implements Screen, NetGameContext {
     // so entities can't tunnel through walls
     private static final float MAX_FRAME_DELTA = 1f / 20f;
 
-    // Levels loaded on this machine, by level ID. The host keeps every level that has a player
-    // in it simulating; single-player and clients only simulate the current one.
-    private final java.util.Map<String, LevelInstance> instances = new java.util.LinkedHashMap<>();
-    private LevelInstance currentInstance;
+    // The simulation (levels, players, multiplayer); this screen draws it and runs the UI
+    private final GameWorld gameWorld;
     public WorldManager world; // World of the current level (what this machine sees)
     private com.game.systems.level.LevelSource currentLevelSource;
 
     public WorldItemManager worldItemManager;
     public PlayerManager playerManager;
-    private PlayerEntity localPlayer; // The player controlled on this machine
+    private PlayerEntity localPlayer; // The player controlled on this machine (owned by gameWorld)
     private OrthogonalTiledMapRenderer mapRenderer;
     private YSortRenderer ySortRenderer;
     private UIManagerNew uiManager;
@@ -118,8 +111,6 @@ public class GameScreen implements Screen, NetGameContext {
     // Level loading abstraction
     private com.game.systems.dungeon.DungeonController dungeonController;
     private com.game.systems.dungeon.DungeonDebugRenderer dungeonDebugRenderer;
-
-    private GatewayEntity pendingGateway = null;
 
     // Damage numbers
     private java.util.List<DamageNumberEntity> damageNumbers;
@@ -135,6 +126,8 @@ public class GameScreen implements Screen, NetGameContext {
     private ItemStack placementFurnitureItem = null;
     private Texture placementPreviewTexture = null;
     private com.game.systems.ui.ItemSlotUI placementSourceSlot = null;
+    private boolean placementPending = false; // Waiting for the host to confirm (guests)
+    private ChestEntity chestPendingOpen = null; // Waiting for permission to use this chest
     private FurnitureManager furnitureManager;
 
     // Currently open chest (for auto-closing)
@@ -144,9 +137,6 @@ public class GameScreen implements Screen, NetGameContext {
     // Save name tracking for auto-save
     private String currentSaveName = null;
 
-    // Networking
-    private NetSession session; // Null in single-player
-    private final boolean clientMode; // Joined someone else's game: levels are replicas filled by the host
     private boolean screenClosed = false;
     /**
      * Create a new game with default starting level.
@@ -186,9 +176,6 @@ public class GameScreen implements Screen, NetGameContext {
      * @param clientMode If true, this is a client joining multiplayer
      */
     public GameScreen(com.game.save.SaveData saveData, boolean clientMode) {
-        // Set client mode FIRST, before any level loading
-        this.clientMode = clientMode;
-
         // Create camera and viewport
         // ExtendViewport shows more of the game world instead of adding black bars
         camera = new OrthographicCamera();
@@ -218,6 +205,7 @@ public class GameScreen implements Screen, NetGameContext {
         inputManager = new InputManager();
         debugManager = new DebugManager();
         playerManager = new PlayerManager();
+        gameWorld = new GameWorld(clientMode, worldItemManager, playerManager, this);
 
         // Initialize singleton systems with new dependencies
         furnitureManager = FurnitureManager.getInstance();
@@ -249,7 +237,7 @@ public class GameScreen implements Screen, NetGameContext {
             loadFromSaveData(saveData);
         } else if (!clientMode) {
             // Load initial level for new game
-            changeLevel("Maps/prototype.tmx", null);
+            gameWorld.changeLevel("Maps/prototype.tmx", null);
         }
         // Client mode: the level is built when the host's welcome arrives
     }
@@ -257,24 +245,15 @@ public class GameScreen implements Screen, NetGameContext {
     @Override
     public void render(float delta) {
         // Network first: packets may build the level (client join) or move players around
-        if (session != null) {
-            session.update(delta);
-        }
+        gameWorld.updateNetwork(delta);
         if (screenClosed) {
             return;
         }
 
         // Client still waiting for the host to tell us where we are
-        if (currentInstance == null) {
+        if (gameWorld.getCurrentInstance() == null) {
             renderConnecting();
             return;
-        }
-
-        // Handle pending gateway transition (local player only)
-        if (pendingGateway != null) {
-            GatewayEntity gateway = pendingGateway;
-            pendingGateway = null;
-            changeLevel(gateway.getTargetLevel(), gateway.getTargetSpawn());
         }
 
         // Check for debug console toggle (always check this first)
@@ -321,8 +300,8 @@ public class GameScreen implements Screen, NetGameContext {
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Update every level that needs simulating (includes its world items)
-        updateLevels(scaledDelta);
+        // Simulate: levels (incl. world items), item pickups, gateways
+        gameWorld.update(scaledDelta);
 
         // Check if player has moved away from open chest
         updateOpenChestDistance();
@@ -344,15 +323,6 @@ public class GameScreen implements Screen, NetGameContext {
             dp.update(scaledDelta);
             return !dp.isAlive();
         });
-
-        // Update item magnetism (register nearby items)
-        updateItemMagnetism();
-
-        // Check for item pickup collisions
-        checkItemPickups();
-
-        // Check for gateway collisions
-        checkGatewayCollisions();
 
         // Update UI
         if (uiManager != null) {
@@ -425,19 +395,6 @@ public class GameScreen implements Screen, NetGameContext {
         }
         if (debugMode || debugManager.isEnabled("fps")) {
             renderDebugStats();
-        }
-    }
-
-    /**
-     * Simulate the current level, plus (on the host) every level a guest is in.
-     */
-    private void updateLevels(float delta) {
-        for (LevelInstance instance : new java.util.ArrayList<>(instances.values())) {
-            boolean occupied = instance == currentInstance
-                || (session != null && session.isLevelOccupied(instance.getLevelId()));
-            if (occupied) {
-                instance.update(delta, worldItemManager);
-            }
         }
     }
 
@@ -552,13 +509,13 @@ public class GameScreen implements Screen, NetGameContext {
         }
 
         // Debug: Save game
-        if (debugMode && !clientMode && inputManager.isJustPressed(InputAction.DEBUG_SAVE)) {
+        if (debugMode && !gameWorld.isGuest() && inputManager.isJustPressed(InputAction.DEBUG_SAVE)) {
             com.game.save.SaveManager.getInstance().save("debug_save");
             System.out.println("=== SAVED GAME (F6) ===");
         }
 
         // Debug: Load game
-        if (debugMode && session == null && inputManager.isJustPressed(InputAction.DEBUG_LOAD)) {
+        if (debugMode && gameWorld.getSession() == null && inputManager.isJustPressed(InputAction.DEBUG_LOAD)) {
             com.game.save.SaveData saveData = com.game.save.SaveManager.getInstance().load("debug_save");
             if (saveData != null) {
                 loadFromSaveData(saveData);
@@ -581,9 +538,7 @@ public class GameScreen implements Screen, NetGameContext {
         // Create item
         ItemStack itemStack = ItemFactory.create(itemId, 1);
         if (itemStack != null) {
-            if (session == null || !session.dropItem(itemStack, mousePos.x, mousePos.y)) {
-                worldItemManager.spawnItem(itemStack, mousePos.x, mousePos.y, 0);
-            }
+            gameWorld.dropItem(itemStack, mousePos.x, mousePos.y);
             System.out.println("Spawned " + itemId + " at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
         }
     }
@@ -667,69 +622,6 @@ public class GameScreen implements Screen, NetGameContext {
     }
 
     /**
-     * Updates item magnetism - registers nearby items with the magnets of players in this level.
-     * Purely cosmetic for remote players; only the local player can actually pick items up.
-     */
-    private void updateItemMagnetism() {
-        for (GameObject obj : world.getGameObjects()) {
-            if (!(obj instanceof PlayerEntity player)) continue;
-
-            Vector2 playerPos = player.getTransform().getPosition();
-            float magnetRadius = player.getItemMagnet().getMagnetRadius();
-
-            for (ItemPickupEntity item : worldItemManager.getItemsNear(playerPos, magnetRadius)) {
-                player.getItemMagnet().registerItem(item);
-            }
-        }
-    }
-
-    /**
-     * Checks whether the local player is touching any items.
-     * Guests ask the host for the item; the host and single-player pick it up directly.
-     */
-    private void checkItemPickups() {
-        if (localPlayer == null) return;
-
-        boolean inventoryChanged = false;
-        Vector2 playerPos = localPlayer.getTransform().getPosition();
-
-        for (ItemPickupEntity item : worldItemManager.getAllItems()) {
-            if (!item.canPickup() || !item.isActive()) continue;
-
-            Transform itemTransform = item.getComponent(Transform.class);
-            if (itemTransform == null) continue;
-
-            // Simple distance check (could use collider for more precision)
-            if (playerPos.dst(itemTransform.getPosition()) >= 16f) continue; // Pickup radius
-
-            if (session != null && session.requestPickup(item)) {
-                continue;
-            }
-
-            // Try to add to inventory
-            ItemStack itemStack = item.getItemStack();
-            ItemStack remaining = localPlayer.getInventory().addItem(itemStack);
-
-            if (remaining == null) {
-                // All picked up
-                item.onPickup();
-                worldItemManager.removeItem(item);
-                SoundSystem.getInstance().playSound(COIN_PICKUP, 0.6f);
-                System.out.println("Picked up: " + itemStack.toString());
-                inventoryChanged = true;
-            } else if (remaining.getQuantity() < itemStack.getQuantity()) {
-                // Partial pickup
-                item.getItemStack().setQuantity(remaining.getQuantity());
-                SoundSystem.getInstance().playSound(COIN_PICKUP, 0.6f);
-                inventoryChanged = true;
-            }
-        }
-
-        if (inventoryChanged && uiManager != null) {
-            uiManager.notifyInventoryChanged();
-        }
-    }
-    /**
      * Load an assembled dungeon directly (from dungeon generation system).
      * Public so DebugConsole can access it.
      */
@@ -739,8 +631,7 @@ public class GameScreen implements Screen, NetGameContext {
             return;
         }
         // Dungeons are always built fresh
-        LevelInstance dungeonInstance = createInstance(new com.game.systems.dungeon.DungeonLevelSource(dungeon, null));
-        enterLevel(dungeonInstance, dungeonInstance.getSpawnPosition(null));
+        gameWorld.enterNewLevel(new com.game.systems.dungeon.DungeonLevelSource(dungeon, null));
     }
 
     /**
@@ -753,83 +644,55 @@ public class GameScreen implements Screen, NetGameContext {
 
     // ========== Level Management ==========
 
-    /**
-     * Move the local player to a Tiled map level (loading it if needed).
-     */
-    private void changeLevel(String levelPath, String spawnPointName) {
-        LevelInstance target = instances.get(levelPath);
-        if (target == null) {
-            target = createInstance(new com.game.systems.level.TiledMapLevelSource(levelPath));
-        }
-        enterLevel(target, target.getSpawnPosition(spawnPointName));
+    // ========== GameWorld.Presenter ==========
+
+    @Override
+    public com.game.systems.input.InputSource createLocalInput(PlayerEntity player) {
+        LocalKeyboardInput input = LocalKeyboardInput.createPlayer1();
+        input.setCamera(camera);
+        input.setPlayerTransform(player.getTransform());
+        return input;
     }
 
-    /**
-     * Build a level instance on this machine and register it.
-     */
-    private LevelInstance createInstance(com.game.systems.level.LevelSource source) {
-        LevelInstanceFactory.Mode mode = clientMode ? LevelInstanceFactory.Mode.REPLICA : LevelInstanceFactory.Mode.AUTHORITATIVE;
-        LevelInstance instance = LevelInstanceFactory.create(source, mode, new EntityDecorator(source.getLevelName()));
-
-        LevelInstance replaced = instances.put(instance.getLevelId(), instance);
-        if (replaced != null && replaced != currentInstance) {
-            if (session != null) {
-                session.onInstanceDisposed(replaced);
-            }
-            replaced.dispose();
-        }
-
-        if (session != null) {
-            session.onInstanceCreated(instance);
-        }
-        return instance;
-    }
-
-    /**
-     * Move the local player into a level at a position. Creates the local player (and its UI)
-     * the first time.
-     */
-    private void enterLevel(LevelInstance target, Vector2 position) {
-        System.out.println("Entering level: " + target.getLevelId() + " at (" + position.x + ", " + position.y + ")");
-
-        LevelInstance previous = currentInstance;
-        if (previous != null && localPlayer != null) {
-            previous.getWorld().removeGameObject(localPlayer);
-        }
-
+    @Override
+    public void onLeavingLevel() {
         // Close any open chest; it belongs to the old level
         if (currentlyOpenChest != null && uiManager != null) {
             closeChest(currentlyOpenChest);
         }
+    }
 
-        setCurrentInstance(target);
-
-        if (localPlayer == null) {
-            createLocalPlayer(position.x, position.y);
-        } else {
-            localPlayer.setWorld(world);
-            localPlayer.getTransform().setPosition(position.x, position.y);
-            world.addGameObject(localPlayer);
-        }
-
+    @Override
+    public void onLocalPlayerCreated(PlayerEntity player) {
+        localPlayer = player;
         if (uiManager == null) {
-            initLocalPlayerUI(localPlayer);
-        }
-
-        if (previous != null && previous != target) {
-            releaseInstanceIfUnused(previous);
-        }
-
-        if (session != null) {
-            session.onLocalLevelChanged(target);
+            initLocalPlayerUI(player);
         }
     }
 
+    @Override
+    public void onLocalPlayerDataRestored(PlayerEntity player) {
+        player.updateWeaponSprite();
+        uiManager.refreshAllWindows();
+    }
+
     /**
-     * Make an instance the one this machine renders and plays in.
+     * A short floating message in the world (e.g. "In use" above a chest).
      */
-    private void setCurrentInstance(LevelInstance instance) {
-        currentInstance = instance;
+    private void showWorldMessage(float x, float y, String text, Color color) {
+        damageNumbers.add(new DamageNumberEntity(x, y, text, color, damageFont));
+    }
+
+    @Override
+    public void showParticles(float x, float y, String particleType) {
+        destructionParticles.add(new DestructionParticleEntity(x, y, particleType));
+    }
+
+    /**
+     * The local player now stands in this level: render it.
+     */
+    @Override
+    public void onLevelEntered(LevelInstance instance) {
         world = instance.getWorld();
         currentLevelSource = instance.getSource();
 
@@ -839,58 +702,6 @@ public class GameScreen implements Screen, NetGameContext {
         mapRenderer = new OrthogonalTiledMapRenderer(instance.getTiledMap());
         ySortRenderer = new YSortRenderer(mapRenderer, instance.getTiledMap());
         ySortRenderer.setDebugMode(debugMode);
-
-        worldItemManager.setCurrentLevel(instance.getLevelId());
-
-        String levelType = instance.getSource().isDungeon() ? "dungeon" : "tiled_map";
-        com.game.save.SaveManager.getInstance().setCurrentLevel(instance.getLevelId(), levelType);
-    }
-
-    /**
-     * Unload a level the local player just left, unless it should be kept.
-     * Clients only keep their current level. The host and single-player keep Tiled maps
-     * (so revisiting preserves broken pots etc.) and drop generated dungeons nobody is in.
-     */
-    private void releaseInstanceIfUnused(LevelInstance instance) {
-        String levelId = instance.getLevelId();
-        boolean keep = !clientMode && (!instance.getSource().isDungeon()
-            || (session != null && session.isLevelOccupied(levelId)));
-        if (keep) return;
-
-        if (instances.get(levelId) == instance) {
-            instances.remove(levelId);
-            worldItemManager.clearLevel(levelId); // Replica items, or loot in a dungeon that's gone
-        }
-        if (session != null) {
-            session.onInstanceDisposed(instance);
-        }
-        instance.dispose();
-    }
-
-    /**
-     * Create the player controlled on this machine, in the current world.
-     */
-    private void createLocalPlayer(float x, float y) {
-        PlayerEntity player = new PlayerEntity(world, x, y);
-        LocalKeyboardInput input = LocalKeyboardInput.createPlayer1();
-        input.setCamera(camera);
-        input.setPlayerTransform(player.getTransform());
-        player.setInputSource(input);
-
-        player.setDamageNumberCallback((dx, dy, damage) -> emitDamageNumber(levelIdOf(player.getWorld()), dx, dy, damage));
-        player.setAttackListener((angle, weaponId) -> {
-            if (session != null) {
-                session.onLocalAttack(angle, weaponId);
-            }
-        });
-
-        playerManager.addPlayer(player);
-        localPlayer = player;
-        if (session != null) {
-            session.onLocalPlayerCreated(player);
-        }
-        world.addGameObject(player);
-        System.out.println("GameScreen: Created local player " + player.getPlayerId());
     }
 
     /**
@@ -904,9 +715,7 @@ public class GameScreen implements Screen, NetGameContext {
 
         uiManager.setItemDropCallback(itemStack -> {
             Vector2 playerPos = localPlayer.getTransform().getPosition();
-            if (session == null || !session.dropItem(itemStack, playerPos.x, playerPos.y)) {
-                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
-            }
+            gameWorld.dropItem(itemStack, playerPos.x, playerPos.y);
         });
 
         uiManager.setFurniturePlacementCallback(new UIManagerNew.FurniturePlacementCallback() {
@@ -963,103 +772,6 @@ public class GameScreen implements Screen, NetGameContext {
         uiManager.getStage().addActor(debugConsole);
 
         Gdx.input.setInputProcessor(uiManager.getStage());
-    }
-
-    /**
-     * Attaches game callbacks (damage numbers, death animations, particles) to entities
-     * as they enter a level, wherever they came from (map, debug spawn, network).
-     */
-    private class EntityDecorator implements WorldManager.Listener {
-        private final String levelId;
-
-        EntityDecorator(String levelId) {
-            this.levelId = levelId;
-        }
-
-        @Override
-        public void onObjectAdded(GameObject obj) {
-            if (obj instanceof EnemyEntity enemy && !enemy.isNetworkControlled()) {
-                enemy.setDamageNumberCallback((x, y, damage) -> emitDamageNumber(levelId, x, y, damage));
-                enemy.setDeathCallback((deadEnemy, x, y) -> emitDeath(levelId, x, y));
-            } else if (obj instanceof BreakableEntity breakable) {
-                breakable.setParticleCallback((x, y, particleType) -> {
-                    if (isCurrentLevel(levelId)) {
-                        destructionParticles.add(new DestructionParticleEntity(x, y, particleType));
-                    }
-                    if (session != null && breakable.getNetId() != 0) {
-                        Packets.Effect effect = new Packets.Effect();
-                        effect.kind = Packets.Effect.BREAK;
-                        effect.netId = breakable.getNetId();
-                        session.broadcastEffect(levelId, effect);
-                    }
-                });
-            }
-        }
-
-        @Override
-        public void onObjectRemoved(GameObject obj) {
-        }
-    }
-
-    private boolean isCurrentLevel(String levelId) {
-        return currentInstance != null && currentInstance.getLevelId().equals(levelId);
-    }
-
-    private String levelIdOf(WorldManager someWorld) {
-        for (LevelInstance instance : instances.values()) {
-            if (instance.getWorld() == someWorld) return instance.getLevelId();
-        }
-        return null;
-    }
-
-    /**
-     * A hit landed in some level: show the number here if we're looking at that level,
-     * and tell the players in it.
-     */
-    private void emitDamageNumber(String levelId, float x, float y, int damage) {
-        if (levelId == null) return;
-        if (isCurrentLevel(levelId)) {
-            showDamageNumber(x, y, damage);
-        }
-        if (session != null) {
-            Packets.Effect effect = new Packets.Effect();
-            effect.kind = Packets.Effect.DAMAGE_NUMBER;
-            effect.x = x;
-            effect.y = y;
-            effect.amount = damage;
-            session.broadcastEffect(levelId, effect);
-        }
-    }
-
-    private void emitDeath(String levelId, float x, float y) {
-        if (isCurrentLevel(levelId)) {
-            showDeathAnimation(x, y);
-        }
-        if (session != null) {
-            Packets.Effect effect = new Packets.Effect();
-            effect.kind = Packets.Effect.DEATH;
-            effect.x = x;
-            effect.y = y;
-            session.broadcastEffect(levelId, effect);
-        }
-    }
-
-    private void checkGatewayCollisions() {
-        if (localPlayer == null) return;
-
-        ColliderComponent playerCollider = localPlayer.getComponent(ColliderComponent.class);
-        if (playerCollider == null) return;
-        Rectangle playerBounds = playerCollider.getBounds(localPlayer);
-
-        for (GameObject obj : world.getGameObjects()) {
-            if (obj instanceof GatewayEntity gateway) {
-                ColliderComponent gatewayCollider = gateway.getComponent(ColliderComponent.class);
-                if (gatewayCollider != null && playerBounds.overlaps(gatewayCollider.getBounds(gateway))) {
-                    pendingGateway = gateway;
-                    return;
-                }
-            }
-        }
     }
 
     private void updateCamera() {
@@ -1399,10 +1111,7 @@ public class GameScreen implements Screen, NetGameContext {
         debugFont.dispose();
         damageFont.dispose();
         if (mapRenderer != null) mapRenderer.dispose();
-        for (LevelInstance instance : instances.values()) {
-            instance.dispose();
-        }
-        instances.clear();
+        gameWorld.dispose();
         if (uiManager != null) uiManager.dispose();
 
         // Dispose audio resources
@@ -1431,11 +1140,6 @@ public class GameScreen implements Screen, NetGameContext {
      * Called by UIManager when user selects "Place" on a furniture item.
      */
     private void enterFurniturePlacementMode(ItemStack furnitureItem, com.game.systems.ui.ItemSlotUI sourceSlot) {
-        if (clientMode) {
-            System.out.println("GameScreen: Furniture can only be placed by the host for now");
-            uiManager.exitPlacementMode();
-            return;
-        }
         if (!furnitureItem.getDefinition().isFurniture()) {
             System.err.println("GameScreen: Cannot place non-furniture item");
             return;
@@ -1514,7 +1218,7 @@ public class GameScreen implements Screen, NetGameContext {
         batch.end();
 
         // Handle input
-        if (Gdx.input.justTouched() && validPlacement) {
+        if (Gdx.input.justTouched() && validPlacement && !placementPending) {
             // Place furniture at snapped position
             placeFurniture(snappedX, snappedY);
         } else if (inputManager.isJustPressed(InputAction.CANCEL) ||
@@ -1526,30 +1230,24 @@ public class GameScreen implements Screen, NetGameContext {
     }
 
     /**
-     * Place furniture at the specified world position.
+     * Place furniture at the specified world position. The item is only taken from the inventory
+     * once the placement is confirmed (immediately for the host, after the host replies for guests).
      */
     private void placeFurniture(float x, float y) {
         if (placementFurnitureItem == null) return;
 
-        ItemDefinition definition = placementFurnitureItem.getDefinition();
-        String itemId = definition.getId();
+        placementPending = true;
+        gameWorld.requestPlaceFurniture(placementFurnitureItem.getDefinition().getId(), x, y, placed -> {
+            placementPending = false;
+            if (!furniturePlacementMode) return; // Canceled while waiting
 
-        // Create furniture entity based on type
-        // For now, all furniture is chests
-        ChestEntity chest = new ChestEntity(itemId, definition, x, y);
-
-        // Add to world
-        world.addGameObject(chest);
-
-        // Add to furniture manager for persistence
-        String currentLevelName = currentLevelSource != null ? currentLevelSource.getLevelName() : "unknown";
-        furnitureManager.placeFurniture(currentLevelName, chest);
-
-        // Notify UI manager to remove item from inventory
-        uiManager.onFurniturePlaced();
-
-        // Exit placement mode
-        exitFurniturePlacementMode(true);
+            if (placed) {
+                uiManager.onFurniturePlaced(); // Removes the item from the inventory
+                exitFurniturePlacementMode(true);
+            } else {
+                showWorldMessage(x + 8, y + 20, "Can't place here", Color.ORANGE);
+            }
+        });
     }
 
     /**
@@ -1593,7 +1291,7 @@ public class GameScreen implements Screen, NetGameContext {
                     if (currentlyOpenChest != null) {
                         closeChest(currentlyOpenChest);
                     }
-                    openChest(chest);
+                    requestOpenChest(chest);
                 }
             } else {
                 // Other furniture types - just call onInteract
@@ -1603,35 +1301,19 @@ public class GameScreen implements Screen, NetGameContext {
     }
 
     /**
-     * Pick up furniture and return it to first player's inventory.
+     * Ask to use a chest; opens it if allowed, otherwise shows that someone else is using it.
      */
-    private void pickupFurniture(com.game.systems.furniture.FurnitureEntity furniture) {
-        PlayerEntity player = localPlayer;
-        if (player == null) return;
-
-        // Create item stack for the furniture
-        String itemId = furniture.getItemId();
-        ItemStack furnitureItem = ItemFactory.create(itemId, 1);
-
-        if (furnitureItem == null) {
-            System.err.println("GameScreen: Failed to create item for furniture: " + itemId);
-            return;
-        }
-
-        // Try to add to player inventory
-        ItemStack remaining = player.getInventory().addItem(furnitureItem);
-        if (remaining == null) {
-            // Successfully added - remove from world
-            world.removeGameObject(furniture);
-
-            // Remove from furniture manager
-            String currentLevelName = currentLevelSource != null ? currentLevelSource.getLevelName() : "unknown";
-            furnitureManager.removeFurniture(currentLevelName, furniture);
-
-            System.out.println("GameScreen: Picked up furniture: " + itemId);
-        } else {
-            System.out.println("GameScreen: Inventory full, cannot pick up furniture");
-        }
+    private void requestOpenChest(ChestEntity chest) {
+        if (chestPendingOpen != null) return;
+        chestPendingOpen = chest;
+        gameWorld.openChest(chest, granted -> {
+            chestPendingOpen = null;
+            if (granted) {
+                openChest(chest);
+            } else {
+                showWorldMessage(chest.getTransform().getX() + 8, chest.getTransform().getY() + 20, "In use", Color.LIGHT_GRAY);
+            }
+        });
     }
 
     /**
@@ -1650,6 +1332,7 @@ public class GameScreen implements Screen, NetGameContext {
      * Close a chest UI.
      */
     private void closeChest(ChestEntity chest) {
+        gameWorld.closeChest(chest); // Let others use it
         if (uiManager != null) {
             uiManager.closeChest(chest);
             if (currentlyOpenChest == chest) {
@@ -1703,7 +1386,7 @@ public class GameScreen implements Screen, NetGameContext {
         }
 
         // Rebuild levels from scratch so they match the save
-        unloadAllLevels();
+        gameWorld.unloadAllLevels();
 
         String levelId = saveData.world.currentLevelId;
         String levelType = saveData.world.levelType;
@@ -1714,7 +1397,7 @@ public class GameScreen implements Screen, NetGameContext {
             levelId = "Maps/prototype.tmx";
         }
 
-        changeLevel(levelId, null);
+        gameWorld.changeLevel(levelId, null);
 
         // Now apply the rest of the save data (player, inventory, dropped items)
         com.game.save.SaveManager.getInstance().applySaveData(saveData);
@@ -1727,42 +1410,15 @@ public class GameScreen implements Screen, NetGameContext {
                          ", Position: (" + saveData.player.x + ", " + saveData.player.y + ")");
     }
 
-    /**
-     * Dispose every level instance (the local player is detached and re-added on the next enterLevel).
-     */
-    private void unloadAllLevels() {
-        if (currentInstance != null && localPlayer != null) {
-            currentInstance.getWorld().removeGameObject(localPlayer);
-        }
-        for (LevelInstance instance : instances.values()) {
-            instance.dispose();
-        }
-        instances.clear();
-        currentInstance = null;
-    }
-
     // ========== Multiplayer ==========
 
     /**
      * Start hosting a multiplayer game (Open to LAN).
-     * The current game becomes a server that others can connect to.
      */
     public void startHosting() {
-        if (session != null || clientMode) {
-            System.out.println("GameScreen: Already in multiplayer mode");
-            return;
+        if (gameWorld.startHosting()) {
+            System.out.println("GameScreen: Other players can connect using 'localhost' or your LAN IP");
         }
-
-        HostSession host = new HostSession(this);
-        session = host;
-        if (!host.start()) {
-            session = null;
-            host.dispose();
-            System.err.println("GameScreen: Could not start hosting (is the port already in use?)");
-            return;
-        }
-
-        System.out.println("GameScreen: Other players can connect using 'localhost' or your LAN IP");
     }
 
     /**
@@ -1770,100 +1426,32 @@ public class GameScreen implements Screen, NetGameContext {
      * The level is built when the host's welcome arrives.
      */
     public void setGameClient(com.game.networking.GameClient client) {
-        if (session != null) {
-            System.out.println("GameScreen: Already in multiplayer mode");
-            return;
-        }
-        session = new ClientSession(client, this);
+        gameWorld.join(client);
     }
 
     /**
      * Whether this machine joined someone else's game.
      */
     public boolean isGuest() {
-        return clientMode;
+        return gameWorld.isGuest();
     }
 
-    /**
-     * Stop hosting or disconnect from the host.
-     */
     public void stopMultiplayer() {
-        if (session != null) {
-            NetSession ending = session;
-            session = null;
-            ending.dispose();
-        }
+        gameWorld.stopMultiplayer();
+    }
+
+    public PlayerEntity getLocalPlayer() {
+        return localPlayer;
+    }
+
+    public GameWorld getGameWorld() {
+        return gameWorld;
     }
 
     private void returnToMainMenu(String errorMessage) {
         screenClosed = true;
         com.badlogic.gdx.Game game = (com.badlogic.gdx.Game) Gdx.app.getApplicationListener();
         game.setScreen(new MainMenuScreen((Main) game, errorMessage));
-    }
-
-    // ========== NetGameContext ==========
-
-    @Override
-    public PlayerEntity getLocalPlayer() {
-        return localPlayer;
-    }
-
-    @Override
-    public PlayerManager getPlayerManager() {
-        return playerManager;
-    }
-
-    @Override
-    public WorldItemManager getWorldItemManager() {
-        return worldItemManager;
-    }
-
-    @Override
-    public LevelInstance getCurrentInstance() {
-        return currentInstance;
-    }
-
-    @Override
-    public java.util.Collection<LevelInstance> getInstances() {
-        return new java.util.ArrayList<>(instances.values());
-    }
-
-    @Override
-    public LevelInstance getOrCreateInstance(String levelId) {
-        LevelInstance instance = instances.get(levelId);
-        if (instance == null) {
-            instance = createInstance(new com.game.systems.level.TiledMapLevelSource(levelId));
-        }
-        return instance;
-    }
-
-    @Override
-    public PlayerEntity createRemotePlayer(int playerId, WorldManager playerWorld, float x, float y) {
-        PlayerEntity player = new PlayerEntity(playerWorld, x, y);
-        player.setPlayerId(playerId);
-        player.setNetworkControlled(true);
-        player.setDamageNumberCallback((dx, dy, damage) -> emitDamageNumber(levelIdOf(player.getWorld()), dx, dy, damage));
-        playerManager.addPlayerWithId(player);
-        return player;
-    }
-
-    @Override
-    public void removeRemotePlayer(PlayerEntity player) {
-        playerManager.removePlayer(player);
-    }
-
-    @Override
-    public void startAsClient(int playerId, String levelId, float x, float y, String savedPlayerJson) {
-        LevelInstance instance = createInstance(new com.game.systems.level.TiledMapLevelSource(levelId));
-        enterLevel(instance, new Vector2(x, y));
-
-        com.game.save.PlayerData saved = PlayerDataCodec.fromJson(savedPlayerJson);
-        if (saved != null) {
-            PlayerDataCodec.apply(localPlayer, saved);
-            localPlayer.updateWeaponSprite();
-            uiManager.refreshAllWindows();
-            System.out.println("GameScreen: Restored character from the host's save");
-        }
     }
 
     @Override
@@ -1886,7 +1474,6 @@ public class GameScreen implements Screen, NetGameContext {
     @Override
     public void onConnectionLost(String reason) {
         System.out.println("GameScreen: " + reason);
-        stopMultiplayer();
         returnToMainMenu(reason);
     }
 }

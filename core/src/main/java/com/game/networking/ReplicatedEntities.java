@@ -13,6 +13,8 @@ import com.game.systems.entity.entities.ItemPickupEntity;
 import com.game.systems.entity.entities.enemies.Axolot;
 import com.game.systems.entity.entities.enemies.CatEnemy;
 import com.game.systems.entity.entities.enemies.LizardEnemy;
+import com.game.systems.furniture.FurnitureEntity;
+import com.game.systems.furniture.FurnitureFactory;
 
 /**
  * Converts between world objects and their network description.
@@ -25,14 +27,15 @@ public final class ReplicatedEntities {
 
     /**
      * Whether the host should replicate this world object to clients.
-     * Players are handled separately (owner-authoritative); gateways and furniture are static.
+     * Players are handled separately (owner-authoritative); gateways are part of the map.
      */
     public static boolean isReplicated(GameObject obj) {
-        return obj instanceof EnemyEntity || obj instanceof BreakableEntity;
+        return obj instanceof EnemyEntity || obj instanceof BreakableEntity || obj instanceof FurnitureEntity;
     }
 
     /**
-     * Describe a world object (enemy or breakable) as a spawn packet.
+     * Describe a world object (enemy, breakable or furniture) as a spawn packet.
+     * Chest contents are not included; they are sent when a player opens the chest.
      */
     public static Packets.EntitySpawn describe(GameObject obj) {
         Packets.EntitySpawn spawn = new Packets.EntitySpawn();
@@ -68,11 +71,12 @@ public final class ReplicatedEntities {
         if (obj instanceof Axolot) return "enemy:axolot";
         if (obj instanceof CatEnemy) return "enemy:cat";
         if (obj instanceof BreakableEntity breakable) return "breakable:" + breakable.getObjectType();
+        if (obj instanceof FurnitureEntity furniture) return "furniture:" + furniture.getItemId();
         throw new IllegalArgumentException("Not a replicated type: " + obj.getClass().getSimpleName());
     }
 
     /**
-     * Create a client-side puppet for a spawned enemy or breakable (not items).
+     * Create a client-side copy of a spawned enemy, breakable or furniture (not items).
      * @return the puppet, or null for unknown types
      */
     public static GameObject createPuppet(Packets.EntitySpawn spawn, WorldManager world) {
@@ -90,6 +94,11 @@ public final class ReplicatedEntities {
             }
             enemy.setNetworkControlled(true);
             obj = enemy;
+        } else if (spawn.type.startsWith("furniture:")) {
+            obj = FurnitureFactory.create(spawn.type.substring("furniture:".length()), spawn.x, spawn.y);
+            if (obj == null) {
+                return null;
+            }
         } else if (spawn.type.startsWith("breakable:")) {
             obj = BreakableObjectFactory.create(spawn.type.substring("breakable:".length()), spawn.x, spawn.y);
             if (obj == null) {

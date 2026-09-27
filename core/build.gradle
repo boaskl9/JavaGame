@@ -15,6 +15,26 @@ dependencies {
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"
   }
+
+  // Tests: JUnit 5 + libGDX headless backend (files, audio mocks, no window)
+  testImplementation platform("org.junit:junit-bom:5.11.4")
+  testImplementation "org.junit.jupiter:junit-jupiter"
+  testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+  testImplementation "org.mockito:mockito-core:5.14.2"
+  testImplementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
+  testImplementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+}
+
+test {
+  useJUnitPlatform()
+  // Run from the project root with assets/ on the classpath, like the game does,
+  // so both "assets/..." and "Maps/..." style paths resolve
+  workingDir = rootProject.projectDir
+  classpath += files(rootProject.file('assets'))
+  testLogging {
+    events "failed", "skipped"
+    exceptionFormat "full"
+  }
 }
 
 task packWoodTheme {

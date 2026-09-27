@@ -48,6 +48,19 @@ public class DamageNumberEntity extends GameObject {
     }
 
     /**
+     * Creates a short floating message (e.g. "In use") in the given color.
+     */
+    public DamageNumberEntity(float x, float y, String text, Color color, BitmapFont font) {
+        this.damageText = text;
+        this.font = font;
+        this.lifeTimer = 0f;
+        this.color = new Color(color);
+
+        transform = new Transform(x, y);
+        addComponent(transform);
+    }
+
+    /**
      * Creates a healing number entity (green color).
      */
     public DamageNumberEntity(float x, float y, int healAmount, BitmapFont font, boolean isHealing) {

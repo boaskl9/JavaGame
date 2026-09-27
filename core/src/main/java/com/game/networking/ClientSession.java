@@ -8,12 +8,16 @@ import com.game.systems.entity.entities.BreakableEntity;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.systems.entity.entities.ItemPickupEntity;
 import com.game.systems.entity.entities.PlayerEntity;
+import com.game.systems.furniture.ChestEntity;
+import com.game.systems.furniture.FurnitureEntity;
+import com.game.systems.furniture.FurnitureFactory;
 import com.game.systems.item.ItemFactory;
 import com.game.systems.item.ItemStack;
 import com.game.world.LevelInstance;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static com.game.systems.audio.SoundRegistry.*;
 
@@ -43,6 +47,13 @@ public class ClientSession implements NetSession {
     private final Map<Integer, PlayerEntity> remotePlayers = new HashMap<>();
     private final Map<Integer, ClockSync> clocks = new HashMap<>();
     private final Map<Integer, Long> pickupRequestTimes = new HashMap<>();
+
+    // Furniture
+    private final Map<Integer, Consumer<Boolean>> pendingPlacements = new HashMap<>(); // By request ID
+    private final Map<Integer, Consumer<Boolean>> pendingChestOpens = new HashMap<>(); // By chest net ID
+    private int nextRequestId = 1;
+    private ChestEntity openChest;         // Chest this player is using (the host holds the lock for us)
+    private String openChestSignature;     // Contents last sent to the host
 
     private float playerStateTimer = 0f;
     private float inventorySyncTimer = 0f;
@@ -86,6 +97,24 @@ public class ClientSession implements NetSession {
             inventorySyncTimer = 0f;
             sendInventorySync();
         }
+
+        syncOpenChest();
+    }
+
+    /**
+     * Send the open chest's contents to the host whenever the player changed them.
+     */
+    private void syncOpenChest() {
+        if (openChest == null) return;
+        String signature = FurnitureFactory.signature(openChest.getContainer());
+        if (signature.equals(openChestSignature)) return;
+
+        openChestSignature = signature;
+        Packets.ChestContents contents = new Packets.ChestContents();
+        contents.netId = openChest.getNetId();
+        contents.itemIds = FurnitureFactory.contentIds(openChest.getContainer());
+        contents.quantities = FurnitureFactory.contentQuantities(openChest.getContainer());
+        client.send(contents);
     }
 
     private void sendInventorySync() {
@@ -126,6 +155,11 @@ public class ClientSession implements NetSession {
             }
         } else if (packet instanceof Packets.ItemGrant grant) {
             onItemGrant(grant);
+        } else if (packet instanceof Packets.PlaceFurnitureResult result) {
+            Consumer<Boolean> callback = pendingPlacements.remove(result.requestId);
+            if (callback != null) callback.accept(result.placed);
+        } else if (packet instanceof Packets.ChestOpenResult result) {
+            onChestOpenResult(result);
         }
     }
 
@@ -294,6 +328,69 @@ public class ClientSession implements NetSession {
         game.onInventoryChanged();
     }
 
+    // ========== Furniture ==========
+
+    private void onChestOpenResult(Packets.ChestOpenResult result) {
+        Consumer<Boolean> callback = pendingChestOpens.remove(result.netId);
+        ChestEntity chest = entities.get(result.netId) instanceof ChestEntity c ? c : null;
+
+        boolean granted = result.granted && chest != null;
+        if (granted) {
+            FurnitureFactory.setContents(chest.getContainer(), result.itemIds, result.quantities);
+            openChest = chest;
+            openChestSignature = FurnitureFactory.signature(chest.getContainer());
+        } else if (result.granted) {
+            // Chest vanished locally meanwhile: give the lock back
+            Packets.ChestClose close = new Packets.ChestClose();
+            close.netId = result.netId;
+            client.send(close);
+        }
+        if (callback != null) callback.accept(granted);
+    }
+
+    @Override
+    public boolean placeFurniture(String itemId, float x, float y, Consumer<Boolean> onResult) {
+        Packets.PlaceFurnitureRequest request = new Packets.PlaceFurnitureRequest();
+        request.requestId = nextRequestId++;
+        request.itemId = itemId;
+        request.x = x;
+        request.y = y;
+        pendingPlacements.put(request.requestId, onResult);
+        client.send(request);
+        return true;
+    }
+
+    @Override
+    public boolean pickUpFurniture(FurnitureEntity furniture) {
+        if (furniture.getNetId() == 0) return true;
+        Packets.PickUpFurnitureRequest request = new Packets.PickUpFurnitureRequest();
+        request.netId = furniture.getNetId();
+        client.send(request);
+        return true;
+    }
+
+    @Override
+    public void openChest(ChestEntity chest, Consumer<Boolean> onResult) {
+        if (chest.getNetId() == 0 || pendingChestOpens.containsKey(chest.getNetId())) {
+            return;
+        }
+        pendingChestOpens.put(chest.getNetId(), onResult);
+        Packets.ChestOpenRequest request = new Packets.ChestOpenRequest();
+        request.netId = chest.getNetId();
+        client.send(request);
+    }
+
+    @Override
+    public void closeChest(ChestEntity chest) {
+        if (openChest != chest) return;
+        syncOpenChest(); // Make sure the host has the final contents
+        Packets.ChestClose close = new Packets.ChestClose();
+        close.netId = chest.getNetId();
+        client.send(close);
+        openChest = null;
+        openChestSignature = null;
+    }
+
     // ========== Local player ==========
 
     @Override
@@ -308,6 +405,9 @@ public class ClientSession implements NetSession {
         entities.clear();
         items.clear();
         pickupRequestTimes.clear();
+        pendingChestOpens.clear();
+        openChest = null;
+        openChestSignature = null;
         for (PlayerEntity puppet : remotePlayers.values()) {
             if (puppet.getWorld() != null) {
                 puppet.getWorld().removeGameObject(puppet);
@@ -384,6 +484,7 @@ public class ClientSession implements NetSession {
         if (disposed) return;
         disposed = true;
         if (isJoined()) {
+            syncOpenChest();
             sendInventorySync(); // So the host can save our character
         }
         client.disconnect();

@@ -193,98 +193,38 @@ public class FurnitureManager implements GameSingleton {
         Map<String, List<com.game.save.FurnitureData>> result = new HashMap<>();
 
         for (Map.Entry<String, List<FurnitureEntity>> entry : furnitureByLevel.entrySet()) {
-            String levelId = entry.getKey();
-            List<FurnitureEntity> furniture = entry.getValue();
             List<com.game.save.FurnitureData> furnitureDataList = new ArrayList<>();
-
-            for (FurnitureEntity f : furniture) {
-                String itemId = f.getItemId();
-                float x = f.getTransform().getX();
-                float y = f.getTransform().getY();
-                List<com.game.save.ItemStackData> inventoryContents = null;
-
-                // Export chest inventory if this is a chest
-                if (f instanceof ChestEntity) {
-                    ChestEntity chest = (ChestEntity) f;
-                    inventoryContents = new ArrayList<>();
-                    com.game.systems.inventory.InventoryContainer container = chest.getContainer();
-
-                    for (int i = 0; i < container.getSize(); i++) {
-                        com.game.systems.item.ItemStack stack = container.getItem(i);
-                        if (stack != null && !stack.isEmpty()) {
-                            inventoryContents.add(new com.game.save.ItemStackData(
-                                stack.getDefinition().getId(),
-                                stack.getQuantity()
-                            ));
-                        } else {
-                            inventoryContents.add(null);
-                        }
-                    }
-                }
-
-                furnitureDataList.add(new com.game.save.FurnitureData(itemId, x, y, inventoryContents));
+            for (FurnitureEntity f : entry.getValue()) {
+                List<com.game.save.ItemStackData> contents = f instanceof ChestEntity chest
+                    ? FurnitureFactory.exportContents(chest.getContainer())
+                    : null;
+                furnitureDataList.add(new com.game.save.FurnitureData(
+                    f.getItemId(), f.getTransform().getX(), f.getTransform().getY(), contents));
             }
-
-            result.put(levelId, furnitureDataList);
+            result.put(entry.getKey(), furnitureDataList);
         }
 
         return result;
     }
 
     /**
-     * Import furniture data from save.
-     * Clears existing furniture and recreates from save data.
-     * @param data Map of level ID -> list of furniture data
+     * Replace all furniture with the furniture from a save.
+     * Call this before levels are built: levels load their furniture from this manager.
      */
     public void importSaveData(Map<String, List<com.game.save.FurnitureData>> data) {
-        // Clear existing furniture
         furnitureByLevel.clear();
 
-        // Recreate furniture from save data
         for (Map.Entry<String, List<com.game.save.FurnitureData>> entry : data.entrySet()) {
-            String levelId = entry.getKey();
-            List<com.game.save.FurnitureData> furnitureDataList = entry.getValue();
-
-            for (com.game.save.FurnitureData furnitureData : furnitureDataList) {
-                // Look up item definition
-                com.game.systems.item.ItemDefinition def = com.game.systems.item.ItemRegistry.get(furnitureData.itemId);
-                if (def == null || !def.isFurniture()) {
-                    System.err.println("FurnitureManager: Invalid furniture item: " + furnitureData.itemId);
+            for (com.game.save.FurnitureData furnitureData : entry.getValue()) {
+                FurnitureEntity furniture = FurnitureFactory.create(furnitureData.itemId, furnitureData.x, furnitureData.y);
+                if (furniture == null) {
                     continue;
                 }
-
-                // Create appropriate furniture entity
-                FurnitureEntity furniture;
-                if (def.isBag()) {
-                    // This is a chest (bag item used for furniture)
-                    furniture = new ChestEntity(furnitureData.itemId, def, furnitureData.x, furnitureData.y);
-
-                    // Restore chest inventory
-                    if (furnitureData.inventoryContents != null) {
-                        ChestEntity chest = (ChestEntity) furniture;
-                        com.game.systems.inventory.InventoryContainer container = chest.getContainer();
-
-                        for (int i = 0; i < furnitureData.inventoryContents.size() && i < container.getSize(); i++) {
-                            com.game.save.ItemStackData stackData = furnitureData.inventoryContents.get(i);
-                            if (stackData != null) {
-                                com.game.systems.item.ItemDefinition itemDef = com.game.systems.item.ItemRegistry.get(stackData.itemId);
-                                if (itemDef != null) {
-                                    container.setItem(i, new com.game.systems.item.ItemStack(itemDef, stackData.quantity));
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // Future: Other furniture types would be created here
-                    System.err.println("FurnitureManager: Unknown furniture type: " + furnitureData.itemId);
-                    continue;
+                if (furniture instanceof ChestEntity chest && furnitureData.inventoryContents != null) {
+                    FurnitureFactory.importContents(chest.getContainer(), furnitureData.inventoryContents);
                 }
-
-                // Add to manager
-                placeFurniture(levelId, furniture);
+                placeFurniture(entry.getKey(), furniture);
             }
         }
-
-        System.out.println("FurnitureManager: Imported " + getTotalFurnitureCount() + " furniture items");
     }
 }

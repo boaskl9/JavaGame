@@ -46,6 +46,26 @@ public interface NetSession {
      */
     boolean dropItem(ItemStack stack, float x, float y);
 
+    /**
+     * The local player wants to place furniture.
+     * @return true if the session handles it (client asks the host and calls onResult later),
+     *         false to place it locally
+     */
+    boolean placeFurniture(String itemId, float x, float y, java.util.function.Consumer<Boolean> onResult);
+
+    /**
+     * The local player wants to pick furniture up.
+     * @return true if the session handled it (client sent a request, or the host refused because
+     *         another player is using it), false to pick it up locally
+     */
+    boolean pickUpFurniture(com.game.systems.furniture.FurnitureEntity furniture);
+
+    /** The local player wants to use a chest; onResult(true) once they may (one player at a time). */
+    void openChest(com.game.systems.furniture.ChestEntity chest, java.util.function.Consumer<Boolean> onResult);
+
+    /** The local player closed a chest. */
+    void closeChest(com.game.systems.furniture.ChestEntity chest);
+
     /** One-shot visual that happened in a level on the host, to be shown to players there. */
     void broadcastEffect(String levelId, Packets.Effect effect);
 

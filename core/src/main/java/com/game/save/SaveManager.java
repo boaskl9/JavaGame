@@ -294,16 +294,24 @@ public class SaveManager implements GameSingleton {
 
     /**
      * Store a multiplayer guest's character so it is saved with this world.
+     * @param guestKey the guest's identity key (see PlayerIdentity.key())
      */
-    public void putGuestData(String playerName, PlayerData data) {
-        guestPlayers.put(playerName, data);
+    public void putGuestData(String guestKey, PlayerData data) {
+        guestPlayers.put(guestKey, data);
     }
 
     /**
      * A multiplayer guest's character from an earlier session, or null.
      */
-    public PlayerData getGuestData(String playerName) {
-        return guestPlayers.get(playerName);
+    public PlayerData getGuestData(String guestKey) {
+        return guestPlayers.get(guestKey);
+    }
+
+    /**
+     * Remove and return a guest's character (used to move saves stored under an old key).
+     */
+    public PlayerData removeGuestData(String guestKey) {
+        return guestPlayers.remove(guestKey);
     }
 
     public int getPlaytimeSeconds() {
@@ -338,10 +346,9 @@ public class SaveManager implements GameSingleton {
             playerInventory.importSaveData(saveData.player.inventory);
         }
 
-        // Restore furniture
-        if (furnitureManager != null && saveData.world != null && saveData.world.furnitureByLevel != null) {
-            furnitureManager.importSaveData(saveData.world.furnitureByLevel);
-        }
+        // Furniture is NOT restored here: it must be imported before levels are built (levels load
+        // their furniture from FurnitureManager). Importing again here would create a second set of
+        // furniture objects that the manager tracks but the world doesn't contain.
 
         // Restore dropped items
         if (worldItemManager != null && saveData.world != null && saveData.world.droppedItemsByLevel != null) {

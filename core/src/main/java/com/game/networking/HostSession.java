@@ -9,9 +9,13 @@ import com.game.systems.entity.Transform;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.systems.entity.entities.ItemPickupEntity;
 import com.game.systems.entity.entities.PlayerEntity;
+import com.game.systems.furniture.ChestEntity;
+import com.game.systems.furniture.FurnitureEntity;
+import com.game.systems.furniture.FurnitureFactory;
 import com.game.systems.item.ItemDefinition;
 import com.game.systems.item.ItemRegistry;
 import com.game.systems.item.ItemStack;
+import com.game.networking.identity.PlayerIdentity;
 import com.game.world.LevelInstance;
 
 import java.util.ArrayList;
@@ -31,16 +35,19 @@ import java.util.Map;
 public class HostSession implements NetSession {
     public static final int HOST_PLAYER_ID = 0;
     private static final String FALLBACK_LEVEL = "Maps/prototype.tmx";
+    private static final String LEGACY_PROVIDER = "name"; // Clients that send no identity
     private static final float PLAYER_STATE_INTERVAL = 1f / 30f;
     private static final float ENTITY_STATE_INTERVAL = 1f / 20f;
     private static final float MAX_PICKUP_DISTANCE = 64f; // Generous: magnet range + the guest's copy lagging behind the guest
     private static final float DROPPED_ITEM_GRACE = 1.5f;
+    private static final float MAX_FURNITURE_REACH = 48f; // Generous: the guest's copy lags behind the guest
 
     private final GameServer server;
     private final NetGameContext game;
 
     private final Map<Integer, Guest> guests = new HashMap<>(); // By connection ID
     private final Map<Integer, Tracked> tracked = new HashMap<>(); // By net ID
+    private final Map<Integer, Integer> chestLocks = new HashMap<>(); // Chest net ID -> player ID using it
     private final WorldItemManager.Listener itemListener = new ItemReplicator();
     private int nextPlayerId = HOST_PLAYER_ID + 1;
     private int nextNetId = 1;
@@ -52,7 +59,8 @@ public class HostSession implements NetSession {
     private static final class Guest {
         final int connectionId;
         int playerId = -1;
-        String name;
+        String name;     // Display name (de-duplicated among connected guests)
+        String saveKey;  // Where this guest's character is stored (identity key)
         String levelId;
         int epoch;
         PlayerEntity player; // Network-controlled copy on the host
@@ -71,8 +79,12 @@ public class HostSession implements NetSession {
     }
 
     public HostSession(NetGameContext game) {
+        this(game, GameServer.DEFAULT_PORT);
+    }
+
+    public HostSession(NetGameContext game, int port) {
         this.game = game;
-        this.server = new GameServer();
+        this.server = new GameServer(port);
     }
 
     /**
@@ -218,10 +230,25 @@ public class HostSession implements NetSession {
             onGuestPickup(guest, pickup);
         } else if (packet instanceof Packets.DropItem drop) {
             onGuestDrop(guest, drop);
+        } else if (packet instanceof Packets.PlaceFurnitureRequest place) {
+            onGuestPlaceFurniture(guest, place);
+        } else if (packet instanceof Packets.PickUpFurnitureRequest pickUp) {
+            onGuestPickUpFurniture(guest, pickUp);
+        } else if (packet instanceof Packets.ChestOpenRequest open) {
+            onGuestOpenChest(guest, open);
+        } else if (packet instanceof Packets.ChestContents contents) {
+            ChestEntity chest = chestHeldBy(guest.playerId, contents.netId);
+            if (chest != null) {
+                FurnitureFactory.setContents(chest.getContainer(), contents.itemIds, contents.quantities);
+            }
+        } else if (packet instanceof Packets.ChestClose close) {
+            chestLocks.remove(close.netId, guest.playerId);
         } else if (packet instanceof Packets.InventorySync sync) {
             PlayerData data = PlayerDataCodec.fromJson(sync.playerJson);
             if (data != null) {
-                SaveManager.getInstance().putGuestData(guest.name, data);
+                data.levelId = guest.levelId; // The host knows for sure which level they're in
+                data.displayName = guest.name;
+                SaveManager.getInstance().putGuestData(guest.saveKey, data);
             }
         }
     }
@@ -231,37 +258,103 @@ public class HostSession implements NetSession {
 
         guest.playerId = nextPlayerId++;
         guest.name = uniqueName(hello.playerName);
+        guest.saveKey = saveKeyFor(hello);
+        PlayerData saved = loadGuestData(guest.saveKey, hello.playerName);
 
-        // Join the host's level at the host's position; generated dungeons can't be shared yet
-        LevelInstance level = game.getCurrentInstance();
-        PlayerEntity host = game.getLocalPlayer();
-        float x;
-        float y;
-        if (level != null && level.isShareable() && host != null) {
-            x = host.getTransform().getX();
-            y = host.getTransform().getY();
-        } else {
-            level = game.getOrCreateInstance(FALLBACK_LEVEL);
-            com.badlogic.gdx.math.Vector2 spawn = level.getSpawnPosition(null);
-            x = spawn.x;
-            y = spawn.y;
+        // Continue where they left off if possible; otherwise join the host
+        LevelInstance level = null;
+        com.badlogic.gdx.math.Vector2 position = null;
+        if (saved != null && saved.levelId != null) {
+            level = tryGetShareableLevel(saved.levelId);
+            if (level != null) {
+                position = isStandable(level, saved.x, saved.y)
+                    ? new com.badlogic.gdx.math.Vector2(saved.x, saved.y)
+                    : level.getSpawnPosition(null);
+            }
+        }
+        if (level == null) {
+            level = game.getCurrentInstance();
+            PlayerEntity host = game.getLocalPlayer();
+            if (level != null && level.isShareable() && host != null) {
+                position = new com.badlogic.gdx.math.Vector2(host.getTransform().getX(), host.getTransform().getY());
+            } else {
+                // Generated dungeons can't be shared yet
+                level = game.getOrCreateInstance(FALLBACK_LEVEL);
+                position = level.getSpawnPosition(null);
+            }
         }
 
         guest.levelId = level.getLevelId();
         guest.epoch = 1;
-        guest.player = createGuestPlayer(guest, level.getWorld(), x, y);
+        guest.player = createGuestPlayer(guest, level.getWorld(), position.x, position.y);
 
         Packets.Welcome welcome = new Packets.Welcome();
         welcome.playerId = guest.playerId;
         welcome.playerName = guest.name;
         welcome.levelId = guest.levelId;
-        welcome.x = x;
-        welcome.y = y;
-        welcome.savedPlayerJson = PlayerDataCodec.toJson(SaveManager.getInstance().getGuestData(guest.name));
+        welcome.x = position.x;
+        welcome.y = position.y;
+        welcome.savedPlayerJson = PlayerDataCodec.toJson(saved);
         server.send(guest.connectionId, welcome);
         sendLevelSnapshot(guest);
 
-        System.out.println("HostSession: " + guest.name + " joined as player " + guest.playerId + " in " + guest.levelId);
+        System.out.println("HostSession: " + guest.name + " [" + guest.saveKey + "] joined as player "
+            + guest.playerId + " in " + guest.levelId + (saved != null ? " (returning)" : ""));
+    }
+
+    /**
+     * Where a guest's character is saved. Normally their identity key; if that identity is already
+     * connected (e.g. two copies of the game on one computer), the extra connection gets its own key.
+     */
+    private String saveKeyFor(Packets.Hello hello) {
+        String base = (hello.identityProvider == null || hello.identityProvider.isBlank()
+                || hello.identityId == null || hello.identityId.isBlank())
+            ? PlayerIdentity.key(LEGACY_PROVIDER, String.valueOf(hello.playerName))
+            : PlayerIdentity.key(hello.identityProvider, hello.identityId);
+
+        String key = base;
+        int copy = 2;
+        while (isSaveKeyInUse(key)) {
+            key = base + "#" + copy++;
+        }
+        return key;
+    }
+
+    private boolean isSaveKeyInUse(String key) {
+        for (Guest other : guests.values()) {
+            if (other.isJoined() && key.equals(other.saveKey)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * The guest's saved character. Characters saved before identities existed were stored under the
+     * plain display name; the first identity to join with that name takes them over.
+     */
+    private PlayerData loadGuestData(String saveKey, String displayName) {
+        SaveManager saves = SaveManager.getInstance();
+        PlayerData data = saves.getGuestData(saveKey);
+        if (data == null && displayName != null && saves.getGuestData(displayName) != null) {
+            data = saves.removeGuestData(displayName);
+            saves.putGuestData(saveKey, data);
+            System.out.println("HostSession: Moved legacy character '" + displayName + "' to " + saveKey);
+        }
+        return data;
+    }
+
+    private LevelInstance tryGetShareableLevel(String levelId) {
+        try {
+            LevelInstance level = game.getOrCreateInstance(levelId);
+            return level.isShareable() ? level : null;
+        } catch (Exception e) {
+            System.err.println("HostSession: Saved level " + levelId + " can't be loaded: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** Whether a player's feet fit at this position (matches PlayerEntity's environment collider). */
+    private static boolean isStandable(LevelInstance level, float x, float y) {
+        return level.getWorld().isPositionWalkable(x + 4, y, 8, 4);
     }
 
     private String uniqueName(String requested) {
@@ -300,6 +393,8 @@ public class HostSession implements NetSession {
         if (!guest.isJoined()) return;
 
         System.out.println("HostSession: " + guest.name + " (player " + guest.playerId + ") left");
+        rememberWhereGuestLeft(guest);
+        releaseChestsHeldBy(guest.playerId);
         guest.player.getWorld().removeGameObject(guest.player);
         game.removeRemotePlayer(guest.player);
 
@@ -310,6 +405,24 @@ public class HostSession implements NetSession {
                 server.send(other.connectionId, left);
             }
         }
+    }
+
+    /**
+     * Record the guest's latest level and position (inventory comes from their last sync).
+     */
+    private void rememberWhereGuestLeft(Guest guest) {
+        SaveManager saves = SaveManager.getInstance();
+        PlayerData data = saves.getGuestData(guest.saveKey);
+        if (data == null) {
+            data = new PlayerData();
+            data.maxHealth = guest.player.getMaxHealth();
+            data.currentHealth = guest.player.getHealth();
+        }
+        data.levelId = guest.levelId;
+        data.x = guest.player.getTransform().getX();
+        data.y = guest.player.getTransform().getY();
+        data.displayName = guest.name;
+        saves.putGuestData(guest.saveKey, data);
     }
 
     private void onGuestState(Guest guest, Packets.PlayerState state) {
@@ -337,6 +450,8 @@ public class HostSession implements NetSession {
             server.kick(guest.connectionId);
             return;
         }
+
+        releaseChestsHeldBy(guest.playerId); // Chests stay behind in the old level
 
         WorldManager oldWorld = guest.player.getWorld();
         if (oldWorld != null) {
@@ -412,6 +527,93 @@ public class HostSession implements NetSession {
         server.send(guest.connectionId, snapshot);
     }
 
+    // ========== Furniture ==========
+
+    private void onGuestPlaceFurniture(Guest guest, Packets.PlaceFurnitureRequest request) {
+        FurnitureEntity placed = game.placeFurniture(guest.levelId, request.itemId, request.x, request.y);
+
+        Packets.PlaceFurnitureResult result = new Packets.PlaceFurnitureResult();
+        result.requestId = request.requestId;
+        result.placed = placed != null;
+        server.send(guest.connectionId, result);
+    }
+
+    private void onGuestPickUpFurniture(Guest guest, Packets.PickUpFurnitureRequest request) {
+        FurnitureEntity furniture = furnitureNearGuest(guest, request.netId);
+        if (furniture == null || !furniture.canPickup() || chestLocks.containsKey(request.netId)) {
+            return;
+        }
+
+        game.removeFurniture(guest.levelId, furniture); // Despawns it for everyone
+
+        Packets.ItemGrant grant = new Packets.ItemGrant();
+        grant.itemId = furniture.getItemId();
+        grant.quantity = 1;
+        server.send(guest.connectionId, grant);
+    }
+
+    private void onGuestOpenChest(Guest guest, Packets.ChestOpenRequest request) {
+        Packets.ChestOpenResult result = new Packets.ChestOpenResult();
+        result.netId = request.netId;
+
+        FurnitureEntity furniture = furnitureNearGuest(guest, request.netId);
+        Integer holder = chestLocks.get(request.netId);
+        if (furniture instanceof ChestEntity chest && (holder == null || holder == guest.playerId)) {
+            chestLocks.put(request.netId, guest.playerId);
+            result.granted = true;
+            result.itemIds = FurnitureFactory.contentIds(chest.getContainer());
+            result.quantities = FurnitureFactory.contentQuantities(chest.getContainer());
+        }
+        server.send(guest.connectionId, result);
+    }
+
+    /** Furniture in the guest's level within reach of the guest's copy, or null. */
+    private FurnitureEntity furnitureNearGuest(Guest guest, int netId) {
+        Tracked entry = tracked.get(netId);
+        if (entry == null || !entry.levelId.equals(guest.levelId) || !(entry.obj instanceof FurnitureEntity furniture)) {
+            return null;
+        }
+        float distance = furniture.getTransform().getPosition().dst(guest.player.getTransform().getPosition());
+        return distance <= MAX_FURNITURE_REACH ? furniture : null;
+    }
+
+    private ChestEntity chestHeldBy(int playerId, int netId) {
+        Integer holder = chestLocks.get(netId);
+        Tracked entry = tracked.get(netId);
+        return holder != null && holder == playerId && entry != null && entry.obj instanceof ChestEntity chest ? chest : null;
+    }
+
+    private void releaseChestsHeldBy(int playerId) {
+        chestLocks.values().removeIf(holder -> holder == playerId);
+    }
+
+    @Override
+    public boolean placeFurniture(String itemId, float x, float y, java.util.function.Consumer<Boolean> onResult) {
+        return false; // The host places directly; replication follows automatically
+    }
+
+    @Override
+    public boolean pickUpFurniture(FurnitureEntity furniture) {
+        Integer holder = chestLocks.get(furniture.getNetId());
+        return holder != null && holder != HOST_PLAYER_ID; // Refuse while a guest is using it
+    }
+
+    @Override
+    public void openChest(ChestEntity chest, java.util.function.Consumer<Boolean> onResult) {
+        Integer holder = chestLocks.get(chest.getNetId());
+        if (holder != null && holder != HOST_PLAYER_ID) {
+            onResult.accept(false);
+            return;
+        }
+        chestLocks.put(chest.getNetId(), HOST_PLAYER_ID);
+        onResult.accept(true);
+    }
+
+    @Override
+    public void closeChest(ChestEntity chest) {
+        chestLocks.remove(chest.getNetId(), HOST_PLAYER_ID);
+    }
+
     // ========== Replication ==========
 
     @Override
@@ -469,6 +671,7 @@ public class HostSession implements NetSession {
 
     private void despawnForGuests(String levelId, GameObject obj) {
         if (disposed || tracked.remove(obj.getNetId()) == null) return;
+        chestLocks.remove(obj.getNetId());
         Packets.EntityDespawn despawn = new Packets.EntityDespawn();
         despawn.netId = obj.getNetId();
         for (Guest guest : guests.values()) {
@@ -587,12 +790,14 @@ public class HostSession implements NetSession {
         game.getWorldItemManager().removeListener(itemListener);
         for (Guest guest : guests.values()) {
             if (guest.isJoined()) {
+                rememberWhereGuestLeft(guest); // So the host's save has everyone's latest location
                 guest.player.getWorld().removeGameObject(guest.player);
                 game.removeRemotePlayer(guest.player);
             }
         }
         guests.clear();
         tracked.clear();
+        chestLocks.clear();
         server.stop();
     }
 }

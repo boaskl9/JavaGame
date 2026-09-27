@@ -209,7 +209,9 @@ public class MainMenuScreen implements Screen {
                 System.out.println("MainMenu: Attempting to connect to server: " + serverIp + " as " + playerName);
 
                 // Test connection FIRST before creating GameScreen
-                com.game.networking.GameClient testClient = new com.game.networking.GameClient(playerName);
+                com.game.networking.identity.PlayerIdentity identity =
+                    new com.game.networking.identity.LocalIdentityProvider().getIdentity(playerName);
+                com.game.networking.GameClient testClient = new com.game.networking.GameClient(identity);
                 boolean connected = testClient.connect(serverIp);
 
                 if (!connected) {

@@ -4,6 +4,8 @@ import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 
+import com.game.networking.identity.PlayerIdentity;
+
 import java.io.IOException;
 
 /**
@@ -20,10 +22,10 @@ public class GameClient {
 
     private final Client client;
     private final PacketQueue queue = new PacketQueue();
-    private final String playerName;
+    private final PlayerIdentity identity;
 
-    public GameClient(String playerName) {
-        this.playerName = playerName;
+    public GameClient(PlayerIdentity identity) {
+        this.identity = identity;
         this.client = new Client(WRITE_BUFFER_SIZE, OBJECT_BUFFER_SIZE);
         Packets.register(client.getKryo());
 
@@ -32,7 +34,9 @@ public class GameClient {
             public void connected(Connection connection) {
                 System.out.println("GameClient: Connected to server");
                 Packets.Hello hello = new Packets.Hello();
-                hello.playerName = GameClient.this.playerName;
+                hello.playerName = identity.getDisplayName();
+                hello.identityProvider = identity.getProvider();
+                hello.identityId = identity.getId();
                 connection.sendTCP(hello);
             }
 
@@ -91,7 +95,7 @@ public class GameClient {
         return client.isConnected();
     }
 
-    public String getPlayerName() {
-        return playerName;
+    public PlayerIdentity getIdentity() {
+        return identity;
     }
 }
