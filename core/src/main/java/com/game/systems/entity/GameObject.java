@@ -12,6 +12,7 @@ public class GameObject {
     private Map<Class<? extends Component>, Component> components;
     private List<Component> componentList;
     private boolean active;
+    private int netId; // Network identity for replicated objects (0 = not replicated)
 
     public GameObject() {
         this.components = new HashMap<>();
@@ -78,5 +79,13 @@ public class GameObject {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public int getNetId() {
+        return netId;
+    }
+
+    public void setNetId(int netId) {
+        this.netId = netId;
     }
 }

@@ -8,7 +8,7 @@ import com.badlogic.gdx.math.Vector2;
  *
  * Key design principle: Each PlayerEntity has its own InputSource.
  * - LocalKeyboardInput: For local players (different key sets per player)
- * - NetworkInputSource: For remote players (receives input over network) - Phase 2
+ * - Remote players are not driven by an InputSource: they follow their owner's state packets
  * - AIInputSource: For bots/testing - Future
  */
 public interface InputSource {

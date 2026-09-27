@@ -36,8 +36,16 @@ public class MainMenuScreen implements Screen {
     // private SpriteBatch batch;
     // private Texture backgroundTexture;
 
+    // Shown once when the menu opens (e.g. why a multiplayer session ended)
+    private String pendingErrorMessage;
+
     public MainMenuScreen(Main game) {
+        this(game, null);
+    }
+
+    public MainMenuScreen(Main game, String errorMessage) {
         this.game = game;
+        this.pendingErrorMessage = errorMessage;
     }
 
     @Override
@@ -126,6 +134,11 @@ public class MainMenuScreen implements Screen {
 
         // Update button states based on save availability
         updateButtonStates();
+
+        if (pendingErrorMessage != null) {
+            new com.game.ui.ErrorDialog("Disconnected", pendingErrorMessage, skin).show(stage);
+            pendingErrorMessage = null;
+        }
     }
 
     /**
@@ -192,11 +205,11 @@ public class MainMenuScreen implements Screen {
         com.game.ui.MultiplayerDialog dialog = new com.game.ui.MultiplayerDialog(skin);
         dialog.setCallback(new com.game.ui.MultiplayerDialog.MultiplayerCallback() {
             @Override
-            public void onConnect(String serverIp) {
-                System.out.println("MainMenu: Attempting to connect to server: " + serverIp);
+            public void onConnect(String serverIp, String playerName) {
+                System.out.println("MainMenu: Attempting to connect to server: " + serverIp + " as " + playerName);
 
                 // Test connection FIRST before creating GameScreen
-                com.game.networking.GameClient testClient = new com.game.networking.GameClient();
+                com.game.networking.GameClient testClient = new com.game.networking.GameClient(playerName);
                 boolean connected = testClient.connect(serverIp);
 
                 if (!connected) {

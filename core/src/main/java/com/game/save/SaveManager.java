@@ -31,6 +31,7 @@ public class SaveManager implements GameSingleton {
     private String currentLevelId;
     private String currentLevelType; // "tiled_map" or "dungeon"
     private int playtimeSeconds = 0;
+    private final Map<String, PlayerData> guestPlayers = new HashMap<>();
 
     private SaveManager() {
         SingletonManager.register(this);
@@ -70,6 +71,7 @@ public class SaveManager implements GameSingleton {
         this.currentLevelId = null;
         this.currentLevelType = null;
         this.playtimeSeconds = 0;
+        this.guestPlayers.clear();
         instance = null;
     }
 
@@ -257,7 +259,9 @@ public class SaveManager implements GameSingleton {
         // Capture world data
         WorldData worldData = captureWorldData();
 
-        return new SaveData(saveName, playtimeSeconds, playerData, worldData);
+        SaveData saveData = new SaveData(saveName, playtimeSeconds, playerData, worldData);
+        saveData.guestPlayers = new HashMap<>(guestPlayers);
+        return saveData;
     }
 
     /**
@@ -286,6 +290,20 @@ public class SaveManager implements GameSingleton {
         Map<String, List<DroppedItemData>> droppedItemsByLevel = worldItemManager.exportSaveData();
 
         return new WorldData(currentLevelId, currentLevelType, furnitureByLevel, droppedItemsByLevel);
+    }
+
+    /**
+     * Store a multiplayer guest's character so it is saved with this world.
+     */
+    public void putGuestData(String playerName, PlayerData data) {
+        guestPlayers.put(playerName, data);
+    }
+
+    /**
+     * A multiplayer guest's character from an earlier session, or null.
+     */
+    public PlayerData getGuestData(String playerName) {
+        return guestPlayers.get(playerName);
     }
 
     public int getPlaytimeSeconds() {
@@ -328,6 +346,12 @@ public class SaveManager implements GameSingleton {
         // Restore dropped items
         if (worldItemManager != null && saveData.world != null && saveData.world.droppedItemsByLevel != null) {
             worldItemManager.importSaveData(saveData.world.droppedItemsByLevel);
+        }
+
+        // Restore multiplayer guests' characters
+        guestPlayers.clear();
+        if (saveData.guestPlayers != null) {
+            guestPlayers.putAll(saveData.guestPlayers);
         }
 
         // Update current level info

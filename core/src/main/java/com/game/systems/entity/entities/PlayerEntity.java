@@ -66,6 +66,16 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     // Damage number callback
     private DamageNumberCallback damageNumberCallback;
 
+    // Multiplayer hooks
+    // False on clients: the host decides what an attack hits, the client only plays the swing
+    private boolean resolveHits = true;
+    // Set on the host for guests' players: attacks requested by the guest are resolved here
+    private boolean resolveRemoteAttacks = false;
+    // Set on the host for guests' players: hits are forwarded to the owning machine
+    private RemoteHitHandler remoteHitHandler;
+    private AttackListener attackListener;
+    private String remoteWeaponId; // Weapon shown on a remote player's copy
+
     // Debug: Store last attack hitbox for visualization
     private Rectangle lastAttackHitbox;
 
@@ -162,6 +172,11 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
                 animation.setState(snapshot.animation, snapshot.direction, snapshot.flipX);
             }
 
+            // Host resolves hits for attacks its guests asked for
+            if (resolveRemoteAttacks && attackComponent.isAttacking()) {
+                resolveAttackHits();
+            }
+
             // Update components for rendering (animations, etc)
             super.update(delta);
             return;
@@ -181,12 +196,9 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
         // Update attack system (checks for hits during ACTIVE phase)
         if (attackComponent.isAttacking()) {
-            com.game.systems.combat.AttackSystem.updateAttack(
-                this,
-                attackComponent,
-                world.getGameObjects(),
-                this::spawnDamageNumber
-            );
+            if (resolveHits) {
+                resolveAttackHits();
+            }
 
             // Update attack hitbox for debug rendering
             if (attackComponent.getCurrentWeapon() != null) {
@@ -207,6 +219,20 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
         // Update all components
         super.update(delta);
+    }
+
+    /**
+     * Run hit detection for the current attack against everything in this world except players
+     * (no friendly fire).
+     */
+    private void resolveAttackHits() {
+        java.util.List<com.game.systems.entity.GameObject> targets = new java.util.ArrayList<>();
+        for (com.game.systems.entity.GameObject obj : world.getGameObjects()) {
+            if (!(obj instanceof PlayerEntity)) {
+                targets.add(obj);
+            }
+        }
+        com.game.systems.combat.AttackSystem.updateAttack(this, attackComponent, targets, this::spawnDamageNumber);
     }
 
     private void handleInput() {
@@ -266,6 +292,60 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
         // Start attack (damage will be applied by AttackSystem during ACTIVE phase)
         attackComponent.startAttack(weapon, attackAngle);
+
+        if (attackListener != null) {
+            attackListener.onAttackStarted(attackAngle, weaponStack.getDefinition().getId());
+        }
+    }
+
+    /**
+     * Start an attack on a remote player's copy.
+     * On the host (with resolveRemoteAttacks) the attack deals damage; elsewhere it's just visual.
+     */
+    public void startRemoteAttack(float attackAngle, String weaponId) {
+        com.game.systems.item.ItemDefinition def = com.game.systems.item.ItemRegistry.get(weaponId);
+        if (def == null || def.getWeaponStats() == null) {
+            return;
+        }
+        setRemoteWeapon(weaponId);
+        attackComponent.startAttack(def.getWeaponStats(), attackAngle);
+    }
+
+    /**
+     * Show a weapon on a remote player's copy (no-op if unchanged).
+     */
+    public void setRemoteWeapon(String weaponId) {
+        if (java.util.Objects.equals(weaponId, remoteWeaponId)) {
+            return;
+        }
+        remoteWeaponId = weaponId;
+
+        com.game.systems.item.ItemDefinition def = weaponId != null ? com.game.systems.item.ItemRegistry.get(weaponId) : null;
+        if (def != null && def.getWeaponSpritePath() != null) {
+            try {
+                weaponRenderer.setWeaponSprite(new Texture(Gdx.files.internal(def.getWeaponSpritePath())));
+            } catch (Exception e) {
+                System.err.println("Failed to load weapon sprite: " + def.getWeaponSpritePath());
+            }
+        } else {
+            weaponRenderer.setWeaponSprite(null);
+        }
+    }
+
+    /**
+     * ID of the currently equipped weapon (null if none).
+     */
+    public String getEquippedWeaponId() {
+        ItemStack weaponStack = inventory.getEquipment().getEquipped(EquipmentSlot.WEAPON);
+        return weaponStack != null ? weaponStack.getDefinition().getId() : null;
+    }
+
+    /**
+     * Apply a hit that the host resolved against this (locally owned) player.
+     */
+    public void applyNetworkHit(int damage, float knockbackX, float knockbackY) {
+        damage(damage);
+        velocity.addVelocity(knockbackX, knockbackY);
     }
 
     private void updateAnimation() {
@@ -358,6 +438,30 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         this.world = world;
     }
 
+    public WorldManager getWorld() {
+        return world;
+    }
+
+    public void setResolveHits(boolean resolveHits) {
+        this.resolveHits = resolveHits;
+    }
+
+    public void setResolveRemoteAttacks(boolean resolveRemoteAttacks) {
+        this.resolveRemoteAttacks = resolveRemoteAttacks;
+    }
+
+    public RemoteHitHandler getRemoteHitHandler() {
+        return remoteHitHandler;
+    }
+
+    public void setRemoteHitHandler(RemoteHitHandler remoteHitHandler) {
+        this.remoteHitHandler = remoteHitHandler;
+    }
+
+    public void setAttackListener(AttackListener attackListener) {
+        this.attackListener = attackListener;
+    }
+
     public Transform getTransform() {
         return transform;
     }
@@ -400,7 +504,7 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     /**
      * Set the input source for this player.
-     * @param inputSource The input source (LocalKeyboardInput, NetworkInputSource, etc.)
+     * @param inputSource The input source (LocalKeyboardInput, AI, etc.)
      */
     public void setInputSource(InputSource inputSource) {
         this.inputSource = inputSource;
@@ -480,6 +584,20 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
      */
     public interface DamageNumberCallback {
         void spawnDamageNumber(float x, float y, int damage);
+    }
+
+    /**
+     * Called when this player (locally controlled) starts an attack.
+     */
+    public interface AttackListener {
+        void onAttackStarted(float attackAngle, String weaponId);
+    }
+
+    /**
+     * Receives hits against a player whose owner is on another machine.
+     */
+    public interface RemoteHitHandler {
+        void onHit(PlayerEntity player, int damage, float knockbackX, float knockbackY);
     }
 
     // ========== Save/Load Support ==========

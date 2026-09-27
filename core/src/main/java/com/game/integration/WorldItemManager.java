@@ -13,60 +13,90 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Manages all item pickups in the world.
+ * Manages all item pickups in the world, for every level at once.
  * Handles spawning, despawning, persistence, and item limits.
+ *
+ * Items are always stored per level. The "active level" is the level that calls without an
+ * explicit level ID operate on (spawning loot, rendering, pickups). The host switches it while
+ * simulating each loaded level, so loot always lands in the level it dropped in.
  */
 public class WorldItemManager {
-    private final List<ItemPickupEntity> items;
-    private final Map<String, TextureRegion> itemTextures;
-    private int maxWorldItems;
-
-    // Track items by level for save/load
     private final Map<String, List<ItemPickupEntity>> itemsByLevel;
-    private String currentLevelId;
+    private final Map<String, TextureRegion> itemTextures;
+    private final List<Listener> listeners;
+    private int maxWorldItems;
+    private String activeLevelId;
+
+    /**
+     * Notified when items appear in or disappear from any level.
+     */
+    public interface Listener {
+        void onItemSpawned(String levelId, ItemPickupEntity item);
+        void onItemRemoved(String levelId, ItemPickupEntity item);
+    }
 
     public WorldItemManager() {
-        this.items = new ArrayList<>();
-        this.itemTextures = new HashMap<>();
         this.itemsByLevel = new HashMap<>();
+        this.itemTextures = new HashMap<>();
+        this.listeners = new ArrayList<>();
         this.maxWorldItems = InventoryConfig.MAX_WORLD_ITEMS;
     }
 
+    public void addListener(Listener listener) {
+        listeners.add(listener);
+    }
+
+    public void removeListener(Listener listener) {
+        listeners.remove(listener);
+    }
+
+    private List<ItemPickupEntity> itemsFor(String levelId) {
+        return itemsByLevel.computeIfAbsent(levelId != null ? levelId : "unknown", k -> new ArrayList<>());
+    }
+
     /**
-     * Spawns an item in the world.
-     * @param itemStack The item stack to spawn
-     * @param x The x position
-     * @param y The y position
+     * Spawns an item in the active level.
      * @return The created ItemPickupEntity, or null if limit reached
      */
     public ItemPickupEntity spawnItem(ItemStack itemStack, float x, float y, float graceTimer) {
+        return spawnItem(activeLevelId, itemStack, x, y, graceTimer);
+    }
+
+    /**
+     * Spawns an item in a specific level.
+     * @return The created ItemPickupEntity, or null if limit reached
+     */
+    public ItemPickupEntity spawnItem(String levelId, ItemStack itemStack, float x, float y, float graceTimer) {
         if (itemStack == null || itemStack.isEmpty()) {
             return null;
         }
 
-        // Check item limit
+        List<ItemPickupEntity> items = itemsFor(levelId);
         if (items.size() >= maxWorldItems) {
             System.err.println("World item limit reached! Cannot spawn: " + itemStack.toString());
             return null;
         }
 
-        ItemPickupEntity pickup = new ItemPickupEntity(itemStack, x, y, graceTimer);
+        ItemPickupEntity pickup = createPickup(itemStack, x, y, graceTimer);
+        items.add(pickup);
 
-        // Set texture if available
+        for (Listener listener : new ArrayList<>(listeners)) {
+            listener.onItemSpawned(levelId, pickup);
+        }
+        return pickup;
+    }
+
+    private ItemPickupEntity createPickup(ItemStack itemStack, float x, float y, float graceTimer) {
+        ItemPickupEntity pickup = new ItemPickupEntity(itemStack, x, y, graceTimer);
         String iconPath = itemStack.getDefinition().getIconPath();
         if (iconPath != null && itemTextures.containsKey(iconPath)) {
             pickup.setTexture(itemTextures.get(iconPath));
         }
-
-        items.add(pickup);
         return pickup;
     }
 
     /**
-     * Spawns multiple items in a pile around a position.
-     * @param itemStack The item stack to spawn
-     * @param centerX Center x position
-     * @param centerY Center y position
+     * Spawns multiple items in a pile around a position (in the active level).
      */
     public void spawnItemPile(ItemStack itemStack, float centerX, float centerY) {
         if (itemStack == null || itemStack.isEmpty()) {
@@ -91,23 +121,42 @@ public class WorldItemManager {
     }
 
     /**
-     * Removes an item from the world.
-     * @param item The item to remove
+     * Removes an item from whichever level it is in.
      */
     public void removeItem(ItemPickupEntity item) {
-        items.remove(item);
+        for (Map.Entry<String, List<ItemPickupEntity>> entry : itemsByLevel.entrySet()) {
+            if (entry.getValue().remove(item)) {
+                notifyRemoved(entry.getKey(), item);
+                return;
+            }
+        }
+    }
+
+    private void notifyRemoved(String levelId, ItemPickupEntity item) {
+        for (Listener listener : new ArrayList<>(listeners)) {
+            listener.onItemRemoved(levelId, item);
+        }
     }
 
     /**
-     * Updates all items in the world.
-     * @param delta Time since last update
+     * Updates all items in the active level.
      */
     public void update(float delta) {
-        // Update all items
+        update(activeLevelId, delta);
+    }
+
+    /**
+     * Updates all items in a level, removing any that became inactive (picked up).
+     */
+    public void update(String levelId, float delta) {
+        List<ItemPickupEntity> items = itemsByLevel.get(levelId);
+        if (items == null) return;
+
         for (int i = items.size() - 1; i >= 0; i--) {
             ItemPickupEntity item = items.get(i);
             if (!item.isActive()) {
                 items.remove(i);
+                notifyRemoved(levelId, item);
             } else {
                 item.update(delta);
             }
@@ -115,31 +164,29 @@ public class WorldItemManager {
     }
 
     /**
-     * Renders all items in the world.
-     * @param batch The sprite batch
+     * Renders all items in the active level.
      */
     public void render(SpriteBatch batch) {
+        List<ItemPickupEntity> items = itemsByLevel.get(activeLevelId);
+        if (items == null) return;
         for (ItemPickupEntity item : items) {
             item.render(batch);
         }
     }
 
     /**
-     * Gets all items near a position.
-     * @param position The center position
-     * @param radius The search radius
-     * @return List of nearby items
+     * Gets all items near a position in the active level.
      */
     public List<ItemPickupEntity> getItemsNear(Vector2 position, float radius) {
         List<ItemPickupEntity> nearby = new ArrayList<>();
-        float radiusSquared = radius * radius;
+        List<ItemPickupEntity> items = itemsByLevel.get(activeLevelId);
+        if (items == null) return nearby;
 
+        float radiusSquared = radius * radius;
         for (ItemPickupEntity item : items) {
             if (item.hasComponent(com.game.systems.entity.Transform.class)) {
                 Vector2 itemPos = item.getComponent(com.game.systems.entity.Transform.class).getPosition();
-                float distSquared = position.dst2(itemPos);
-
-                if (distSquared <= radiusSquared) {
+                if (position.dst2(itemPos) <= radiusSquared) {
                     nearby.add(item);
                 }
             }
@@ -149,10 +196,7 @@ public class WorldItemManager {
     }
 
     /**
-     * Gets an item at a specific position (for collision detection).
-     * @param position The position
-     * @param tolerance Distance tolerance
-     * @return The item, or null if none found
+     * Gets an item at a specific position in the active level.
      */
     public ItemPickupEntity getItemAt(Vector2 position, float tolerance) {
         List<ItemPickupEntity> nearby = getItemsNear(position, tolerance);
@@ -161,8 +205,6 @@ public class WorldItemManager {
 
     /**
      * Registers a texture for an item.
-     * @param iconPath The icon path (from ItemDefinition)
-     * @param texture The texture region
      */
     public void registerTexture(String iconPath, TextureRegion texture) {
         itemTextures.put(iconPath, texture);
@@ -170,26 +212,39 @@ public class WorldItemManager {
 
     /**
      * Gets a texture for an item.
-     * @param iconPath The icon path (from ItemDefinition)
-     * @return The texture region, or null if not found
      */
     public TextureRegion getTexture(String iconPath) {
         return itemTextures.get(iconPath);
     }
 
     /**
-     * Clears all items from the world.
+     * Clears all items in all levels (without notifying listeners).
      */
     public void clearAll() {
-        items.clear();
+        itemsByLevel.clear();
     }
 
+    /**
+     * Items in the active level.
+     */
     public List<ItemPickupEntity> getAllItems() {
-        return new ArrayList<>(items);
+        return getItems(activeLevelId);
+    }
+
+    public List<ItemPickupEntity> getItems(String levelId) {
+        List<ItemPickupEntity> items = itemsByLevel.get(levelId);
+        return items != null ? new ArrayList<>(items) : new ArrayList<>();
+    }
+
+    /**
+     * All levels that have (or had) items.
+     */
+    public List<String> getLevelIds() {
+        return new ArrayList<>(itemsByLevel.keySet());
     }
 
     public int getItemCount() {
-        return items.size();
+        return getAllItems().size();
     }
 
     public int getMaxWorldItems() {
@@ -201,34 +256,21 @@ public class WorldItemManager {
     }
 
     /**
-     * Set the current level ID for tracking items by level.
-     * Call this when changing levels.
+     * Set the level that level-less calls operate on.
      */
     public void setCurrentLevel(String levelId) {
-        // Save current items to their level before switching
-        if (currentLevelId != null && !items.isEmpty()) {
-            itemsByLevel.put(currentLevelId, new ArrayList<>(items));
-        }
+        this.activeLevelId = levelId;
+    }
 
-        this.currentLevelId = levelId;
-
-        // Load items for new level
-        items.clear();
-        List<ItemPickupEntity> levelItems = itemsByLevel.get(levelId);
-        if (levelItems != null) {
-            items.addAll(levelItems);
-        }
+    public String getCurrentLevel() {
+        return activeLevelId;
     }
 
     /**
-     * Clear items for a specific level.
-     * Used when entering dungeons (which don't persist items).
+     * Clear items for a specific level (without notifying listeners).
      */
     public void clearLevel(String levelId) {
         itemsByLevel.remove(levelId);
-        if (levelId.equals(currentLevelId)) {
-            items.clear();
-        }
     }
 
     // ========== Save/Load Support ==========
@@ -238,22 +280,15 @@ public class WorldItemManager {
      * @return Map of level ID -> list of dropped item data
      */
     public Map<String, List<com.game.save.DroppedItemData>> exportSaveData() {
-        // Update current level's items before export
-        if (currentLevelId != null && !items.isEmpty()) {
-            itemsByLevel.put(currentLevelId, new ArrayList<>(items));
-        }
-
         Map<String, List<com.game.save.DroppedItemData>> result = new HashMap<>();
 
         for (Map.Entry<String, List<ItemPickupEntity>> entry : itemsByLevel.entrySet()) {
-            String levelId = entry.getKey();
-            List<ItemPickupEntity> levelItems = entry.getValue();
             List<com.game.save.DroppedItemData> droppedItemDataList = new ArrayList<>();
 
-            for (ItemPickupEntity pickup : levelItems) {
+            for (ItemPickupEntity pickup : entry.getValue()) {
                 ItemStack stack = pickup.getItemStack();
                 com.game.systems.entity.Transform transform = pickup.getComponent(com.game.systems.entity.Transform.class);
-                if (stack != null && transform != null) {
+                if (stack != null && transform != null && pickup.isActive()) {
                     droppedItemDataList.add(new com.game.save.DroppedItemData(
                         stack.getDefinition().getId(),
                         stack.getQuantity(),
@@ -263,7 +298,7 @@ public class WorldItemManager {
                 }
             }
 
-            result.put(levelId, droppedItemDataList);
+            result.put(entry.getKey(), droppedItemDataList);
         }
 
         return result;
@@ -272,49 +307,24 @@ public class WorldItemManager {
     /**
      * Import dropped items data from save.
      * Clears existing items and recreates from save data.
-     * @param data Map of level ID -> list of dropped item data
      */
     public void importSaveData(Map<String, List<com.game.save.DroppedItemData>> data) {
-        // Clear existing items
-        items.clear();
         itemsByLevel.clear();
 
-        // Recreate items from save data
         for (Map.Entry<String, List<com.game.save.DroppedItemData>> entry : data.entrySet()) {
-            String levelId = entry.getKey();
-            List<com.game.save.DroppedItemData> droppedItemDataList = entry.getValue();
             List<ItemPickupEntity> levelItems = new ArrayList<>();
 
-            for (com.game.save.DroppedItemData itemData : droppedItemDataList) {
-                // Look up item definition
+            for (com.game.save.DroppedItemData itemData : entry.getValue()) {
                 com.game.systems.item.ItemDefinition def = com.game.systems.item.ItemRegistry.get(itemData.itemId);
                 if (def == null) {
                     System.err.println("WorldItemManager: Item not found in registry: " + itemData.itemId);
                     continue;
                 }
 
-                // Create item stack and pickup entity
-                ItemStack stack = new ItemStack(def, itemData.quantity);
-                ItemPickupEntity pickup = new ItemPickupEntity(stack, itemData.x, itemData.y, 0f);
-
-                // Set texture if available
-                String iconPath = def.getIconPath();
-                if (iconPath != null && itemTextures.containsKey(iconPath)) {
-                    pickup.setTexture(itemTextures.get(iconPath));
-                }
-
-                levelItems.add(pickup);
+                levelItems.add(createPickup(new ItemStack(def, itemData.quantity), itemData.x, itemData.y, 0f));
             }
 
-            itemsByLevel.put(levelId, levelItems);
-        }
-
-        // Load items for current level if it was set
-        if (currentLevelId != null) {
-            List<ItemPickupEntity> levelItems = itemsByLevel.get(currentLevelId);
-            if (levelItems != null) {
-                items.addAll(levelItems);
-            }
+            itemsByLevel.put(entry.getKey(), levelItems);
         }
 
         System.out.println("WorldItemManager: Imported dropped items for " + itemsByLevel.size() + " levels");

@@ -57,7 +57,14 @@ import com.game.systems.item.ItemDefinition;
 import com.game.systems.item.ItemRegistry;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Color;
-import com.game.networking.LevelChangeConfirmPacket;
+import com.game.networking.ClientSession;
+import com.game.networking.HostSession;
+import com.game.networking.NetGameContext;
+import com.game.networking.NetSession;
+import com.game.networking.Packets;
+import com.game.networking.PlayerDataCodec;
+import com.game.world.LevelInstance;
+import com.game.world.LevelInstanceFactory;
 
 import static com.game.systems.audio.SoundRegistry.*;
 
@@ -65,7 +72,7 @@ import static com.game.systems.audio.SoundRegistry.*;
  * Refactored GameScreen using the new decoupled architecture.
  * All systems are now independent and reusable.
  */
-public class GameScreen implements Screen {
+public class GameScreen implements Screen, NetGameContext {
     private static final int VIEWPORT_WIDTH = 640;
     private static final int VIEWPORT_HEIGHT = 360;
 
@@ -86,16 +93,20 @@ public class GameScreen implements Screen {
     private OrthographicCamera uiCamera;
     private Viewport viewport;
 
-    // World management
-    public WorldManager world; // Local world (what this client/host sees)
+    // Longest simulation step per frame; bigger hitches (e.g. while loading a level) are clamped
+    // so entities can't tunnel through walls
+    private static final float MAX_FRAME_DELTA = 1f / 20f;
 
-    // Multi-world support for server (host simulates multiple worlds)
-    // Map: levelId -> WorldManager
-    private final java.util.Map<String, WorldManager> activeWorlds = new java.util.concurrent.ConcurrentHashMap<>();
+    // Levels loaded on this machine, by level ID. The host keeps every level that has a player
+    // in it simulating; single-player and clients only simulate the current one.
+    private final java.util.Map<String, LevelInstance> instances = new java.util.LinkedHashMap<>();
+    private LevelInstance currentInstance;
+    public WorldManager world; // World of the current level (what this machine sees)
+    private com.game.systems.level.LevelSource currentLevelSource;
 
     public WorldItemManager worldItemManager;
     public PlayerManager playerManager;
-    private TiledMap currentMap;
+    private PlayerEntity localPlayer; // The player controlled on this machine
     private OrthogonalTiledMapRenderer mapRenderer;
     private YSortRenderer ySortRenderer;
     private UIManagerNew uiManager;
@@ -105,7 +116,6 @@ public class GameScreen implements Screen {
     private DebugConsole debugConsole;
 
     // Level loading abstraction
-    private com.game.systems.level.LevelSource currentLevelSource;
     private com.game.systems.dungeon.DungeonController dungeonController;
     private com.game.systems.dungeon.DungeonDebugRenderer dungeonDebugRenderer;
 
@@ -135,28 +145,9 @@ public class GameScreen implements Screen {
     private String currentSaveName = null;
 
     // Networking
-    private com.game.networking.GameServer gameServer;
-    private com.game.networking.GameClient gameClient;
-    private boolean isHost = false;
-    private boolean isClient = false;
-    private int localPlayerId = -1; // The player ID controlled by this client (-1 = not set)
-    private String lastSpawnPointUsed = null; // Track spawn point for next level change packet
-    private String lastLevelSentToServer = null; // Track last level sent to detect changes
-    private float inputSendTimer = 0f;
-    private float stateSendTimer = 0f;
-    private static final float INPUT_SEND_INTERVAL = 0.0166f; // ~60 times per second (every frame)
-    private static final float STATE_SEND_INTERVAL = 0.05f; // 20 times per second (server broadcasts)
-
-    // Server: Track last processed input sequence for each player (for reconciliation)
-    private final java.util.Map<Integer, Integer> lastProcessedInputSequence = new java.util.concurrent.ConcurrentHashMap<>();
-
-    // Track which level each player is currently in (for independent level transitions)
-    private final java.util.Map<Integer, String> playerLevels = new java.util.concurrent.ConcurrentHashMap<>();
-
-    // Client prediction with periodic checkpoints
-    private static final float POSITION_CORRECTION_THRESHOLD = 4.5f; // pixels - only correct if off by more than this
-    private static final float CORRECTION_SPEED = 0.1f; // How fast to lerp to server position (0-1, higher = faster)
-
+    private NetSession session; // Null in single-player
+    private final boolean clientMode; // Joined someone else's game: levels are replicas filled by the host
+    private boolean screenClosed = false;
     /**
      * Create a new game with default starting level.
      */
@@ -170,7 +161,6 @@ public class GameScreen implements Screen {
      */
     public GameScreen(boolean clientMode) {
         this((com.game.save.SaveData) null, clientMode);
-        // isClient is already set in the main constructor
     }
 
     /**
@@ -197,10 +187,7 @@ public class GameScreen implements Screen {
      */
     public GameScreen(com.game.save.SaveData saveData, boolean clientMode) {
         // Set client mode FIRST, before any level loading
-        if (clientMode) {
-            isClient = true;
-            System.out.println("GameScreen: Created in client mode");
-        }
+        this.clientMode = clientMode;
 
         // Create camera and viewport
         // ExtendViewport shows more of the game world instead of adding black bars
@@ -260,25 +247,34 @@ public class GameScreen implements Screen {
             // Store save name for auto-save
             currentSaveName = saveData.saveName;
             loadFromSaveData(saveData);
-        } else {
+        } else if (!clientMode) {
             // Load initial level for new game
-            loadLevel("Maps/prototype.tmx", null);
+            changeLevel("Maps/prototype.tmx", null);
         }
+        // Client mode: the level is built when the host's welcome arrives
     }
 
     @Override
     public void render(float delta) {
-        // Handle pending gateway transition
+        // Network first: packets may build the level (client join) or move players around
+        if (session != null) {
+            session.update(delta);
+        }
+        if (screenClosed) {
+            return;
+        }
+
+        // Client still waiting for the host to tell us where we are
+        if (currentInstance == null) {
+            renderConnecting();
+            return;
+        }
+
+        // Handle pending gateway transition (local player only)
         if (pendingGateway != null) {
-            if (isClient) {
-                // Client: Send level change request to server
-                gameClient.sendLevelChangeRequest(pendingGateway.getTargetLevel(), pendingGateway.getTargetSpawn());
-                System.out.println("GameScreen (Client): Sent level change request for " + pendingGateway.getTargetLevel());
-            } else {
-                // Host or single-player: Load level immediately
-                loadLevel(pendingGateway.getTargetLevel(), pendingGateway.getTargetSpawn());
-            }
+            GatewayEntity gateway = pendingGateway;
             pendingGateway = null;
+            changeLevel(gateway.getTargetLevel(), gateway.getTargetSpawn());
         }
 
         // Check for debug console toggle (always check this first)
@@ -295,9 +291,9 @@ public class GameScreen implements Screen {
         // Only process game input when console is NOT open
         boolean consoleOpen = debugConsole != null && debugConsole.isVisible();
 
-        // Disable all players' movement when console is open
-        for (PlayerEntity player : playerManager.getAllPlayers()) {
-            player.setInputEnabled(!consoleOpen);
+        // Disable local movement when console is open
+        if (localPlayer != null) {
+            localPlayer.setInputEnabled(!consoleOpen);
         }
 
         if (!consoleOpen) {
@@ -319,14 +315,14 @@ public class GameScreen implements Screen {
         }
 
         // Apply time scale to delta (only affects game simulation, not rendering)
-        float scaledDelta = delta * timeScale;
+        float scaledDelta = Math.min(delta, MAX_FRAME_DELTA) * timeScale;
 
         // Clear screen
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Update world(s) - in multiplayer server mode, updates all active worlds
-        updateAllWorlds(scaledDelta);
+        // Update every level that needs simulating (includes its world items)
+        updateLevels(scaledDelta);
 
         // Check if player has moved away from open chest
         updateOpenChestDistance();
@@ -349,9 +345,6 @@ public class GameScreen implements Screen {
             return !dp.isAlive();
         });
 
-        // Update world items
-        worldItemManager.update(scaledDelta);
-
         // Update item magnetism (register nearby items)
         updateItemMagnetism();
 
@@ -360,9 +353,6 @@ public class GameScreen implements Screen {
 
         // Check for gateway collisions
         checkGatewayCollisions();
-
-        // Update networking (send/receive packets)
-        updateNetworking(delta);
 
         // Update UI
         if (uiManager != null) {
@@ -416,7 +406,7 @@ public class GameScreen implements Screen {
         }
         batch.end();
 
-        // Handle furniture placement mode (only for player 1)
+        // Handle furniture placement mode
         if (furniturePlacementMode) {
             handleFurniturePlacement(delta);
         }
@@ -436,6 +426,31 @@ public class GameScreen implements Screen {
         if (debugMode || debugManager.isEnabled("fps")) {
             renderDebugStats();
         }
+    }
+
+    /**
+     * Simulate the current level, plus (on the host) every level a guest is in.
+     */
+    private void updateLevels(float delta) {
+        for (LevelInstance instance : new java.util.ArrayList<>(instances.values())) {
+            boolean occupied = instance == currentInstance
+                || (session != null && session.isLevelOccupied(instance.getLevelId()));
+            if (occupied) {
+                instance.update(delta, worldItemManager);
+            }
+        }
+    }
+
+    /**
+     * Shown on a client between connecting and the host's welcome.
+     */
+    private void renderConnecting() {
+        Gdx.gl.glClearColor(0, 0, 0, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        batch.setProjectionMatrix(uiCamera.combined);
+        batch.begin();
+        debugFont.draw(batch, "Joining game...", VIEWPORT_WIDTH / 2f - 30, VIEWPORT_HEIGHT / 2f);
+        batch.end();
     }
 
     /**
@@ -537,13 +552,13 @@ public class GameScreen implements Screen {
         }
 
         // Debug: Save game
-        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_SAVE)) {
+        if (debugMode && !clientMode && inputManager.isJustPressed(InputAction.DEBUG_SAVE)) {
             com.game.save.SaveManager.getInstance().save("debug_save");
             System.out.println("=== SAVED GAME (F6) ===");
         }
 
         // Debug: Load game
-        if (debugMode && inputManager.isJustPressed(InputAction.DEBUG_LOAD)) {
+        if (debugMode && session == null && inputManager.isJustPressed(InputAction.DEBUG_LOAD)) {
             com.game.save.SaveData saveData = com.game.save.SaveManager.getInstance().load("debug_save");
             if (saveData != null) {
                 loadFromSaveData(saveData);
@@ -566,7 +581,9 @@ public class GameScreen implements Screen {
         // Create item
         ItemStack itemStack = ItemFactory.create(itemId, 1);
         if (itemStack != null) {
-            worldItemManager.spawnItem(itemStack, mousePos.x, mousePos.y, 0);
+            if (session == null || !session.dropItem(itemStack, mousePos.x, mousePos.y)) {
+                worldItemManager.spawnItem(itemStack, mousePos.x, mousePos.y, 0);
+            }
             System.out.println("Spawned " + itemId + " at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
         }
     }
@@ -576,26 +593,28 @@ public class GameScreen implements Screen {
      * @param enemyType The enemy type to spawn (slime, frog, cat)
      */
     private void spawnDebugEnemy(String enemyType) {
+        if (isGuest()) {
+            System.out.println("Only the host can spawn enemies");
+            return;
+        }
+
         // Get mouse position in world coordinates
         Vector3 mousePos = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(mousePos);
 
-        // Create enemy based on type
+        // Create enemy based on type (callbacks are attached when it enters the world)
         EnemyEntity enemy = null;
         switch (enemyType.toLowerCase()) {
             case "slime":
                 enemy = new LizardEnemy(world, mousePos.x, mousePos.y);
-                System.out.println("Spawned Slime at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
                 break;
 
             case "frog":
                 enemy = new Axolot(world, mousePos.x, mousePos.y);
-                System.out.println("Spawned Frog at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
                 break;
 
             case "cat":
                 enemy = new CatEnemy(world, mousePos.x, mousePos.y);
-                System.out.println("Spawned Cat at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
                 break;
 
             default:
@@ -603,29 +622,9 @@ public class GameScreen implements Screen {
                 break;
         }
 
-        // Set damage number callback for enemy
         if (enemy != null) {
-            enemy.setDamageNumberCallback((x, y, damage) -> {
-                DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-                damageNumbers.add(damageNumber);
-            });
-
-            // Set death callback to spawn animation and disable hitbox
-            enemy.setDeathCallback((deadEnemy, x, y) -> {
-                // Spawn death animation
-                DeathAnimationEntity deathAnimation = new DeathAnimationEntity(x, y);
-                deathAnimations.add(deathAnimation);
-
-                // Disable combat collider so enemy can't be hit again
-                // Enemy stays in world but is inactive (already set by onDeath -> setActive(false))
-                com.game.components.ColliderComponent combatCollider = deadEnemy.getCombatCollider();
-                if (combatCollider != null) {
-                    // Mark collider as disabled by setting size to 0
-                    combatCollider.setSize(0, 0);
-                }
-            });
-
             world.addGameObject(enemy);
+            System.out.println("Spawned " + enemyType + " at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
         }
     }
 
@@ -643,11 +642,16 @@ public class GameScreen implements Screen {
      * @param objectType The object type to spawn (pot, crate, etc.)
      */
     private void spawnDebugBreakable(String objectType) {
+        if (isGuest()) {
+            System.out.println("Only the host can spawn breakables");
+            return;
+        }
+
         // Get mouse position in world coordinates
         Vector3 mousePos = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(mousePos);
 
-        // Create breakable object using factory
+        // Create breakable object using factory (callbacks are attached when it enters the world)
         BreakableEntity breakable = com.game.systems.breakable.BreakableObjectFactory.create(
             objectType,
             mousePos.x,
@@ -655,12 +659,6 @@ public class GameScreen implements Screen {
         );
 
         if (breakable != null) {
-            // Set particle callback to spawn destruction particles
-            breakable.setParticleCallback((x, y, particleType) -> {
-                DestructionParticleEntity particle = new DestructionParticleEntity(x, y, particleType);
-                destructionParticles.add(particle);
-            });
-
             world.addGameObject(breakable);
             System.out.println("Spawned " + objectType + " at: (" + (int)mousePos.x + ", " + (int)mousePos.y + ")");
         } else {
@@ -669,15 +667,16 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Updates item magnetism - registers nearby items with all players' magnet components.
+     * Updates item magnetism - registers nearby items with the magnets of players in this level.
+     * Purely cosmetic for remote players; only the local player can actually pick items up.
      */
     private void updateItemMagnetism() {
-        // Update magnet for all players
-        for (PlayerEntity player : playerManager.getAllPlayers()) {
+        for (GameObject obj : world.getGameObjects()) {
+            if (!(obj instanceof PlayerEntity player)) continue;
+
             Vector2 playerPos = player.getTransform().getPosition();
             float magnetRadius = player.getItemMagnet().getMagnetRadius();
 
-            // Get nearby items
             for (ItemPickupEntity item : worldItemManager.getItemsNear(playerPos, magnetRadius)) {
                 player.getItemMagnet().registerItem(item);
             }
@@ -685,75 +684,63 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Checks for item pickup collisions with all players.
+     * Checks whether the local player is touching any items.
+     * Guests ask the host for the item; the host and single-player pick it up directly.
      */
     private void checkItemPickups() {
-        if (!playerManager.hasPlayers()) return;
+        if (localPlayer == null) return;
 
         boolean inventoryChanged = false;
+        Vector2 playerPos = localPlayer.getTransform().getPosition();
 
-        // Check all items against all players
         for (ItemPickupEntity item : worldItemManager.getAllItems()) {
             if (!item.canPickup() || !item.isActive()) continue;
 
             Transform itemTransform = item.getComponent(Transform.class);
             if (itemTransform == null) continue;
 
-            // Check each player for pickup
-            for (PlayerEntity player : playerManager.getAllPlayers()) {
-                Transform playerTransform = player.getTransform();
-                ColliderComponent playerCollider = player.getEnvironmentCollider();
+            // Simple distance check (could use collider for more precision)
+            if (playerPos.dst(itemTransform.getPosition()) >= 16f) continue; // Pickup radius
 
-                if (playerCollider == null) continue;
+            if (session != null && session.requestPickup(item)) {
+                continue;
+            }
 
-                // Simple distance check (could use collider for more precision)
-                float distance = playerTransform.getPosition().dst(itemTransform.getPosition());
-                if (distance < 16f) { // Pickup radius
-                    // Try to add to inventory
-                    ItemStack itemStack = item.getItemStack();
-                    ItemStack remaining = player.getInventory().addItem(itemStack);
+            // Try to add to inventory
+            ItemStack itemStack = item.getItemStack();
+            ItemStack remaining = localPlayer.getInventory().addItem(itemStack);
 
-                    if (remaining == null) {
-                        // All picked up
-                        item.onPickup();
-                        worldItemManager.removeItem(item);
-
-                        // Play pickup sound
-                        SoundSystem.getInstance().playSound(COIN_PICKUP, 0.6f);
-
-                        System.out.println("Player " + player.getPlayerId() + " picked up: " + itemStack.toString());
-                        inventoryChanged = true;
-                        break; // Item was picked up, stop checking other players
-                    } else if (remaining.getQuantity() < itemStack.getQuantity()) {
-                        // Partial pickup
-                        item.getItemStack().setQuantity(remaining.getQuantity());
-
-                        // Play pickup sound
-                        SoundSystem.getInstance().playSound(COIN_PICKUP, 0.6f);
-
-                        inventoryChanged = true;
-                        break; // Partial pickup, stop checking other players
-                    }
-                }
+            if (remaining == null) {
+                // All picked up
+                item.onPickup();
+                worldItemManager.removeItem(item);
+                SoundSystem.getInstance().playSound(COIN_PICKUP, 0.6f);
+                System.out.println("Picked up: " + itemStack.toString());
+                inventoryChanged = true;
+            } else if (remaining.getQuantity() < itemStack.getQuantity()) {
+                // Partial pickup
+                item.getItemStack().setQuantity(remaining.getQuantity());
+                SoundSystem.getInstance().playSound(COIN_PICKUP, 0.6f);
+                inventoryChanged = true;
             }
         }
 
-        // Notify UI if inventory changed (for first player's UI)
         if (inventoryChanged && uiManager != null) {
             uiManager.notifyInventoryChanged();
         }
     }
-
     /**
      * Load an assembled dungeon directly (from dungeon generation system).
      * Public so DebugConsole can access it.
-     * Wrapper that uses the unified loadLevel(LevelSource) method.
      */
     public void loadAssembledDungeon(com.game.systems.dungeon.assembly.AssembledDungeon dungeon) {
-        // Create a DungeonLevelSource and delegate to unified method
-        com.game.systems.dungeon.DungeonLevelSource levelSource =
-            new com.game.systems.dungeon.DungeonLevelSource(dungeon, null);
-        loadLevel(levelSource, null);
+        if (isGuest()) {
+            System.out.println("GameScreen: Only the host can load dungeons");
+            return;
+        }
+        // Dungeons are always built fresh
+        LevelInstance dungeonInstance = createInstance(new com.game.systems.dungeon.DungeonLevelSource(dungeon, null));
+        enterLevel(dungeonInstance, dungeonInstance.getSpawnPosition(null));
     }
 
     /**
@@ -764,300 +751,312 @@ public class GameScreen implements Screen {
         return dungeonController;
     }
 
+    // ========== Level Management ==========
 
     /**
-     * Unified level loading method using LevelSource abstraction.
-     * This replaces the old loadLevel() and loadAssembledDungeon() methods.
-     * @param levelSource The level source (Tiled map or dungeon)
-     * @param spawnPointName Optional spawn point name (null = use default)
+     * Move the local player to a Tiled map level (loading it if needed).
      */
-    private void loadLevel(com.game.systems.level.LevelSource levelSource, String spawnPointName) {
-        System.out.println("Loading level: " + levelSource.getLevelName() +
-            (spawnPointName != null ? " at spawn: " + spawnPointName : ""));
+    private void changeLevel(String levelPath, String spawnPointName) {
+        LevelInstance target = instances.get(levelPath);
+        if (target == null) {
+            target = createInstance(new com.game.systems.level.TiledMapLevelSource(levelPath));
+        }
+        enterLevel(target, target.getSpawnPosition(spawnPointName));
+    }
 
-        // Dispose previous resources
+    /**
+     * Build a level instance on this machine and register it.
+     */
+    private LevelInstance createInstance(com.game.systems.level.LevelSource source) {
+        LevelInstanceFactory.Mode mode = clientMode ? LevelInstanceFactory.Mode.REPLICA : LevelInstanceFactory.Mode.AUTHORITATIVE;
+        LevelInstance instance = LevelInstanceFactory.create(source, mode, new EntityDecorator(source.getLevelName()));
+
+        LevelInstance replaced = instances.put(instance.getLevelId(), instance);
+        if (replaced != null && replaced != currentInstance) {
+            if (session != null) {
+                session.onInstanceDisposed(replaced);
+            }
+            replaced.dispose();
+        }
+
+        if (session != null) {
+            session.onInstanceCreated(instance);
+        }
+        return instance;
+    }
+
+    /**
+     * Move the local player into a level at a position. Creates the local player (and its UI)
+     * the first time.
+     */
+    private void enterLevel(LevelInstance target, Vector2 position) {
+        System.out.println("Entering level: " + target.getLevelId() + " at (" + position.x + ", " + position.y + ")");
+
+        LevelInstance previous = currentInstance;
+        if (previous != null && localPlayer != null) {
+            previous.getWorld().removeGameObject(localPlayer);
+        }
+
+        // Close any open chest; it belongs to the old level
+        if (currentlyOpenChest != null && uiManager != null) {
+            closeChest(currentlyOpenChest);
+        }
+
+        setCurrentInstance(target);
+
+        if (localPlayer == null) {
+            createLocalPlayer(position.x, position.y);
+        } else {
+            localPlayer.setWorld(world);
+            localPlayer.getTransform().setPosition(position.x, position.y);
+            world.addGameObject(localPlayer);
+        }
+
+        if (uiManager == null) {
+            initLocalPlayerUI(localPlayer);
+        }
+
+        if (previous != null && previous != target) {
+            releaseInstanceIfUnused(previous);
+        }
+
+        if (session != null) {
+            session.onLocalLevelChanged(target);
+        }
+    }
+
+    /**
+     * Make an instance the one this machine renders and plays in.
+     */
+    private void setCurrentInstance(LevelInstance instance) {
+        currentInstance = instance;
+        world = instance.getWorld();
+        currentLevelSource = instance.getSource();
+
         if (mapRenderer != null) {
             mapRenderer.dispose();
         }
-        if (currentMap != null) {
-            currentMap.dispose();
-        }
-        if (currentLevelSource != null) {
-            currentLevelSource.dispose();
-        }
+        mapRenderer = new OrthogonalTiledMapRenderer(instance.getTiledMap());
+        ySortRenderer = new YSortRenderer(mapRenderer, instance.getTiledMap());
+        ySortRenderer.setDebugMode(debugMode);
 
-        // Store the new level source
-        currentLevelSource = levelSource;
+        worldItemManager.setCurrentLevel(instance.getLevelId());
 
-        // Store spawn point for multiplayer level change notification
-        if (isClient) {
-            lastSpawnPointUsed = spawnPointName;
-            System.out.println("GameScreen: Stored spawn point '" + spawnPointName + "' for level change packet");
-        }
-
-        // Get TiledMap and LevelData from the source
-        currentMap = levelSource.getTiledMap();
-        mapRenderer = new OrthogonalTiledMapRenderer(currentMap);
-        ySortRenderer = new YSortRenderer(mapRenderer, currentMap);
-
-        LevelData levelData = levelSource.getLevelData();
-
-        // Create world manager
-        world = new WorldManager(levelData.getWidth(), levelData.getHeight());
-
-        // Load collision system using the source's method
-        SpatialQuery collisionSystem = new SpatialQuery();
-        levelSource.loadCollision(collisionSystem);
-        world.setCollisionSystem(collisionSystem);
-
-        // Build grid pathfinder for pathfinding
-        world.buildGridPathfinder(currentMap);
-
-        // Register world in activeWorlds if we're the host
-        if (isHost) {
-            String levelId = levelSource.getLevelName();
-            activeWorlds.put(levelId, world);
-            playerLevels.put(localPlayerId, levelId); // Update host's level tracking
-            System.out.println("GameScreen (Server): Registered host world for level: " + levelId);
-        }
-
-        // Get spawn position - with proper fallback logic
-        LevelData.SpawnPoint spawn;
-        if (spawnPointName != null) {
-            // Try to get the named spawn point
-            spawn = levelData.getSpawnPoint(spawnPointName);
-            if (spawn == null) {
-                // If named spawn doesn't exist, fall back to default player_spawn
-                System.out.println("Warning: Spawn point '" + spawnPointName + "' not found, using player_spawn");
-                spawn = levelData.getDefaultSpawnPoint();
-            }
-        } else {
-            // No spawn name specified, use default
-            spawn = levelData.getDefaultSpawnPoint();
-        }
-
-        float spawnX = spawn != null ? spawn.getX() : 50;
-        float spawnY = spawn != null ? spawn.getY() : 750;
-
-        // Convert to grid and back to match old behavior
-        int spawnGridX = (int)(spawnX / world.getTileSize());
-        int spawnGridY = (int)(spawnY / world.getTileSize());
-        spawnX = spawnGridX * world.getTileSize();
-        spawnY = spawnGridY * world.getTileSize();
-
-        System.out.println("Spawning players at: (" + spawnX + ", " + spawnY + ") - Grid: (" + spawnGridX + ", " + spawnGridY + ")");
-
-        // Create or update players
-        if (playerManager.getPlayerCount() == 0) {
-            // If we're a client waiting for player assignment, don't create a player yet
-            if (isClient && localPlayerId == -1) {
-                System.out.println("Client mode: Waiting for server to assign player ID...");
-            } else {
-                // Create local player (host or single-player)
-                PlayerEntity player1 = new PlayerEntity(world, spawnX, spawnY);
-                LocalKeyboardInput input1 = LocalKeyboardInput.createPlayer1();
-                input1.setCamera(camera);
-                input1.setPlayerTransform(player1.getTransform());
-                player1.setInputSource(input1);
-
-                // Set damage number callback
-                player1.setDamageNumberCallback((x, y, damage) -> {
-                    DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-                    damageNumbers.add(damageNumber);
-                });
-
-                playerManager.addPlayer(player1);
-                world.addGameObject(player1);
-
-                if (isHost) {
-                    System.out.println("Created host player (Player 0)");
-                    localPlayerId = 0; // Host is always Player 0
-                } else {
-                    System.out.println("Created local player:");
-                    System.out.println("  Player 1: WASD + Left Click");
-                }
-            }
-        } else {
-            // Update existing players' world and re-add to new world
-            if (isHost || isClient) {
-                // MULTIPLAYER MODE: Only move the local player to the new world
-                // Remote players stay in their own worlds (managed by multi-world system)
-                PlayerEntity localPlayer = playerManager.getPlayerById(localPlayerId);
-                if (localPlayer != null) {
-                    localPlayer.setWorld(world);
-                    localPlayer.getTransform().setPosition(spawnX, spawnY);
-                    world.addGameObject(localPlayer);
-                    System.out.println("GameScreen: Moved local player " + localPlayerId + " to new level");
-                }
-                // Remote players: DO NOT TOUCH - they're managed by the server's multi-world system
-            } else {
-                // SINGLE-PLAYER MODE: Move all players to the new world
-                for (PlayerEntity player : playerManager.getAllPlayers()) {
-                    player.setWorld(world);
-                    player.getTransform().setPosition(spawnX, spawnY);
-                    world.addGameObject(player);
-                }
-            }
-        }
-
-        // Initialize UI manager (if not already initialized)
-        // Use the local player for UI
-        PlayerEntity localPlayer = (localPlayerId >= 0) ? playerManager.getPlayerById(localPlayerId) : playerManager.getFirstPlayer();
-        if (uiManager == null && localPlayer != null) {
-            uiManager = new UIManagerNew(localPlayer.getInventory(), worldItemManager);
-
-            // IMPORTANT: Resize the UI manager to match current window size
-            uiManager.resize(com.badlogic.gdx.Gdx.graphics.getWidth(), com.badlogic.gdx.Gdx.graphics.getHeight());
-
-            uiManager.setItemDropCallback(itemStack -> {
-                Vector2 playerPos = localPlayer.getTransform().getPosition();
-                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
-            });
-
-            uiManager.setFurniturePlacementCallback(new UIManagerNew.FurniturePlacementCallback() {
-                @Override
-                public void onPlaceFurniture(ItemStack furnitureItem, com.game.systems.ui.ItemSlotUI sourceSlot) {
-                    enterFurniturePlacementMode(furnitureItem, sourceSlot);
-                }
-
-                @Override
-                public void onCancelPlacement() {
-                    exitFurniturePlacementMode(false);
-                }
-            });
-
-            uiManager.setPlayerHealth(localPlayer.getHealthComponent());
-            uiManager.setPlayer(localPlayer);
-
-            // Set pause menu callback
-            uiManager.setPauseMenuCallback(new com.game.systems.ui.UIManagerNew.PauseMenuCallback() {
-                @Override
-                public void onOpenToLAN() {
-                    startHosting();
-                }
-
-                @Override
-                public void onReturnToMainMenu() {
-                    // Stop multiplayer before returning
-                    stopMultiplayer();
-
-                    // Auto-save before returning to main menu
-                    if (currentSaveName != null) {
-                        com.game.save.SaveManager.getInstance().save(currentSaveName);
-                        System.out.println("GameScreen: Auto-saved to: " + currentSaveName);
-                    } else {
-                        System.out.println("GameScreen: No save name set, skipping auto-save");
-                    }
-
-                    // Return to main menu
-                    com.badlogic.gdx.Game game = (com.badlogic.gdx.Game) Gdx.app.getApplicationListener();
-                    game.setScreen(new MainMenuScreen((Main) game));
-                }
-            });
-
-            // Initialize SaveManager (use local player)
-            com.game.save.SaveManager.getInstance().initialize(
-                localPlayer,
-                localPlayer.getInventory(),
-                furnitureManager,
-                worldItemManager
-            );
-
-            // Initialize debug console
-            debugConsole = new DebugConsole(uiManager.getSkin(), this, debugManager);
-            debugConsole.setSize(400, 600);
-            debugConsole.setPosition(10, VIEWPORT_HEIGHT - 70);
-            debugConsole.padTop(20);
-            uiManager.getStage().addActor(debugConsole);
-
-            Gdx.input.setInputProcessor(uiManager.getStage());
-            System.out.println("GameScreen: Input processor set to UI Stage");
-        }
-
-        // Create gateway entities
-        for (LevelData.LevelObject obj : levelData.getObjectsByType("gateway")) {
-            String targetLevel = obj.getPropertyString("targetLevel", null);
-            String targetSpawn = obj.getPropertyString("targetSpawn", null);
-
-            if (targetLevel != null) {
-                GatewayEntity gateway = new GatewayEntity(
-                    obj.getX(), obj.getY(),
-                    obj.getWidth(), obj.getHeight(),
-                    targetLevel, targetSpawn
-                );
-                world.addGameObject(gateway);
-                System.out.println("Loaded gateway to: " + targetLevel + " at spawn: " + targetSpawn);
-            }
-        }
-
-        // Load breakable objects
-        String[] breakableTypes = {"pot", "clay_pot"};
-        for (String breakableType : breakableTypes) {
-            for (LevelData.LevelObject obj : levelData.getObjectsByType(breakableType)) {
-                BreakableEntity breakable = com.game.systems.breakable.BreakableObjectFactory.create(
-                    breakableType,
-                    obj.getX(),
-                    obj.getY()
-                );
-
-                if (breakable != null) {
-                    // Set particle callback
-                    breakable.setParticleCallback((x, y, particleType) -> {
-                        DestructionParticleEntity particle = new DestructionParticleEntity(x, y, particleType);
-                        destructionParticles.add(particle);
-                    });
-
-                    world.addGameObject(breakable);
-                    System.out.println("Loaded breakable: " + breakableType);
-                }
-            }
-        }
-
-        // Load placed furniture for this level
-        furnitureManager.loadFurnitureIntoWorld(levelSource.getLevelName(), world);
-
-        // Update SaveManager with current level info
-        String levelType = (levelSource instanceof com.game.systems.dungeon.DungeonLevelSource) ? "dungeon" : "tiled_map";
-        com.game.save.SaveManager.getInstance().setCurrentLevel(levelSource.getLevelName(), levelType);
-
-        // Update WorldItemManager with current level
-        worldItemManager.setCurrentLevel(levelSource.getLevelName());
+        String levelType = instance.getSource().isDungeon() ? "dungeon" : "tiled_map";
+        com.game.save.SaveManager.getInstance().setCurrentLevel(instance.getLevelId(), levelType);
     }
 
     /**
-     * Load a level from a Tiled map file (.tmx).
-     * Wrapper that uses the unified loadLevel(LevelSource) method.
+     * Unload a level the local player just left, unless it should be kept.
+     * Clients only keep their current level. The host and single-player keep Tiled maps
+     * (so revisiting preserves broken pots etc.) and drop generated dungeons nobody is in.
      */
-    private void loadLevel(String levelPath, String spawnPointName) {
-        // Create a TiledMapLevelSource and delegate to unified method
-        com.game.systems.level.TiledMapLevelSource levelSource =
-            new com.game.systems.level.TiledMapLevelSource(levelPath);
-        loadLevel(levelSource, spawnPointName);
+    private void releaseInstanceIfUnused(LevelInstance instance) {
+        String levelId = instance.getLevelId();
+        boolean keep = !clientMode && (!instance.getSource().isDungeon()
+            || (session != null && session.isLevelOccupied(levelId)));
+        if (keep) return;
+
+        if (instances.get(levelId) == instance) {
+            instances.remove(levelId);
+            worldItemManager.clearLevel(levelId); // Replica items, or loot in a dungeon that's gone
+        }
+        if (session != null) {
+            session.onInstanceDisposed(instance);
+        }
+        instance.dispose();
+    }
+
+    /**
+     * Create the player controlled on this machine, in the current world.
+     */
+    private void createLocalPlayer(float x, float y) {
+        PlayerEntity player = new PlayerEntity(world, x, y);
+        LocalKeyboardInput input = LocalKeyboardInput.createPlayer1();
+        input.setCamera(camera);
+        input.setPlayerTransform(player.getTransform());
+        player.setInputSource(input);
+
+        player.setDamageNumberCallback((dx, dy, damage) -> emitDamageNumber(levelIdOf(player.getWorld()), dx, dy, damage));
+        player.setAttackListener((angle, weaponId) -> {
+            if (session != null) {
+                session.onLocalAttack(angle, weaponId);
+            }
+        });
+
+        playerManager.addPlayer(player);
+        localPlayer = player;
+        if (session != null) {
+            session.onLocalPlayerCreated(player);
+        }
+        world.addGameObject(player);
+        System.out.println("GameScreen: Created local player " + player.getPlayerId());
+    }
+
+    /**
+     * Build the HUD, inventory windows, debug console etc. for the local player.
+     */
+    private void initLocalPlayerUI(PlayerEntity player) {
+        uiManager = new UIManagerNew(player.getInventory(), worldItemManager);
+
+        // IMPORTANT: Resize the UI manager to match current window size
+        uiManager.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+
+        uiManager.setItemDropCallback(itemStack -> {
+            Vector2 playerPos = localPlayer.getTransform().getPosition();
+            if (session == null || !session.dropItem(itemStack, playerPos.x, playerPos.y)) {
+                worldItemManager.spawnItem(itemStack, playerPos.x, playerPos.y, 0f);
+            }
+        });
+
+        uiManager.setFurniturePlacementCallback(new UIManagerNew.FurniturePlacementCallback() {
+            @Override
+            public void onPlaceFurniture(ItemStack furnitureItem, com.game.systems.ui.ItemSlotUI sourceSlot) {
+                enterFurniturePlacementMode(furnitureItem, sourceSlot);
+            }
+
+            @Override
+            public void onCancelPlacement() {
+                exitFurniturePlacementMode(false);
+            }
+        });
+
+        uiManager.setPlayerHealth(player.getHealthComponent());
+        uiManager.setPlayer(player);
+
+        uiManager.setPauseMenuCallback(new UIManagerNew.PauseMenuCallback() {
+            @Override
+            public void onOpenToLAN() {
+                startHosting();
+            }
+
+            @Override
+            public void onReturnToMainMenu() {
+                // Stop multiplayer before returning
+                stopMultiplayer();
+
+                // Auto-save before returning to main menu
+                if (currentSaveName != null) {
+                    com.game.save.SaveManager.getInstance().save(currentSaveName);
+                    System.out.println("GameScreen: Auto-saved to: " + currentSaveName);
+                } else {
+                    System.out.println("GameScreen: No save name set, skipping auto-save");
+                }
+
+                returnToMainMenu(null);
+            }
+        });
+
+        // Initialize SaveManager (use local player)
+        com.game.save.SaveManager.getInstance().initialize(
+            player,
+            player.getInventory(),
+            furnitureManager,
+            worldItemManager
+        );
+
+        // Initialize debug console
+        debugConsole = new DebugConsole(uiManager.getSkin(), this, debugManager);
+        debugConsole.setSize(400, 600);
+        debugConsole.setPosition(10, VIEWPORT_HEIGHT - 70);
+        debugConsole.padTop(20);
+        uiManager.getStage().addActor(debugConsole);
+
+        Gdx.input.setInputProcessor(uiManager.getStage());
+    }
+
+    /**
+     * Attaches game callbacks (damage numbers, death animations, particles) to entities
+     * as they enter a level, wherever they came from (map, debug spawn, network).
+     */
+    private class EntityDecorator implements WorldManager.Listener {
+        private final String levelId;
+
+        EntityDecorator(String levelId) {
+            this.levelId = levelId;
+        }
+
+        @Override
+        public void onObjectAdded(GameObject obj) {
+            if (obj instanceof EnemyEntity enemy && !enemy.isNetworkControlled()) {
+                enemy.setDamageNumberCallback((x, y, damage) -> emitDamageNumber(levelId, x, y, damage));
+                enemy.setDeathCallback((deadEnemy, x, y) -> emitDeath(levelId, x, y));
+            } else if (obj instanceof BreakableEntity breakable) {
+                breakable.setParticleCallback((x, y, particleType) -> {
+                    if (isCurrentLevel(levelId)) {
+                        destructionParticles.add(new DestructionParticleEntity(x, y, particleType));
+                    }
+                    if (session != null && breakable.getNetId() != 0) {
+                        Packets.Effect effect = new Packets.Effect();
+                        effect.kind = Packets.Effect.BREAK;
+                        effect.netId = breakable.getNetId();
+                        session.broadcastEffect(levelId, effect);
+                    }
+                });
+            }
+        }
+
+        @Override
+        public void onObjectRemoved(GameObject obj) {
+        }
+    }
+
+    private boolean isCurrentLevel(String levelId) {
+        return currentInstance != null && currentInstance.getLevelId().equals(levelId);
+    }
+
+    private String levelIdOf(WorldManager someWorld) {
+        for (LevelInstance instance : instances.values()) {
+            if (instance.getWorld() == someWorld) return instance.getLevelId();
+        }
+        return null;
+    }
+
+    /**
+     * A hit landed in some level: show the number here if we're looking at that level,
+     * and tell the players in it.
+     */
+    private void emitDamageNumber(String levelId, float x, float y, int damage) {
+        if (levelId == null) return;
+        if (isCurrentLevel(levelId)) {
+            showDamageNumber(x, y, damage);
+        }
+        if (session != null) {
+            Packets.Effect effect = new Packets.Effect();
+            effect.kind = Packets.Effect.DAMAGE_NUMBER;
+            effect.x = x;
+            effect.y = y;
+            effect.amount = damage;
+            session.broadcastEffect(levelId, effect);
+        }
+    }
+
+    private void emitDeath(String levelId, float x, float y) {
+        if (isCurrentLevel(levelId)) {
+            showDeathAnimation(x, y);
+        }
+        if (session != null) {
+            Packets.Effect effect = new Packets.Effect();
+            effect.kind = Packets.Effect.DEATH;
+            effect.x = x;
+            effect.y = y;
+            session.broadcastEffect(levelId, effect);
+        }
     }
 
     private void checkGatewayCollisions() {
-        if (!playerManager.hasPlayers()) return;
+        if (localPlayer == null) return;
 
-        // Check all gateways against any player
+        ColliderComponent playerCollider = localPlayer.getComponent(ColliderComponent.class);
+        if (playerCollider == null) return;
+        Rectangle playerBounds = playerCollider.getBounds(localPlayer);
+
         for (GameObject obj : world.getGameObjects()) {
-            if (obj instanceof GatewayEntity) {
-                GatewayEntity gateway = (GatewayEntity) obj;
+            if (obj instanceof GatewayEntity gateway) {
                 ColliderComponent gatewayCollider = gateway.getComponent(ColliderComponent.class);
-
-                if (gatewayCollider != null) {
-                    Rectangle gatewayBounds = gatewayCollider.getBounds(gateway);
-
-                    // Check if any player is touching the gateway
-                    for (PlayerEntity player : playerManager.getAllPlayers()) {
-                        ColliderComponent playerCollider = player.getComponent(ColliderComponent.class);
-                        if (playerCollider != null) {
-                            Rectangle playerBounds = playerCollider.getBounds(player);
-                            if (playerBounds.overlaps(gatewayBounds)) {
-                                pendingGateway = gateway;
-                                return;
-                            }
-                        }
-                    }
+                if (gatewayCollider != null && playerBounds.overlaps(gatewayCollider.getBounds(gateway))) {
+                    pendingGateway = gateway;
+                    return;
                 }
             }
         }
@@ -1070,10 +1069,8 @@ public class GameScreen implements Screen {
             camera.zoom = 1f / cameraScale;
         }
 
-        if (!playerManager.hasPlayers()) return;
-
-        // Follow local player (or first player in single-player mode)
-        PlayerEntity player = (localPlayerId >= 0) ? playerManager.getPlayerById(localPlayerId) : playerManager.getFirstPlayer();
+        // Follow the local player
+        PlayerEntity player = localPlayer;
         if (player == null) return;
 
         Transform playerTransform = player.getTransform();
@@ -1402,7 +1399,10 @@ public class GameScreen implements Screen {
         debugFont.dispose();
         damageFont.dispose();
         if (mapRenderer != null) mapRenderer.dispose();
-        if (currentMap != null) currentMap.dispose();
+        for (LevelInstance instance : instances.values()) {
+            instance.dispose();
+        }
+        instances.clear();
         if (uiManager != null) uiManager.dispose();
 
         // Dispose audio resources
@@ -1431,6 +1431,11 @@ public class GameScreen implements Screen {
      * Called by UIManager when user selects "Place" on a furniture item.
      */
     private void enterFurniturePlacementMode(ItemStack furnitureItem, com.game.systems.ui.ItemSlotUI sourceSlot) {
+        if (clientMode) {
+            System.out.println("GameScreen: Furniture can only be placed by the host for now");
+            uiManager.exitPlacementMode();
+            return;
+        }
         if (!furnitureItem.getDefinition().isFurniture()) {
             System.err.println("GameScreen: Cannot place non-furniture item");
             return;
@@ -1552,7 +1557,7 @@ public class GameScreen implements Screen {
      * Checks for furniture near the first player and opens UI or picks up.
      */
     private void handleFurnitureInteraction() {
-        PlayerEntity player = playerManager.getFirstPlayer();
+        PlayerEntity player = localPlayer;
         if (player == null) return;
 
         // Find nearby furniture
@@ -1601,7 +1606,7 @@ public class GameScreen implements Screen {
      * Pick up furniture and return it to first player's inventory.
      */
     private void pickupFurniture(com.game.systems.furniture.FurnitureEntity furniture) {
-        PlayerEntity player = playerManager.getFirstPlayer();
+        PlayerEntity player = localPlayer;
         if (player == null) return;
 
         // Create item stack for the furniture
@@ -1659,27 +1664,16 @@ public class GameScreen implements Screen {
      * Call this every frame in update loop.
      */
     private void updateOpenChestDistance() {
-        if (currentlyOpenChest != null && playerManager.hasPlayers()) {
+        if (currentlyOpenChest != null && localPlayer != null) {
             Vector2 chestPos = new Vector2(
                 currentlyOpenChest.getTransform().getX(),
                 currentlyOpenChest.getTransform().getY()
             );
 
-            // Check if ANY player is still in range
-            boolean anyPlayerNear = false;
-            for (PlayerEntity player : playerManager.getAllPlayers()) {
-                Vector2 playerPos = player.getTransform().getPosition();
-                float distance = playerPos.dst(chestPos);
-                if (distance <= CHEST_AUTO_CLOSE_DISTANCE) {
-                    anyPlayerNear = true;
-                    break;
-                }
-            }
-
-            // Close chest if no players are nearby
-            if (!anyPlayerNear) {
+            // Close chest once the local player walks away
+            if (localPlayer.getTransform().getPosition().dst(chestPos) > CHEST_AUTO_CLOSE_DISTANCE) {
                 closeChest(currentlyOpenChest);
-                System.out.println("GameScreen: Auto-closed chest (all players moved away)");
+                System.out.println("GameScreen: Auto-closed chest (player moved away)");
             }
         }
     }
@@ -1703,13 +1697,14 @@ public class GameScreen implements Screen {
         }
 
         // IMPORTANT: Import furniture data BEFORE loading the level
-        // This is because loadLevel() calls furnitureManager.loadFurnitureIntoWorld()
-        // which needs the furniture data to already be in the manager
-        if (saveData.world != null && saveData.world.furnitureByLevel != null) {
+        // Level instances load furniture from the manager when they are built
+        if (saveData.world.furnitureByLevel != null) {
             furnitureManager.importSaveData(saveData.world.furnitureByLevel);
         }
 
-        // First, reload the level (this will create a new world)
+        // Rebuild levels from scratch so they match the save
+        unloadAllLevels();
+
         String levelId = saveData.world.currentLevelId;
         String levelType = saveData.world.levelType;
 
@@ -1719,11 +1714,11 @@ public class GameScreen implements Screen {
             levelId = "Maps/prototype.tmx";
         }
 
-        // Reload the level (will load furniture from manager into world)
-        loadLevel(levelId, null);
+        changeLevel(levelId, null);
 
         // Now apply the rest of the save data (player, inventory, dropped items)
         com.game.save.SaveManager.getInstance().applySaveData(saveData);
+        worldItemManager.setCurrentLevel(levelId);
 
         // Refresh UI to show loaded inventory
         uiManager.refreshAllWindows();
@@ -1732,761 +1727,166 @@ public class GameScreen implements Screen {
                          ", Position: (" + saveData.player.x + ", " + saveData.player.y + ")");
     }
 
-    // ========== Networking Support ==========
+    /**
+     * Dispose every level instance (the local player is detached and re-added on the next enterLevel).
+     */
+    private void unloadAllLevels() {
+        if (currentInstance != null && localPlayer != null) {
+            currentInstance.getWorld().removeGameObject(localPlayer);
+        }
+        for (LevelInstance instance : instances.values()) {
+            instance.dispose();
+        }
+        instances.clear();
+        currentInstance = null;
+    }
+
+    // ========== Multiplayer ==========
 
     /**
      * Start hosting a multiplayer game (Open to LAN).
      * The current game becomes a server that others can connect to.
      */
     public void startHosting() {
-        if (isHost || isClient) {
+        if (session != null || clientMode) {
             System.out.println("GameScreen: Already in multiplayer mode");
             return;
         }
 
-        isHost = true;
-        localPlayerId = 0; // Host is always Player 0
-
-        // CRITICAL: Register the current world in activeWorlds for multi-world simulation
-        if (world != null && currentLevelSource != null) {
-            String currentLevel = currentLevelSource.getLevelName();
-            activeWorlds.put(currentLevel, world);
-            playerLevels.put(0, currentLevel); // Track host's level
-            System.out.println("GameScreen (Server): Registered host world: " + currentLevel);
+        HostSession host = new HostSession(this);
+        session = host;
+        if (!host.start()) {
+            session = null;
+            host.dispose();
+            System.err.println("GameScreen: Could not start hosting (is the port already in use?)");
+            return;
         }
 
-        // Ensure the existing player is assigned Player 0
-        PlayerEntity existingPlayer = playerManager.getFirstPlayer();
-        if (existingPlayer != null) {
-            existingPlayer.setPlayerId(0);
-            System.out.println("GameScreen: Set existing player as host (Player 0)");
-        }
-
-        // Create and start server
-        gameServer = new com.game.networking.GameServer();
-
-        // Set up server callbacks
-        gameServer.setClientConnectedCallback((clientId, playerName) -> {
-            System.out.println("GameScreen: Client " + clientId + " connected: " + playerName);
-
-            // Create a new player for the connected client
-            Gdx.app.postRunnable(() -> {
-                if (world != null && playerManager != null) {
-                    // Get spawn position from first player
-                    PlayerEntity firstPlayer = playerManager.getFirstPlayer();
-                    float spawnX = 50;
-                    float spawnY = 50;
-                    if (firstPlayer != null) {
-                        spawnX = firstPlayer.getTransform().getX() + 32; // Spawn near host
-                        spawnY = firstPlayer.getTransform().getY();
-                    }
-
-                    // Create new player with NetworkInputSource
-                    PlayerEntity newPlayer = new PlayerEntity(world, spawnX, spawnY);
-                    com.game.networking.NetworkInputSource networkInput = new com.game.networking.NetworkInputSource();
-                    newPlayer.setInputSource(networkInput);
-
-                    // Set damage number callback
-                    newPlayer.setDamageNumberCallback((x, y, damage) -> {
-                        DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-                        damageNumbers.add(damageNumber);
-                    });
-
-                    // CRITICAL: Set player ID to match client ID before adding to manager
-                    newPlayer.setPlayerId(clientId);
-                    playerManager.addPlayerWithId(newPlayer);  // Use addPlayerWithId to preserve ID
-                    world.addGameObject(newPlayer);
-
-                    // Track which level this client's player is in (initially same as host)
-                    if (currentLevelSource != null) {
-                        playerLevels.put(clientId, currentLevelSource.getLevelName());
-                    }
-
-                    System.out.println("GameScreen: Created remote player " + clientId + " for connected client");
-                }
-            });
-        });
-
-        gameServer.setClientDisconnectedCallback((clientId, reason) -> {
-            System.out.println("GameScreen: Client " + clientId + " disconnected: " + reason);
-            // TODO: Remove player from game
-        });
-
-        gameServer.setInputReceivedCallback((clientId, inputPacket) -> {
-            // Track sequence number for reconciliation
-            lastProcessedInputSequence.put(clientId, inputPacket.getSequenceNumber());
-
-            String newLevelId = inputPacket.getCurrentLevelId();
-            String currentLevelId = playerLevels.get(clientId);
-
-            // Detect level change
-            boolean levelChanged = currentLevelId != null && !currentLevelId.equals(newLevelId);
-
-            if (levelChanged) {
-                System.out.println("GameScreen (Server): Player " + clientId + " changed level from " + currentLevelId + " to " + newLevelId);
-            }
-
-            // Update level tracking
-            playerLevels.put(clientId, newLevelId);
-
-            // Apply input to the player
-            Gdx.app.postRunnable(() -> {
-                PlayerEntity player = playerManager.getPlayerById(clientId);
-                if (player == null) return;
-
-                if (levelChanged) {
-                    // Player changed levels - move them between worlds
-                    WorldManager oldWorld = activeWorlds.get(currentLevelId);
-                    WorldManager newWorld = getOrCreateWorld(newLevelId);
-
-                    // Remove player from old world
-                    if (oldWorld != null && oldWorld.getGameObjects().contains(player)) {
-                        oldWorld.removeGameObject(player);
-                        System.out.println("GameScreen (Server): Removed player " + clientId + " from world " + currentLevelId);
-                    }
-
-                    // Get spawn position from client's spawn point (from gateway)
-                    com.game.systems.level.LevelSource tempLevelSource = new com.game.systems.level.TiledMapLevelSource(newLevelId);
-                    com.game.systems.level.LevelData levelData = tempLevelSource.getLevelData();
-
-                    // Use the spawn point name provided by client (from gateway), or default
-                    String spawnPointName = inputPacket.getSpawnPointName();
-                    com.game.systems.level.LevelData.SpawnPoint spawnPoint;
-                    if (spawnPointName != null) {
-                        spawnPoint = levelData.getSpawnPoint(spawnPointName);
-                        if (spawnPoint == null) {
-                            System.out.println("GameScreen (Server): Spawn point '" + spawnPointName + "' not found, using default");
-                            spawnPoint = levelData.getDefaultSpawnPoint();
-                        }
-                    } else {
-                        spawnPoint = levelData.getDefaultSpawnPoint();
-                    }
-
-                    float spawnX = spawnPoint != null ? spawnPoint.getX() : 100;
-                    float spawnY = spawnPoint != null ? spawnPoint.getY() : 100;
-                    tempLevelSource.dispose();
-
-                    // Set player's world and position
-                    player.setWorld(newWorld);
-                    player.getTransform().setPosition(spawnX, spawnY);
-
-                    if (!newWorld.getGameObjects().contains(player)) {
-                        newWorld.addGameObject(player);
-                        System.out.println("GameScreen (Server): Added player " + clientId + " to world " + newLevelId +
-                                         " at spawn '" + spawnPointName + "' (" + spawnX + ", " + spawnY + ")");
-                    }
-
-                    // DEBUG: Check playerLevels map
-                    System.out.println("GameScreen (Server): playerLevels after level change:");
-                    for (java.util.Map.Entry<Integer, String> entry : playerLevels.entrySet()) {
-                        System.out.println("  Player " + entry.getKey() + " -> " + entry.getValue());
-                    }
-                }
-
-                // Apply input to the player in their current world
-                if (player.getInputSource() instanceof com.game.networking.NetworkInputSource) {
-                    com.game.networking.NetworkInputSource networkInput =
-                        (com.game.networking.NetworkInputSource) player.getInputSource();
-                    networkInput.updateFromPacket(inputPacket);
-                }
-            });
-        });
-
-        gameServer.setLevelChangeRequestCallback((clientId, requestPacket) -> {
-            System.out.println("GameScreen (Server): Received level change request from player " + clientId +
-                             " to level " + requestPacket.targetLevelId + " at spawn " + requestPacket.spawnPointName);
-
-            Gdx.app.postRunnable(() -> {
-                // Get or create the target world
-                WorldManager targetWorld = getOrCreateWorld(requestPacket.targetLevelId);
-
-                // Load level data to get spawn point
-                com.game.systems.level.LevelSource tempLevelSource = new com.game.systems.level.TiledMapLevelSource(requestPacket.targetLevelId);
-                com.game.systems.level.LevelData levelData = tempLevelSource.getLevelData();
-
-                // Get spawn position from requested spawn point
-                com.game.systems.level.LevelData.SpawnPoint spawnPoint;
-                if (requestPacket.spawnPointName != null) {
-                    spawnPoint = levelData.getSpawnPoint(requestPacket.spawnPointName);
-                    if (spawnPoint == null) {
-                        System.out.println("GameScreen (Server): Spawn point '" + requestPacket.spawnPointName + "' not found, using default");
-                        spawnPoint = levelData.getDefaultSpawnPoint();
-                    }
-                } else {
-                    spawnPoint = levelData.getDefaultSpawnPoint();
-                }
-
-                float spawnX = spawnPoint != null ? spawnPoint.getX() : 100;
-                float spawnY = spawnPoint != null ? spawnPoint.getY() : 100;
-
-                // Convert to grid and back to match loadLevel behavior
-                int spawnGridX = (int)(spawnX / targetWorld.getTileSize());
-                int spawnGridY = (int)(spawnY / targetWorld.getTileSize());
-                spawnX = spawnGridX * targetWorld.getTileSize();
-                spawnY = spawnGridY * targetWorld.getTileSize();
-
-                tempLevelSource.dispose();
-
-                // Move player between worlds
-                PlayerEntity player = playerManager.getPlayerById(clientId);
-                if (player != null) {
-                    String oldLevelId = playerLevels.get(clientId);
-                    WorldManager oldWorld = activeWorlds.get(oldLevelId);
-
-                    // Remove from old world
-                    if (oldWorld != null && oldWorld.getGameObjects().contains(player)) {
-                        oldWorld.removeGameObject(player);
-                        System.out.println("GameScreen (Server): Removed player " + clientId + " from world " + oldLevelId);
-                    }
-
-                    // Add to new world
-                    player.setWorld(targetWorld);
-                    player.getTransform().setPosition(spawnX, spawnY);
-                    if (!targetWorld.getGameObjects().contains(player)) {
-                        targetWorld.addGameObject(player);
-                    }
-
-                    // Update level tracking
-                    playerLevels.put(clientId, requestPacket.targetLevelId);
-
-                    System.out.println("GameScreen (Server): Moved player " + clientId + " to " + requestPacket.targetLevelId +
-                                     " at (" + spawnX + ", " + spawnY + ")");
-                }
-
-                // Send confirmation back to client
-                LevelChangeConfirmPacket confirmPacket = LevelChangeConfirmPacket.success(
-                    clientId, requestPacket.targetLevelId, spawnX, spawnY
-                );
-                gameServer.sendPacketToClient(clientId, confirmPacket);
-
-                System.out.println("GameScreen (Server): Sent level change confirmation to player " + clientId);
-            });
-        });
-
-        gameServer.start();
-
-        System.out.println("GameScreen: Hosting on port " + gameServer.getPort());
         System.out.println("GameScreen: Other players can connect using 'localhost' or your LAN IP");
     }
 
     /**
-     * Set up an already-connected game client (called from main menu).
-     * @param client The already-connected GameClient
+     * Join a host with an already-connected client (called from the main menu).
+     * The level is built when the host's welcome arrives.
      */
     public void setGameClient(com.game.networking.GameClient client) {
-        if (isHost || (isClient && gameClient != null)) {
+        if (session != null) {
             System.out.println("GameScreen: Already in multiplayer mode");
             return;
         }
-
-        isClient = true;
-        gameClient = client;
-
-        System.out.println("GameScreen: Setting up pre-connected client...");
-
-        // Check if client already received player ID during initial connection
-        int existingPlayerId = gameClient.getAssignedPlayerId();
-        if (existingPlayerId != -1) {
-            System.out.println("GameScreen: Client already has player ID: " + existingPlayerId);
-            localPlayerId = existingPlayerId;
-
-            // Create the local player immediately
-            createLocalPlayer(existingPlayerId);
-        }
-
-        // Set up client callbacks for future events
-        setupClientCallbacks();
-
-        System.out.println("GameScreen: Client callbacks configured");
+        session = new ClientSession(client, this);
     }
 
     /**
-     * Create the local controllable player for multiplayer.
-     * @param playerId The player ID assigned by the server
+     * Whether this machine joined someone else's game.
      */
-    private void createLocalPlayer(int playerId) {
-        if (world == null) {
-            System.err.println("GameScreen: Cannot create local player - world not loaded yet");
-            return;
-        }
-
-        // Get spawn position from the loaded level
-        float spawnX = 50;
-        float spawnY = 750;
-
-        if (currentLevelSource != null) {
-            com.game.systems.level.LevelData levelData = currentLevelSource.getLevelData();
-            com.game.systems.level.LevelData.SpawnPoint spawn = levelData.getDefaultSpawnPoint();
-
-            if (spawn != null) {
-                spawnX = spawn.getX();
-                spawnY = spawn.getY();
-
-                // Convert to grid and back to match loadLevel behavior
-                int spawnGridX = (int)(spawnX / world.getTileSize());
-                int spawnGridY = (int)(spawnY / world.getTileSize());
-                spawnX = spawnGridX * world.getTileSize();
-                spawnY = spawnGridY * world.getTileSize();
-            }
-        }
-
-        System.out.println("GameScreen: Creating local player " + playerId + " at (" + spawnX + ", " + spawnY + ")");
-
-        // Create local controllable player with assigned ID
-        PlayerEntity localPlayer = new PlayerEntity(world, spawnX, spawnY);
-        LocalKeyboardInput input = LocalKeyboardInput.createPlayer1();
-        input.setCamera(camera);
-        input.setPlayerTransform(localPlayer.getTransform());
-        localPlayer.setInputSource(input);
-
-        // Set damage number callback
-        localPlayer.setDamageNumberCallback((x, y, damage) -> {
-            DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-            damageNumbers.add(damageNumber);
-        });
-
-        // Manually set the player ID to match server assignment
-        localPlayer.setPlayerId(playerId);
-        playerManager.addPlayerWithId(localPlayer);  // Use addPlayerWithId to preserve ID
-        world.addGameObject(localPlayer);
-
-        System.out.println("GameScreen: Created local player with ID: " + playerId);
+    public boolean isGuest() {
+        return clientMode;
     }
 
     /**
-     * Setup client callbacks for an existing gameClient.
-     */
-    private void setupClientCallbacks() {
-        gameClient.setConnectionCallback((assignedPlayerId) -> {
-            System.out.println("GameScreen: Connected to server with player ID: " + assignedPlayerId);
-            localPlayerId = assignedPlayerId;
-
-            // Create the local player on the main thread
-            Gdx.app.postRunnable(() -> {
-                createLocalPlayer(assignedPlayerId);
-            });
-        });
-
-        gameClient.setDisconnectionCallback((reason) -> {
-            System.out.println("GameScreen: Disconnected from server: " + reason);
-            isClient = false;
-            // TODO: Return to main menu or show error
-        });
-
-        gameClient.setStateUpdateCallback((statePacket) -> {
-            // Apply state update from server
-            Gdx.app.postRunnable(() -> {
-                applyStateUpdate(statePacket);
-            });
-        });
-
-        gameClient.setPlayerJoinCallback((playerId, playerName) -> {
-            System.out.println("GameScreen: Player " + playerId + " joined: " + playerName);
-            // Players are managed by the server and state updates
-        });
-
-        gameClient.setLevelChangeConfirmCallback((confirmPacket) -> {
-            System.out.println("GameScreen (Client): Received level change confirm to " + confirmPacket.levelId +
-                             " at (" + confirmPacket.spawnX + ", " + confirmPacket.spawnY + ")");
-
-            Gdx.app.postRunnable(() -> {
-                if (confirmPacket.success) {
-                    // Load the new level locally
-                    loadLevel(confirmPacket.levelId, null);
-
-                    // Teleport local player to confirmed spawn position
-                    PlayerEntity localPlayer = playerManager.getPlayerById(localPlayerId);
-                    if (localPlayer != null) {
-                        localPlayer.getTransform().setPosition(confirmPacket.spawnX, confirmPacket.spawnY);
-                        System.out.println("GameScreen (Client): Teleported to (" + confirmPacket.spawnX + ", " + confirmPacket.spawnY + ")");
-                    }
-                } else {
-                    System.err.println("GameScreen (Client): Level change failed: " + confirmPacket.errorMessage);
-                }
-            });
-        });
-    }
-
-    /**
-     * Connect to a multiplayer game as a client (legacy method - prefer setGameClient).
-     * @param serverIp Server IP address to connect to
-     * @deprecated Use setGameClient with a pre-connected client for better error handling
-     */
-    public void connectToServer(String serverIp) {
-        if (isHost || isClient) {
-            System.out.println("GameScreen: Already in multiplayer mode");
-            return;
-        }
-
-        isClient = true;
-
-        // Create and connect client
-        gameClient = new com.game.networking.GameClient();
-
-        // Set up client callbacks
-        setupClientCallbacks();
-
-        // Connect to server
-        boolean success = gameClient.connect(serverIp);
-        if (!success) {
-            System.err.println("GameScreen: Failed to connect to server: " + serverIp);
-            isClient = false;
-            // TODO: Show error dialog
-        }
-    }
-
-    /**
-     * Update networking - called every frame.
-     * Sends input to server (client) or broadcasts state (host).
-     */
-    private void updateNetworking(float delta) {
-        inputSendTimer += delta;
-        stateSendTimer += delta;
-
-        if (isClient && gameClient != null && gameClient.isConnected()) {
-            // Send input to server at high frequency (every frame)
-            if (inputSendTimer >= INPUT_SEND_INTERVAL) {
-                sendInputToServer();
-                inputSendTimer = 0f;
-            }
-        } else if (isHost && gameServer != null && gameServer.isRunning()) {
-            // Broadcast state to all clients at lower frequency (20Hz)
-            if (stateSendTimer >= STATE_SEND_INTERVAL) {
-                broadcastStateToClients();
-                stateSendTimer = 0f;
-            }
-        }
-    }
-
-    /**
-     * Send local player input to server (client mode).
-     */
-    private void sendInputToServer() {
-        // Get the local controllable player by ID
-        PlayerEntity localPlayer = playerManager.getPlayerById(localPlayerId);
-        if (localPlayer == null) {
-            System.err.println("GameScreen: Cannot send input - local player " + localPlayerId + " not found");
-            return;
-        }
-
-        com.game.systems.input.InputSource input = localPlayer.getInputSource();
-        if (input == null) return;
-
-        com.badlogic.gdx.math.Vector2 movement = input.getMovementInput();
-        com.badlogic.gdx.math.Vector2 aim = input.getAimDirection();
-
-        // Get current level ID
-        String currentLevel = (currentLevelSource != null) ? currentLevelSource.getLevelName() : "unknown";
-
-        // Detect level change and send spawn point (only once per level change)
-        String spawnPointToSend = null;
-        if (!currentLevel.equals(lastLevelSentToServer)) {
-            // Level changed! Send the spawn point this time
-            spawnPointToSend = lastSpawnPointUsed;
-            lastLevelSentToServer = currentLevel;
-            lastSpawnPointUsed = null; // Clear after sending
-            System.out.println("GameScreen: Sending level change to server - level: " + currentLevel + ", spawn: " + spawnPointToSend);
-        }
-
-        gameClient.sendInput(
-            currentLevel,
-            spawnPointToSend,
-            movement.x, movement.y,
-            input.isAttackPressed(), input.isAttackJustPressed(),
-            aim.x, aim.y,
-            input.isRunning()
-        );
-    }
-
-    /**
-     * Broadcast game state to all clients (host mode).
-     */
-    private void broadcastStateToClients() {
-        if (gameServer == null || !gameServer.isRunning()) return;
-
-        com.game.networking.StateUpdatePacket statePacket = new com.game.networking.StateUpdatePacket();
-
-        // Add all player states
-        String hostLevel = (currentLevelSource != null) ? currentLevelSource.getLevelName() : "unknown";
-        System.out.println("GameScreen (Server Broadcast): hostLevel = " + hostLevel + ", localPlayerId = " + localPlayerId);
-
-        for (PlayerEntity player : playerManager.getAllPlayers()) {
-            int playerId = player.getPlayerId();
-            com.badlogic.gdx.math.Vector2 pos = player.getTransform().getPosition();
-            com.game.components.HealthComponent health = player.getHealthComponent();
-
-            // Get level for this player (host uses current level, clients use tracked level)
-            String playerLevel;
-            if (playerId == localPlayerId) {
-                playerLevel = hostLevel;
-                playerLevels.put(playerId, hostLevel); // Track host's level too
-            } else {
-                playerLevel = playerLevels.getOrDefault(playerId, hostLevel);
-            }
-
-            // Get animation state, direction, and flip from AnimationComponent
-            com.game.components.AnimationComponent animComp = player.getComponent(com.game.components.AnimationComponent.class);
-            String currentAnimation = "idle";
-            int currentDirection = 180; // Default: facing down
-            boolean flipX = false;
-
-            if (animComp != null) {
-                currentAnimation = animComp.getCurrentState();
-                currentDirection = animComp.getCurrentDirection();
-
-                // Get flip state from the animator
-                com.game.systems.animation.SpriteAnimator animator = animComp.getAnimator();
-                if (animator != null) {
-                    flipX = animator.isFlipX();
-                }
-            }
-
-            com.game.networking.StateUpdatePacket.PlayerState playerState =
-                new com.game.networking.StateUpdatePacket.PlayerState(
-                    playerLevel,
-                    pos.x, pos.y,
-                    health.getCurrentHealth(), health.getMaxHealth(),
-                    currentAnimation, currentDirection, flipX
-                );
-
-            statePacket.addPlayerState(playerId, playerState);
-        }
-
-        // Add last processed input sequences for reconciliation
-        for (java.util.Map.Entry<Integer, Integer> entry : lastProcessedInputSequence.entrySet()) {
-            statePacket.setLastProcessedInput(entry.getKey(), entry.getValue());
-        }
-
-        gameServer.broadcastPacket(statePacket);
-    }
-
-    /**
-     * Apply state update from server (client mode).
-     * Uses client prediction with periodic checkpoints:
-     * - Local player: only corrects if prediction error exceeds threshold
-     * - Remote players: applies server state directly
-     * Only updates players that are in the same level as the local player.
-     */
-    private void applyStateUpdate(com.game.networking.StateUpdatePacket statePacket) {
-        if (world == null) return;
-
-        // Get local player's current level
-        String localLevel = (currentLevelSource != null) ? currentLevelSource.getLevelName() : "unknown";
-
-        // Iterate through all player states from server
-        for (java.util.Map.Entry<Integer, com.game.networking.StateUpdatePacket.PlayerState> entry :
-             statePacket.getPlayerStates().entrySet()) {
-
-            int playerId = entry.getKey();
-            com.game.networking.StateUpdatePacket.PlayerState state = entry.getValue();
-
-            // Track which level this player is in
-            playerLevels.put(playerId, state.levelId);
-
-            // Skip players that are in a different level than us
-            boolean isLocalPlayer = (playerId == localPlayerId);
-            if (!isLocalPlayer && !state.levelId.equals(localLevel)) {
-                // Player is in a different level - skip updating them
-                // Hide them if they exist in our world
-                PlayerEntity existingPlayer = playerManager.getPlayerById(playerId);
-                if (existingPlayer != null && world.getGameObjects().contains(existingPlayer)) {
-                    world.removeGameObject(existingPlayer);
-                    System.out.println("GameScreen: Player " + playerId + " moved to level " + state.levelId + ", hiding them");
-                }
-                continue;
-            }
-
-            // Find or create the player
-            PlayerEntity player = playerManager.getPlayerById(playerId);
-
-            if (player == null) {
-                // Create a new player (server told us about them) - only if they're in our level
-                if (!state.levelId.equals(localLevel)) {
-                    continue; // Don't create players in other levels
-                }
-
-                player = new PlayerEntity(world, state.x, state.y);
-                player.setPlayerId(playerId);
-
-                // Mark as network-controlled (remote player - puppet controlled by server)
-                player.setNetworkControlled(true);
-
-                // Set damage number callback
-                player.setDamageNumberCallback((x, y, damage) -> {
-                    DamageNumberEntity damageNumber = new DamageNumberEntity(x, y, damage, damageFont);
-                    damageNumbers.add(damageNumber);
-                });
-
-                // Remote players have no input source - they're controlled by server state
-                // Local player already has LocalKeyboardInput from createLocalPlayer()
-
-                playerManager.addPlayerWithId(player);
-                world.addGameObject(player);
-
-                System.out.println("GameScreen: Created remote player " + playerId + " as network-controlled puppet");
-            } else if (!world.getGameObjects().contains(player) && state.levelId.equals(localLevel)) {
-                // Player exists in playerManager but not in world (they were in a different level)
-                // Re-add them to the world since they're back in our level
-                world.addGameObject(player);
-                System.out.println("GameScreen: Player " + playerId + " returned to level " + localLevel + ", showing them");
-            }
-
-            // CLIENT PREDICTION: Handle local player differently
-
-            if (isLocalPlayer) {
-                // For local player: use client prediction with periodic checkpoints
-                com.badlogic.gdx.math.Vector2 currentPos = player.getTransform().getPosition();
-                float dx = state.x - currentPos.x;
-                float dy = state.y - currentPos.y;
-                float distanceSquared = dx * dx + dy * dy;
-                float distance = (float) Math.sqrt(distanceSquared);
-
-                // Only correct if prediction error exceeds threshold
-                if (distance > POSITION_CORRECTION_THRESHOLD) {
-                    // Smoothly interpolate towards server position
-                    float newX = currentPos.x + dx * CORRECTION_SPEED;
-                    float newY = currentPos.y + dy * CORRECTION_SPEED;
-                    player.getTransform().setPosition(newX, newY);
-
-                    //System.out.println("GameScreen: Correcting local player position by " +
-                    //                 String.format("%.2f", distance) + " pixels");
-                }
-                // If within threshold: do nothing, client prediction was accurate!
-
-            } else {
-                // For remote players (network-controlled): enqueue snapshot for interpolation
-                // Calculate velocity from previous position
-                com.badlogic.gdx.math.Vector2 currentPos = player.getTransform().getPosition();
-                float deltaX = state.x - currentPos.x;
-                float deltaY = state.y - currentPos.y;
-                float vx = deltaX / STATE_SEND_INTERVAL;
-                float vy = deltaY / STATE_SEND_INTERVAL;
-
-                // Create snapshot with current timestamp
-                long timestamp = System.currentTimeMillis();
-                com.game.networking.EntitySnapshot snapshot = new com.game.networking.EntitySnapshot(
-                    timestamp,
-                    state.x, state.y,
-                    vx, vy,
-                    state.currentAnimation,
-                    state.currentDirection,
-                    state.flipX,
-                    state.health,
-                    state.maxHealth
-                );
-
-                // Enqueue snapshot for interpolation (rendering will use this)
-                player.enqueueSnapshot(snapshot);
-
-                // Also update health directly (trust server for health)
-                com.game.components.HealthComponent health = player.getHealthComponent();
-                if (health != null) {
-                    health.setHealth(state.health);
-                    health.setMaxHealth(state.maxHealth);
-                }
-            }
-
-            // Local player health is also updated from server
-            if (isLocalPlayer) {
-                com.game.components.HealthComponent health = player.getHealthComponent();
-                if (health != null) {
-                    health.setHealth(state.health);
-                    health.setMaxHealth(state.maxHealth);
-                }
-            }
-        }
-    }
-
-    // ========== Multi-World Server Support ==========
-
-    /**
-     * Get or create a world for a specific level (server-side).
-     * This loads the level if it's not already loaded.
-     */
-    private WorldManager getOrCreateWorld(String levelId) {
-        // Check if world is already loaded
-        if (activeWorlds.containsKey(levelId)) {
-            return activeWorlds.get(levelId);
-        }
-
-        // Load the level
-        System.out.println("GameScreen (Server): Loading world for level: " + levelId);
-
-        // Create level source
-        com.game.systems.level.LevelSource levelSource = new com.game.systems.level.TiledMapLevelSource(levelId);
-        com.game.systems.level.LevelData levelData = levelSource.getLevelData();
-
-        // Create world manager
-        WorldManager newWorld = new WorldManager(levelData.getWidth(), levelData.getHeight());
-
-        // Load collision system
-        SpatialQuery collisionSystem = new SpatialQuery();
-        levelSource.loadCollision(collisionSystem);
-        newWorld.setCollisionSystem(collisionSystem);
-
-        // Build grid pathfinder
-        TiledMap tiledMap = levelSource.getTiledMap();
-        newWorld.buildGridPathfinder(tiledMap);
-
-        // Store in active worlds
-        activeWorlds.put(levelId, newWorld);
-
-        // Dispose the level source (we only needed it for loading)
-        levelSource.dispose();
-
-        System.out.println("GameScreen (Server): World loaded for level: " + levelId);
-        return newWorld;
-    }
-
-    /**
-     * Get the world that contains a specific player.
-     */
-    private WorldManager getPlayerWorld(int playerId) {
-        String levelId = playerLevels.get(playerId);
-        if (levelId == null) {
-            return world; // Default to local world
-        }
-
-        if (isHost) {
-            return activeWorlds.getOrDefault(levelId, world);
-        } else {
-            return world; // Clients only have one world
-        }
-    }
-
-    /**
-     * Update all active worlds (server-side multi-world simulation).
-     */
-    private void updateAllWorlds(float delta) {
-        if (isHost) {
-            // Server: update all active worlds
-            for (java.util.Map.Entry<String, WorldManager> entry : activeWorlds.entrySet()) {
-                WorldManager worldToUpdate = entry.getValue();
-                worldToUpdate.update(delta);
-            }
-        } else {
-            // Client: only update local world
-            if (world != null) {
-                world.update(delta);
-            }
-        }
-    }
-
-    /**
-     * Stop hosting or disconnect from server.
+     * Stop hosting or disconnect from the host.
      */
     public void stopMultiplayer() {
-        if (gameServer != null) {
-            gameServer.stop();
-            gameServer = null;
+        if (session != null) {
+            NetSession ending = session;
+            session = null;
+            ending.dispose();
         }
+    }
 
-        if (gameClient != null) {
-            gameClient.disconnect();
-            gameClient = null;
+    private void returnToMainMenu(String errorMessage) {
+        screenClosed = true;
+        com.badlogic.gdx.Game game = (com.badlogic.gdx.Game) Gdx.app.getApplicationListener();
+        game.setScreen(new MainMenuScreen((Main) game, errorMessage));
+    }
+
+    // ========== NetGameContext ==========
+
+    @Override
+    public PlayerEntity getLocalPlayer() {
+        return localPlayer;
+    }
+
+    @Override
+    public PlayerManager getPlayerManager() {
+        return playerManager;
+    }
+
+    @Override
+    public WorldItemManager getWorldItemManager() {
+        return worldItemManager;
+    }
+
+    @Override
+    public LevelInstance getCurrentInstance() {
+        return currentInstance;
+    }
+
+    @Override
+    public java.util.Collection<LevelInstance> getInstances() {
+        return new java.util.ArrayList<>(instances.values());
+    }
+
+    @Override
+    public LevelInstance getOrCreateInstance(String levelId) {
+        LevelInstance instance = instances.get(levelId);
+        if (instance == null) {
+            instance = createInstance(new com.game.systems.level.TiledMapLevelSource(levelId));
         }
+        return instance;
+    }
 
-        isHost = false;
-        isClient = false;
+    @Override
+    public PlayerEntity createRemotePlayer(int playerId, WorldManager playerWorld, float x, float y) {
+        PlayerEntity player = new PlayerEntity(playerWorld, x, y);
+        player.setPlayerId(playerId);
+        player.setNetworkControlled(true);
+        player.setDamageNumberCallback((dx, dy, damage) -> emitDamageNumber(levelIdOf(player.getWorld()), dx, dy, damage));
+        playerManager.addPlayerWithId(player);
+        return player;
+    }
+
+    @Override
+    public void removeRemotePlayer(PlayerEntity player) {
+        playerManager.removePlayer(player);
+    }
+
+    @Override
+    public void startAsClient(int playerId, String levelId, float x, float y, String savedPlayerJson) {
+        LevelInstance instance = createInstance(new com.game.systems.level.TiledMapLevelSource(levelId));
+        enterLevel(instance, new Vector2(x, y));
+
+        com.game.save.PlayerData saved = PlayerDataCodec.fromJson(savedPlayerJson);
+        if (saved != null) {
+            PlayerDataCodec.apply(localPlayer, saved);
+            localPlayer.updateWeaponSprite();
+            uiManager.refreshAllWindows();
+            System.out.println("GameScreen: Restored character from the host's save");
+        }
+    }
+
+    @Override
+    public void showDamageNumber(float x, float y, int amount) {
+        damageNumbers.add(new DamageNumberEntity(x, y, amount, damageFont));
+    }
+
+    @Override
+    public void showDeathAnimation(float x, float y) {
+        deathAnimations.add(new DeathAnimationEntity(x, y));
+    }
+
+    @Override
+    public void onInventoryChanged() {
+        if (uiManager != null) {
+            uiManager.notifyInventoryChanged();
+        }
+    }
+
+    @Override
+    public void onConnectionLost(String reason) {
+        System.out.println("GameScreen: " + reason);
+        stopMultiplayer();
+        returnToMainMenu(reason);
     }
 }

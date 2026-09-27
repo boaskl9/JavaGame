@@ -52,6 +52,9 @@ public abstract class EnemyEntity extends Entity {
     // Death callback
     private DeathCallback deathCallback;
 
+    // Attack-start callback (used to replicate attack visuals)
+    private AttackStartListener attackStartListener;
+
     // Pathfinding
     protected Array<Vector2> currentPath;
     protected int currentWaypointIndex;
@@ -97,6 +100,18 @@ public abstract class EnemyEntity extends Entity {
 
     @Override
     public void update(float delta) {
+        // NETWORK-CONTROLLED enemies (on clients) are puppets: no AI, no combat, just follow the host
+        if (networkControlled) {
+            com.game.networking.EntitySnapshot snapshot = getInterpolatedSnapshot(System.currentTimeMillis());
+            if (snapshot != null) {
+                transform.setPosition(snapshot.x, snapshot.y);
+                velocity.setVelocity(snapshot.vx, snapshot.vy);
+                animation.setState(snapshot.animation, snapshot.direction, snapshot.flipX);
+            }
+            super.update(delta);
+            return;
+        }
+
         if (!isAlive()) {
             return;
         }
@@ -121,10 +136,8 @@ public abstract class EnemyEntity extends Entity {
      * Updates AI behavior. Override for custom AI logic.
      */
     protected void updateAI(float delta) {
-        // Find player target if not set
-        if (target == null) {
-            target = findPlayer();
-        }
+        // Always chase the nearest player in this world (players can leave the level or join it)
+        target = findPlayer();
 
         if (target == null || !target.isAlive()) {
             // No target - idle or wander
@@ -465,6 +478,9 @@ public abstract class EnemyEntity extends Entity {
 
                     WeaponStats weapon = getWeaponStats();
                     attackComponent.startAttack(weapon, attackAngle);
+                    if (attackStartListener != null) {
+                        attackStartListener.onAttackStarted(this, attackAngle);
+                    }
                 }
             }
         }
@@ -618,16 +634,29 @@ public abstract class EnemyEntity extends Entity {
     }
 
     /**
-     * Finds the player in the world.
+     * Finds the nearest living player in the world.
      */
     protected PlayerEntity findPlayer() {
-        // Search for player in world objects
+        PlayerEntity nearest = null;
+        float nearestDist2 = Float.MAX_VALUE;
         for (var obj : world.getGameObjects()) {
-            if (obj instanceof PlayerEntity) {
-                return (PlayerEntity) obj;
+            if (obj instanceof PlayerEntity player && player.isActive() && player.isAlive()) {
+                float dist2 = transform.getPosition().dst2(player.getTransform().getPosition());
+                if (dist2 < nearestDist2) {
+                    nearestDist2 = dist2;
+                    nearest = player;
+                }
             }
         }
-        return null;
+        return nearest;
+    }
+
+    /**
+     * Plays this enemy's attack animation without resolving any hits.
+     * Used on clients when the host reports that this enemy attacked.
+     */
+    public void playAttackVisual(float attackAngle) {
+        attackComponent.startAttack(getWeaponStats(), attackAngle);
     }
 
     @Override
@@ -657,6 +686,10 @@ public abstract class EnemyEntity extends Entity {
     }
 
     // Getters
+    public WorldManager getWorld() {
+        return world;
+    }
+
     public Transform getTransform() {
         return transform;
     }
@@ -693,6 +726,17 @@ public abstract class EnemyEntity extends Entity {
      */
     public void setDeathCallback(DeathCallback callback) {
         this.deathCallback = callback;
+    }
+
+    public void setAttackStartListener(AttackStartListener listener) {
+        this.attackStartListener = listener;
+    }
+
+    /**
+     * Callback interface for when this enemy starts an attack.
+     */
+    public interface AttackStartListener {
+        void onAttackStarted(EnemyEntity enemy, float attackAngle);
     }
 
     /**

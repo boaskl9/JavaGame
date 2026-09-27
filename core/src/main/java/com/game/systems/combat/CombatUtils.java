@@ -135,27 +135,32 @@ public class CombatUtils {
         VelocityComponent targetVelocity = target.getComponent(VelocityComponent.class);
         if (targetVelocity == null) return;
 
+        com.badlogic.gdx.math.Vector2 knockback = getKnockbackVector(attacker, target, knockbackForce);
+        targetVelocity.addVelocity(knockback.x, knockback.y);
+    }
+
+    /**
+     * Knockback velocity pushing the target directly away from the attacker.
+     */
+    public static com.badlogic.gdx.math.Vector2 getKnockbackVector(GameObject attacker, GameObject target, float knockbackForce) {
         Transform attackerTransform = attacker.getComponent(Transform.class);
         Transform targetTransform = target.getComponent(Transform.class);
+        if (knockbackForce <= 0 || attackerTransform == null || targetTransform == null) {
+            return new com.badlogic.gdx.math.Vector2();
+        }
 
-        // Calculate knockback direction (away from attacker)
         float dx = targetTransform.getX() - attackerTransform.getX();
         float dy = targetTransform.getY() - attackerTransform.getY();
         float distance = (float) Math.sqrt(dx * dx + dy * dy);
 
         if (distance < 0.01f) {
-            // Entities are overlapping, push in random direction
+            // Entities are overlapping, push in an arbitrary direction
             dx = 1;
             dy = 0;
             distance = 1;
         }
 
-        // Normalize direction
-        float dirX = dx / distance;
-        float dirY = dy / distance;
-
-        // Apply knockback (add to current velocity)
-        targetVelocity.addVelocity(dirX * knockbackForce, dirY * knockbackForce);
+        return new com.badlogic.gdx.math.Vector2(dx / distance * knockbackForce, dy / distance * knockbackForce);
     }
 
     /**

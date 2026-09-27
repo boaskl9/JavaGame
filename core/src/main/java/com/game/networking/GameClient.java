@@ -7,298 +7,91 @@ import com.esotericsoftware.kryonet.Listener;
 import java.io.IOException;
 
 /**
- * Game client that connects to a GameServer using KryoNet.
- * Sends input to server and receives game state updates.
+ * Thin KryoNet client transport. Everything received is pushed onto a {@link PacketQueue}
+ * and handled on the game thread by {@link ClientSession}.
+ *
+ * Packets are queued from the moment the connection opens, so nothing is lost while the
+ * game screen is still being created.
  */
 public class GameClient {
-    private static final int DEFAULT_PORT = 25565;
-    private static final int WRITE_BUFFER_SIZE = 16384;
-    private static final int READ_BUFFER_SIZE = 16384;
+    private static final int WRITE_BUFFER_SIZE = 64 * 1024;
+    private static final int OBJECT_BUFFER_SIZE = 64 * 1024;
     private static final int TIMEOUT_MS = 5000;
 
-    private Client client;
-    private boolean connected = false;
+    private final Client client;
+    private final PacketQueue queue = new PacketQueue();
+    private final String playerName;
 
-    private String serverHost;
-    private int serverPort;
-    private int assignedPlayerId = -1;
+    public GameClient(String playerName) {
+        this.playerName = playerName;
+        this.client = new Client(WRITE_BUFFER_SIZE, OBJECT_BUFFER_SIZE);
+        Packets.register(client.getKryo());
 
-    // Input sequence tracking for reconciliation
-    private int nextInputSequence = 1; // Start at 1 (0 reserved for "no input")
-
-    // Callbacks for game integration
-    private ConnectionCallback connectionCallback;
-    private DisconnectionCallback disconnectionCallback;
-    private StateUpdateCallback stateUpdateCallback;
-    private PlayerJoinCallback playerJoinCallback;
-    private LevelChangeConfirmCallback levelChangeConfirmCallback;
-
-    public GameClient() {
-        this.client = new Client(WRITE_BUFFER_SIZE, READ_BUFFER_SIZE);
-
-        // Register packet classes with Kryo
-        NetworkRegistrar.register(client);
-
-        // Set up listener for network events
         client.addListener(new Listener() {
             @Override
             public void connected(Connection connection) {
                 System.out.println("GameClient: Connected to server");
-                connected = true;
-
-                // Send connection packet
-                client.sendTCP(new ConnectionPacket("Player"));
+                Packets.Hello hello = new Packets.Hello();
+                hello.playerName = GameClient.this.playerName;
+                connection.sendTCP(hello);
             }
 
             @Override
             public void disconnected(Connection connection) {
                 System.out.println("GameClient: Disconnected from server");
-                connected = false;
-
-                // Notify callback
-                if (disconnectionCallback != null) {
-                    disconnectionCallback.onDisconnected("Connection closed");
-                }
+                queue.push(connection.getID(), PacketQueue.DISCONNECTED);
             }
 
             @Override
             public void received(Connection connection, Object object) {
-                if (object instanceof PlayerJoinPacket) {
-                    PlayerJoinPacket packet = (PlayerJoinPacket) object;
-                    onPlayerJoined(packet);
-
-                } else if (object instanceof StateUpdatePacket) {
-                    StateUpdatePacket packet = (StateUpdatePacket) object;
-                    onStateUpdate(packet);
-
-                } else if (object instanceof DisconnectPacket) {
-                    DisconnectPacket packet = (DisconnectPacket) object;
-                    disconnect(packet.getReason());
-
-                } else if (object instanceof LevelChangeConfirmPacket) {
-                    LevelChangeConfirmPacket packet = (LevelChangeConfirmPacket) object;
-                    onLevelChangeConfirm(packet);
+                if (object instanceof com.esotericsoftware.kryonet.FrameworkMessage) {
+                    return; // KryoNet keep-alives etc.
                 }
+                queue.push(connection.getID(), object);
             }
         });
 
-        // Start client thread
         client.start();
     }
 
     /**
-     * Connect to a server.
-     * @param host Server hostname or IP
+     * Connect to a server (blocks until connected or timed out).
      * @return true if connection successful
      */
     public boolean connect(String host) {
-        return connect(host, DEFAULT_PORT);
+        return connect(host, GameServer.DEFAULT_PORT);
     }
 
-    /**
-     * Connect to a server.
-     * @param host Server hostname or IP
-     * @param port Server port
-     * @return true if connection successful
-     */
     public boolean connect(String host, int port) {
-        if (connected) {
-            System.out.println("GameClient: Already connected");
-            return false;
-        }
-
-        this.serverHost = host;
-        this.serverPort = port;
-
         try {
             client.connect(TIMEOUT_MS, host, port, port + 1); // TCP port, UDP port
-            System.out.println("GameClient: Attempting to connect to " + host + ":" + port);
+            System.out.println("GameClient: Connected to " + host + ":" + port);
             return true;
-
         } catch (IOException e) {
-            System.err.println("GameClient: Failed to connect to " + host + ":" + port);
-            e.printStackTrace();
+            System.err.println("GameClient: Failed to connect to " + host + ":" + port + " - " + e.getMessage());
             return false;
         }
     }
 
-    /**
-     * Disconnect from server.
-     */
+    public void send(Object packet) {
+        if (client.isConnected()) {
+            client.sendTCP(packet);
+        }
+    }
+
     public void disconnect() {
-        disconnect("Client disconnected");
+        client.stop(); // Closes the connection and stops the network thread
     }
 
-    /**
-     * Disconnect from server with reason.
-     */
-    public void disconnect(String reason) {
-        if (!connected) return;
-
-        // Send disconnect packet
-        if (assignedPlayerId != -1) {
-            client.sendTCP(new DisconnectPacket(assignedPlayerId, reason));
-        }
-
-        connected = false;
-        client.close();
-
-        System.out.println("GameClient: Disconnected: " + reason);
-
-        // Notify callback
-        if (disconnectionCallback != null) {
-            disconnectionCallback.onDisconnected(reason);
-        }
+    public PacketQueue getQueue() {
+        return queue;
     }
 
-    /**
-     * Handle player join packet.
-     */
-    private void onPlayerJoined(PlayerJoinPacket packet) {
-        System.out.println("GameClient: Player " + packet.getPlayerId() + " joined: " + packet.getPlayerName());
-
-        // If this is us (first join packet we receive), store our player ID
-        if (assignedPlayerId == -1) {
-            assignedPlayerId = packet.getPlayerId();
-            System.out.println("GameClient: Assigned player ID: " + assignedPlayerId);
-
-            // Notify connection callback
-            if (connectionCallback != null) {
-                connectionCallback.onConnected(assignedPlayerId);
-            }
-        }
-
-        // Notify player join callback
-        if (playerJoinCallback != null) {
-            playerJoinCallback.onPlayerJoined(packet.getPlayerId(), packet.getPlayerName());
-        }
-    }
-
-    /**
-     * Handle state update packet.
-     */
-    private void onStateUpdate(StateUpdatePacket packet) {
-        // Notify game to update player states
-        if (stateUpdateCallback != null) {
-            stateUpdateCallback.onStateUpdate(packet);
-        }
-    }
-
-    /**
-     * Handle level change confirmation packet.
-     */
-    private void onLevelChangeConfirm(LevelChangeConfirmPacket packet) {
-        System.out.println("GameClient: Received level change confirm for player " + packet.playerId +
-                           " to level " + packet.levelId + " at (" + packet.spawnX + ", " + packet.spawnY + ")");
-
-        // Notify game to load level and teleport player
-        if (levelChangeConfirmCallback != null) {
-            levelChangeConfirmCallback.onLevelChangeConfirm(packet);
-        }
-    }
-
-    /**
-     * Send a packet to the server.
-     */
-    public void sendPacket(Object packet) {
-        if (!connected) {
-            System.err.println("GameClient: Cannot send packet - not connected");
-            return;
-        }
-
-        client.sendTCP(packet);
-    }
-
-    /**
-     * Send input packet to server with sequence number.
-     * @param currentLevelId The level the client is currently in
-     * @param spawnPointName The spawn point used if level just changed (can be null)
-     * @return The sequence number assigned to this input
-     */
-    public int sendInput(String currentLevelId, String spawnPointName, float movementX, float movementY,
-                         boolean attackPressed, boolean attackJustPressed,
-                         float aimDirectionX, float aimDirectionY,
-                         boolean running) {
-        int sequenceNumber = nextInputSequence++;
-        InputPacket packet = new InputPacket(
-            assignedPlayerId, sequenceNumber, currentLevelId, spawnPointName,
-            movementX, movementY,
-            attackPressed, attackJustPressed,
-            aimDirectionX, aimDirectionY, running
-        );
-        sendPacket(packet);
-        return sequenceNumber;
-    }
-
-    /**
-     * Send level change request to server.
-     * @param targetLevelId The level to change to
-     * @param spawnPointName The spawn point to use in the target level
-     */
-    public void sendLevelChangeRequest(String targetLevelId, String spawnPointName) {
-        if (assignedPlayerId == -1) {
-            System.err.println("GameClient: Cannot send level change request - not assigned player ID yet");
-            return;
-        }
-
-        LevelChangeRequestPacket packet = new LevelChangeRequestPacket(assignedPlayerId, targetLevelId, spawnPointName);
-        sendPacket(packet);
-        System.out.println("GameClient: Sent level change request to " + targetLevelId + " at spawn " + spawnPointName);
-    }
-
-    /**
-     * Check if client is connected.
-     */
     public boolean isConnected() {
-        return connected && client.isConnected();
+        return client.isConnected();
     }
 
-    /**
-     * Get assigned player ID.
-     */
-    public int getAssignedPlayerId() {
-        return assignedPlayerId;
-    }
-
-    // Callback setters
-    public void setConnectionCallback(ConnectionCallback callback) {
-        this.connectionCallback = callback;
-    }
-
-    public void setDisconnectionCallback(DisconnectionCallback callback) {
-        this.disconnectionCallback = callback;
-    }
-
-    public void setStateUpdateCallback(StateUpdateCallback callback) {
-        this.stateUpdateCallback = callback;
-    }
-
-    public void setPlayerJoinCallback(PlayerJoinCallback callback) {
-        this.playerJoinCallback = callback;
-    }
-
-    public void setLevelChangeConfirmCallback(LevelChangeConfirmCallback callback) {
-        this.levelChangeConfirmCallback = callback;
-    }
-
-    // Callback interfaces
-    public interface ConnectionCallback {
-        void onConnected(int assignedPlayerId);
-    }
-
-    public interface DisconnectionCallback {
-        void onDisconnected(String reason);
-    }
-
-    public interface StateUpdateCallback {
-        void onStateUpdate(StateUpdatePacket packet);
-    }
-
-    public interface PlayerJoinCallback {
-        void onPlayerJoined(int playerId, String playerName);
-    }
-
-    public interface LevelChangeConfirmCallback {
-        void onLevelChangeConfirm(LevelChangeConfirmPacket packet);
+    public String getPlayerName() {
+        return playerName;
     }
 }

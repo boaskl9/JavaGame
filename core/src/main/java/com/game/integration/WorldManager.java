@@ -25,6 +25,16 @@ public class WorldManager {
     private SpatialQuery collisionSystem;
     private GridPathfinder gridPathfinder;
     private com.badlogic.gdx.maps.tiled.TiledMap tiledMap;
+    private final List<Listener> listeners = new ArrayList<>();
+
+    /**
+     * Notified whenever an object enters or leaves this world.
+     * Used to decorate entities with callbacks and to replicate them over the network.
+     */
+    public interface Listener {
+        void onObjectAdded(GameObject obj);
+        void onObjectRemoved(GameObject obj);
+    }
 
     public WorldManager(int width, int height) {
         this.worldWidth = width;
@@ -50,19 +60,36 @@ public class WorldManager {
     }
 
 
+    public void addListener(Listener listener) {
+        listeners.add(listener);
+    }
+
     public void addGameObject(GameObject obj) {
+        if (gameObjects.contains(obj)) return;
         gameObjects.add(obj);
+        for (Listener listener : listeners) {
+            listener.onObjectAdded(obj);
+        }
     }
 
     public void removeGameObject(GameObject obj) {
-        gameObjects.remove(obj);
+        if (gameObjects.remove(obj)) {
+            for (Listener listener : listeners) {
+                listener.onObjectRemoved(obj);
+            }
+        }
+    }
+
+    public boolean contains(GameObject obj) {
+        return gameObjects.contains(obj);
     }
 
     /**
      * Update all game objects.
+     * Iterates over a snapshot so objects may be added/removed during updates (e.g. on death).
      */
     public void update(float delta) {
-        for (GameObject obj : gameObjects) {
+        for (GameObject obj : new ArrayList<>(gameObjects)) {
             obj.update(delta);
         }
     }

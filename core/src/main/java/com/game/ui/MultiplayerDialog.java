@@ -9,10 +9,11 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
  */
 public class MultiplayerDialog extends Dialog {
     private TextField ipField;
+    private TextField nameField;
     private MultiplayerCallback callback;
 
     public interface MultiplayerCallback {
-        void onConnect(String serverIp);
+        void onConnect(String serverIp, String playerName);
         void onCancel();
     }
 
@@ -25,6 +26,15 @@ public class MultiplayerDialog extends Dialog {
         Table content = new Table();
         content.pad(20);
         content.defaults().padBottom(15);
+
+        // Player name (the host saves your character under this name)
+        Label nameLabel = new Label("Your name:", skin);
+        content.add(nameLabel).left().row();
+
+        nameField = new TextField("Player", skin);
+        nameField.setMessageText("Player");
+        nameField.setMaxLength(16);
+        content.add(nameField).width(300).row();
 
         // IP input field
         Label ipLabel = new Label("Server IP:", skin);
@@ -76,8 +86,13 @@ public class MultiplayerDialog extends Dialog {
             serverIp = "localhost";
         }
 
+        String playerName = nameField.getText().trim();
+        if (playerName.isEmpty()) {
+            playerName = "Player";
+        }
+
         if (callback != null) {
-            callback.onConnect(serverIp);
+            callback.onConnect(serverIp, playerName);
         }
 
         this.hide();

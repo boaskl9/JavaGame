@@ -30,7 +30,7 @@ public abstract class Entity extends GameObject {
      */
     private final Deque<EntitySnapshot> snapshotBuffer = new ArrayDeque<>();
     private static final int MAX_SNAPSHOT_BUFFER_SIZE = 10; // ~200ms at 20Hz
-    private static final long INTERPOLATION_DELAY_MS = 150; // Render 150ms behind server time
+    private static final long INTERPOLATION_DELAY_MS = 100; // Render 100ms behind the sender (snapshot times are mapped to local time on arrival)
 
     public Entity(int maxHealth) {
         super();

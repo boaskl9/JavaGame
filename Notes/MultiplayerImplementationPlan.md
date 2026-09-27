@@ -1,3 +1,5 @@
+> **Historical.** Superseded by [Multiplayer.md](Multiplayer.md), which describes the current architecture.
+
 # Multiplayer Implementation Plan
 
 ## Vision

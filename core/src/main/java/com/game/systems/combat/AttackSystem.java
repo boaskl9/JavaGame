@@ -92,7 +92,6 @@ public class AttackSystem {
         // Apply damage and knockback to hit entities
         for (GameObject target : hitEntities) {
             applyDamage(attacker, target, weapon, damageCallback);
-            System.out.print("damage! : " + damageCallback.toString());
         }
     }
 
@@ -106,6 +105,15 @@ public class AttackSystem {
      */
     private static void applyDamage(GameObject attacker, GameObject target,
                                    WeaponStats weapon, DamageCallback damageCallback) {
+        // Players owned by another machine: forward the hit to the owner, who applies it
+        if (target instanceof com.game.systems.entity.entities.PlayerEntity player
+                && player.getRemoteHitHandler() != null) {
+            com.badlogic.gdx.math.Vector2 knockback = CombatUtils.getKnockbackVector(attacker, target, weapon.getKnockback());
+            player.getRemoteHitHandler().onHit(player, weapon.getDamage(), knockback.x, knockback.y);
+            spawnDamageNumber(target, weapon.getDamage(), damageCallback);
+            return;
+        }
+
         // Apply damage if target is an Entity
         if (target instanceof Entity) {
             Entity targetEntity = (Entity) target;
@@ -119,19 +127,20 @@ public class AttackSystem {
 
 
             // Spawn damage number
-            if (damageCallback != null) {
-                Transform targetTransform = target.getComponent(Transform.class);
-                if (targetTransform != null) {
-                    float x = targetTransform.getX() + 8f;
-                    float y = targetTransform.getY() + 16f;
-                    damageCallback.onDamage(x, y, weapon.getDamage());
-                }
-            }
+            spawnDamageNumber(target, weapon.getDamage(), damageCallback);
         }
 
         // Apply knockback
         if (weapon.getKnockback() > 0) {
             CombatUtils.applyKnockback(attacker, target, weapon.getKnockback());
+        }
+    }
+
+    private static void spawnDamageNumber(GameObject target, int damage, DamageCallback damageCallback) {
+        if (damageCallback == null) return;
+        Transform targetTransform = target.getComponent(Transform.class);
+        if (targetTransform != null) {
+            damageCallback.onDamage(targetTransform.getX() + 8f, targetTransform.getY() + 16f, damage);
         }
     }
 

@@ -292,6 +292,10 @@ public class DebugConsole extends Window {
     }
 
     private void spawnItem(String[] parts) {
+        if (gameScreen.isGuest()) {
+            error("Only the host can spawn things in multiplayer");
+            return;
+        }
         if (parts.length < 3) {
             error("Usage: /spawn item <id> [quantity]");
             return;
@@ -310,7 +314,7 @@ public class DebugConsole extends Window {
         }
 
         // Get player position (use first player)
-        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.getLocalPlayer();
         if (player == null) {
             error("No player found");
             return;
@@ -333,6 +337,10 @@ public class DebugConsole extends Window {
     }
 
     private void spawnEnemy(String[] parts) {
+        if (gameScreen.isGuest()) {
+            error("Only the host can spawn things in multiplayer");
+            return;
+        }
         if (parts.length < 3) {
             error("Usage: /spawn enemy <type>");
             return;
@@ -341,7 +349,7 @@ public class DebugConsole extends Window {
         String enemyType = parts[2].toLowerCase();
 
         // Get player position (use first player)
-        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.getLocalPlayer();
         if (player == null) {
             error("No player found");
             return;
@@ -381,7 +389,7 @@ public class DebugConsole extends Window {
             return;
         }
 
-        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.getLocalPlayer();
         if (player == null) {
             error("No player found");
             return;
@@ -412,7 +420,7 @@ public class DebugConsole extends Window {
             return;
         }
 
-        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.getLocalPlayer();
         if (player == null) {
             error("No player found");
             return;
@@ -445,7 +453,7 @@ public class DebugConsole extends Window {
             return;
         }
 
-        com.game.systems.entity.entities.PlayerEntity player = gameScreen.playerManager.getFirstPlayer();
+        com.game.systems.entity.entities.PlayerEntity player = gameScreen.getLocalPlayer();
         if (player == null) {
             error("No player found");
             return;

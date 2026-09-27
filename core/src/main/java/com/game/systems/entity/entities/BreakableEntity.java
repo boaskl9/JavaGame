@@ -144,6 +144,9 @@ public abstract class BreakableEntity extends Entity {
 
     @Override
     public void update(float delta) {
+        if (!isActive()) {
+            return;
+        }
         if (!isAlive() && !isBreaking) {
             return; // Dead and not animating, skip update
         }
@@ -164,36 +167,17 @@ public abstract class BreakableEntity extends Entity {
 
     @Override
     protected void onDeath() {
-        // NOTE: Don't call super.onDeath() - it calls setActive(false) immediately!
-        // We need to stay active during the break animation, then deactivate after
-
         if (isBreaking) {
             return; // Already breaking, don't trigger twice
         }
 
-        isBreaking = true;
-        breakTimer = 0f;
+        playBreakVisual();
 
-        // Play break sound
-        SoundSystem.getInstance().playSound(
-            POT_BREAK,
-            0.7f
-        );
-
-
-        // Switch to break animation
-        if (animation != null) {
-            animation.setState("break", 0, false);
-        }
-
-        // Spawn loot drops using LootSystem (respects player equipment modifiers!)
+        // Spawn loot (only the authoritative copy of a breakable ever dies)
         if (com.game.systems.loot.LootSystem.isInitialized()) {
             float centerX = transform.getX() + DEFAULT_SIZE / 2f;
             float centerY = transform.getY() + DEFAULT_SIZE / 2f;
 
-            // LootSystem handles everything: modifiers, rolling, spawning, scattering
-            // Player is null for breakables (no player-specific modifiers needed)
-            // Equipment modifiers can be added later if we track who broke the object
             com.game.systems.loot.LootSystem.getInstance().generateAndSpawnLoot(
                 this,      // Source GameObject (has LootTableComponent)
                 null,      // Player (null = no equipment modifiers)
@@ -201,8 +185,29 @@ public abstract class BreakableEntity extends Entity {
                 centerY    // Spawn Y position
             );
         }
+    }
 
-        // Spawn particle effect
+    /**
+     * Plays the break animation, sound and particles without spawning loot.
+     * Used directly on clients when the host reports that this object broke.
+     */
+    public void playBreakVisual() {
+        if (isBreaking) {
+            return;
+        }
+
+        isBreaking = true;
+        breakTimer = 0f;
+
+        SoundSystem.getInstance().playSound(
+            POT_BREAK,
+            0.7f
+        );
+
+        if (animation != null) {
+            animation.setState("break", 0, false);
+        }
+
         if (particleCallback != null) {
             float centerX = transform.getX() + DEFAULT_SIZE / 2f;
             float centerY = transform.getY() + DEFAULT_SIZE / 2f;

@@ -28,8 +28,9 @@ public class LocalKeyboardInput implements InputSource {
 
     private boolean enabled = true;
 
-    // For edge detection
+    // For edge detection (computed once per frame in update())
     private boolean wasAttackPressed = false;
+    private boolean attackJustPressed = false;
 
     /**
      * Create input with custom key bindings.
@@ -129,10 +130,7 @@ public class LocalKeyboardInput implements InputSource {
 
     @Override
     public boolean isAttackJustPressed() {
-        if (!enabled) return false;
-        boolean isPressed = Gdx.input.isButtonPressed(attackButton);
-        boolean justPressed = isPressed && !wasAttackPressed;
-        return justPressed;
+        return enabled && attackJustPressed;
     }
 
     @Override
@@ -181,7 +179,11 @@ public class LocalKeyboardInput implements InputSource {
 
     @Override
     public void update(float delta) {
-        // Update edge detection state
-        wasAttackPressed = Gdx.input.isButtonPressed(attackButton);
+        // Edge detection: "just pressed" is true for exactly the frame the button goes down.
+        // Must be computed here (not in isAttackJustPressed), because the player calls update()
+        // before reading input - comparing against the freshly stored state would always be false.
+        boolean isPressed = Gdx.input.isButtonPressed(attackButton);
+        attackJustPressed = isPressed && !wasAttackPressed;
+        wasAttackPressed = isPressed;
     }
 }

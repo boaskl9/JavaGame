@@ -75,6 +75,11 @@
 8. **Minigames** - Fishing, card games planned
 9. **Progression Gates** - Abilities to unlock areas (cut trees, jump ledges, etc.)
 
+## 🌐 Multiplayer
+
+Co-op LAN multiplayer (host + guests). **Read `Notes/Multiplayer.md` before touching networking, entities or level loading.**
+Key rules: each machine owns its own player's movement; the host owns everything else. Levels are built only via `LevelInstanceFactory`. New enemy/breakable types must be added to `networking/ReplicatedEntities`.
+
 ## 🔧 Active Refactors / In Progress
 
 ### Dungeon Generation System Refactor (IN PROGRESS)
