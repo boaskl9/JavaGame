@@ -242,7 +242,7 @@ public class GameScreen implements Screen, GameWorld.Presenter {
             loadFromSaveData(saveData);
         } else if (!clientMode) {
             // Load initial level for new game
-            gameWorld.changeLevel("Maps/prototype.tmx", null);
+            gameWorld.changeLevel(GameWorld.START_LEVEL, null);
         }
         // Client mode: the level is built when the host's welcome arrives
     }
@@ -391,6 +391,10 @@ public class GameScreen implements Screen, GameWorld.Presenter {
             uiManager.render();
         }
 
+        if (gameWorld.isLocalPlayerDead()) {
+            renderKnockedOut();
+        }
+
         // Render debug
         if (debugMode || debugManager.isEnabled("colliders")) {
             renderCollisionDebug();
@@ -401,6 +405,37 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         if (debugMode || debugManager.isEnabled("fps")) {
             renderDebugStats();
         }
+    }
+
+    /**
+     * Dim the screen while the local player is down, until they respawn.
+     */
+    private void renderKnockedOut() {
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapeRenderer.setProjectionMatrix(uiCamera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0f, 0f, 0f, 0.55f);
+        shapeRenderer.rect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+        shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        String text = "You were knocked out...";
+        com.badlogic.gdx.graphics.g2d.GlyphLayout layout = new com.badlogic.gdx.graphics.g2d.GlyphLayout(debugFont, text);
+        batch.setProjectionMatrix(uiCamera.combined);
+        batch.begin();
+        debugFont.draw(batch, text, (VIEWPORT_WIDTH - layout.width) / 2f, (VIEWPORT_HEIGHT + layout.height) / 2f);
+        batch.end();
+    }
+
+    @Override
+    public void onLocalPlayerDied() {
+        if (!placementPending) {
+            exitFurniturePlacementMode(false);
+        }
+    }
+
+    @Override
+    public void onLocalPlayerRespawned() {
     }
 
     /**
@@ -559,6 +594,7 @@ public class GameScreen implements Screen, GameWorld.Presenter {
 
         // Debug: Save game
         if (debugMode && !gameWorld.isGuest() && inputManager.isJustPressed(InputAction.DEBUG_SAVE)) {
+            gameWorld.respawnIfDead(); // Never save a knocked-out player
             com.game.save.SaveManager.getInstance().save("debug_save");
             System.out.println("=== SAVED GAME (F6) ===");
         }
@@ -567,6 +603,7 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         if (debugMode && gameWorld.getSession() == null && inputManager.isJustPressed(InputAction.DEBUG_LOAD)) {
             com.game.save.SaveData saveData = com.game.save.SaveManager.getInstance().load("debug_save");
             if (saveData != null) {
+                gameWorld.respawnIfDead(); // Otherwise the pending respawn would move the loaded player
                 loadFromSaveData(saveData);
                 System.out.println("=== LOADED GAME (F7) ===");
             } else {
@@ -791,6 +828,9 @@ public class GameScreen implements Screen, GameWorld.Presenter {
 
             @Override
             public void onReturnToMainMenu() {
+                // Wake up first, so neither our save nor the host's copy of us is knocked out
+                gameWorld.respawnIfDead();
+
                 // Stop multiplayer before returning
                 stopMultiplayer();
 
@@ -1084,6 +1124,11 @@ public class GameScreen implements Screen, GameWorld.Presenter {
      * Render a single entity. Called by Y-sort renderer.
      */
     private void renderEntity(SpriteBatch batch, GameObject gameObject) {
+        // Knocked-out players (ours or others', whose health comes with their state) vanish until they respawn
+        if (gameObject instanceof PlayerEntity player && !player.isAlive()) {
+            return;
+        }
+
         // Render character
         RenderComponent renderComp = gameObject.getComponent(RenderComponent.class);
         if (renderComp != null) {
@@ -1452,7 +1497,7 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         if (levelType.equals("dungeon")) {
             System.out.println("GameScreen: Cannot load dungeon levels (they are temporary)");
             // Fallback to default map
-            levelId = "Maps/prototype.tmx";
+            levelId = GameWorld.START_LEVEL;
         }
 
         gameWorld.changeLevel(levelId, null);

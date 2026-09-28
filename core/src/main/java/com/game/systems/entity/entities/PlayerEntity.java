@@ -74,6 +74,7 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     // Set on the host for guests' players: hits are forwarded to the owning machine
     private RemoteHitHandler remoteHitHandler;
     private AttackListener attackListener;
+    private Runnable deathListener;
     private String remoteWeaponId; // Weapon shown on a remote player's copy
 
     // Debug: Store last attack hitbox for visualization
@@ -186,6 +187,13 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
         // Update input source
         if (inputSource != null) {
             inputSource.update(delta);
+        }
+
+        // Knocked out: no moving or attacking until GameWorld respawns us
+        if (!isAlive()) {
+            velocity.setVelocity(0, 0);
+            super.update(delta);
+            return;
         }
 
         // Update velocity component (handles knockback decay)
@@ -456,6 +464,22 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     public void setRemoteHitHandler(RemoteHitHandler remoteHitHandler) {
         this.remoteHitHandler = remoteHitHandler;
+    }
+
+    /** Called when this (locally simulated) player's health reaches zero. */
+    public void setDeathListener(Runnable deathListener) {
+        this.deathListener = deathListener;
+    }
+
+    /**
+     * Players aren't removed on death (unlike enemies): the owner's GameWorld respawns them.
+     */
+    @Override
+    protected void onDeath() {
+        attackComponent.reset();
+        if (deathListener != null) {
+            deathListener.run();
+        }
     }
 
     public void setAttackListener(AttackListener attackListener) {

@@ -65,11 +65,11 @@ Console commands (F4): `help`, `clear`, `spawn`, `damage`, `heal`, `setmaxhealth
 
 ## State of things
 
-Working: movement, combat (8 weapon types), enemy AI with pathfinding, health, inventory with bags, equipment slots, loot tables, breakables, furniture and chests, audio, saves with a main menu, co-op multiplayer (shared world, furniture, guest characters picked Stardew-style).
+Working: movement, combat (8 weapon types), player death (knocked out for `GameWorld.RESPAWN_DELAY`, then respawn at `GameWorld.START_LEVEL` with full health, no penalty), enemy AI with pathfinding, health, inventory with bags, equipment slots, loot tables, breakables, furniture and chests, audio, saves with a main menu, co-op multiplayer (shared world, furniture, guest characters picked Stardew-style).
 
 Not done or partial:
 - Equipment gives no stat bonuses. It can supply loot modifiers (`ItemDefinition.getLootModifier`).
-- There's no enemy spawn system: enemies only come from debug spawns (number keys, `/spawn`). Maps place breakables and gateways, not enemies. NPCs are a stub. No shops, projectiles, day/night cycle or death handling.
+- There's no enemy spawn system: enemies only come from debug spawns (number keys, `/spawn`). Maps place breakables and gateways, not enemies. NPCs are a stub. No shops, projectiles or day/night cycle.
 - Dungeons: generation works (`/dungeon test` opens `DungeonTestScreen`), but loading generated dungeons into play is rough, and they can't be shared in multiplayer.
 - Furniture can't be picked up from the UI (only `GameWorld.pickUpFurniture` exists).
 - A new multiplayer character starts where the host stands (a dedicated starting spot is planned).

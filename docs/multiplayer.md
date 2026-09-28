@@ -62,13 +62,22 @@ Guest characters are stored in the host's save, not per machine. Any guest can p
 - **Chests are used by one player at a time.** The host keeps `chestLocks` (chest → player, the host included). The lock is released on close, level change, disconnect, or when the chest is removed. Only empty, unlocked chests can be picked up.
 - `GameWorld` API: `requestPlaceFurniture`, `pickUpFurniture`, `openChest`, `closeChest`, plus the authoritative `placeFurniture` / `removeFurniture`.
 
+## Player death
+
+Each player dies and respawns on their own machine; nothing about it is decided by the host.
+
+- **The owner's `GameWorld`:** at 0 HP, `PlayerEntity.onDeath` calls it instead of deactivating the player. The player is frozen and hidden for `RESPAWN_DELAY`, then healed to full and moved to `START_LEVEL`'s spawn. Respawning in the level you're already in is a teleport, not a level change: re-entering the same level on a client would make the host resend it.
+- **Others:** they learn about it from the HP in `PlayerState`. `PlayerDataCodec.applyState` reports the moment a copy dies, so the others show a death puff. On revive it clears the copy's snapshot buffer, so the copy jumps to the spawn instead of sliding across the map.
+- **Dead targets can't be hit** (`AttackSystem.applyDamage`), and enemies drop them as targets.
+- **Nobody is saved knocked out:** `GameWorld.respawnIfDead()` runs before the host saves, before F7 loads, and before anyone returns to the main menu. If a guest disconnects while knocked out, `HostSession.recordCharacter` saves them at the start level's spawn with full health.
+- Tests: `PlayerDeathTest` (single-player), `PlayerDeathMultiplayerTest`.
+
 ## Known limitations
 
 - Everything goes over TCP. Moving `PlayerState` and `EntityStateBatch` to UDP (`sendUDP`; the UDP port is already bound) would help on lossy Wi-Fi.
 - Generated dungeons can't be shared (a guest can't rebuild them from a level ID).
 - No dedicated start spot for new characters (they appear next to the host).
 - No way to delete a guest character. No key or menu to pick furniture up (only `GameWorld.pickUpFurniture`).
-- Player death isn't handled.
 - A partial item pickup on the host doesn't update the quantity on clients.
 
 ## Tests

@@ -83,8 +83,15 @@ public final class PlayerDataCodec {
         return state;
     }
 
-    /** Feed a received state into a remote player's copy. */
-    static void applyState(PlayerEntity puppet, Packets.PlayerState state, long localTime) {
+    /**
+     * Feed a received state into a remote player's copy.
+     * @return true if this state is the moment that player died
+     */
+    static boolean applyState(PlayerEntity puppet, Packets.PlayerState state, long localTime) {
+        boolean wasAlive = puppet.isAlive();
+        if (!wasAlive && state.hp > 0) {
+            puppet.clearSnapshotBuffer(); // Respawned elsewhere: jump there instead of sliding across the map
+        }
         puppet.enqueueSnapshot(new EntitySnapshot(
             localTime, state.x, state.y, state.vx, state.vy,
             state.anim, state.dir, state.flipX, state.hp, state.maxHp
@@ -93,5 +100,6 @@ public final class PlayerDataCodec {
         health.setMaxHealth(state.maxHp);
         health.setHealth(state.hp);
         puppet.setRemoteWeapon(state.weaponId);
+        return wasAlive && state.hp <= 0;
     }
 }

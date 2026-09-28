@@ -105,6 +105,11 @@ public class AttackSystem {
      */
     private static void applyDamage(GameObject attacker, GameObject target,
                                    WeaponStats weapon, DamageCallback damageCallback) {
+        // Already dead (e.g. a knocked-out player waiting to respawn): nothing to hit
+        if (target instanceof Entity entity && !entity.isAlive()) {
+            return;
+        }
+
         // Players owned by another machine: forward the hit to the owner, who applies it
         if (target instanceof com.game.systems.entity.entities.PlayerEntity player
                 && player.getRemoteHitHandler() != null) {

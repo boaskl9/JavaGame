@@ -34,7 +34,6 @@ import java.util.Map;
  */
 public class HostSession implements NetSession {
     public static final int HOST_PLAYER_ID = 0;
-    private static final String FALLBACK_LEVEL = "Maps/prototype.tmx";
     private static final String CHARACTER_ID_PREFIX = "character:";
     private static final int MAX_NAME_LENGTH = 16;
     private static final float PLAYER_STATE_INTERVAL = 1f / 30f;
@@ -371,7 +370,7 @@ public class HostSession implements NetSession {
                 position = new com.badlogic.gdx.math.Vector2(host.getTransform().getX(), host.getTransform().getY());
             } else {
                 // Generated dungeons can't be shared yet
-                level = game.getOrCreateInstance(FALLBACK_LEVEL);
+                level = game.getOrCreateInstance(com.game.world.GameWorld.START_LEVEL);
                 position = level.getSpawnPosition(null);
             }
         }
@@ -472,7 +471,8 @@ public class HostSession implements NetSession {
 
     /**
      * Record the guest's character: name, who played it, latest level and position
-     * (inventory comes from their last sync).
+     * (inventory comes from their last sync). A guest who left while knocked out is recorded
+     * as already respawned: at the start level's spawn with full health.
      */
     private void recordCharacter(Guest guest) {
         SaveManager saves = SaveManager.getInstance();
@@ -482,9 +482,18 @@ public class HostSession implements NetSession {
             data.maxHealth = guest.player.getMaxHealth();
             data.currentHealth = guest.player.getHealth();
         }
-        data.levelId = guest.levelId;
-        data.x = guest.player.getTransform().getX();
-        data.y = guest.player.getTransform().getY();
+        if (guest.player.isAlive()) {
+            data.levelId = guest.levelId;
+            data.x = guest.player.getTransform().getX();
+            data.y = guest.player.getTransform().getY();
+        } else {
+            LevelInstance home = game.getOrCreateInstance(com.game.world.GameWorld.START_LEVEL);
+            com.badlogic.gdx.math.Vector2 spawn = home.getSpawnPosition(null);
+            data.levelId = home.getLevelId();
+            data.x = spawn.x;
+            data.y = spawn.y;
+            data.currentHealth = data.maxHealth > 0 ? data.maxHealth : guest.player.getMaxHealth();
+        }
         data.displayName = guest.name;
         data.lastPlayedBy = guest.identityKey;
         saves.putGuestData(guest.characterId, data);
@@ -495,7 +504,11 @@ public class HostSession implements NetSession {
 
         // States from before a level change describe the old level; ignore them
         if (guest.levelId.equals(state.levelId)) {
-            PlayerDataCodec.applyState(guest.player, state, guest.clock.toLocalTime(state.time));
+            boolean died = PlayerDataCodec.applyState(guest.player, state, guest.clock.toLocalTime(state.time));
+            LevelInstance hostLevel = game.getCurrentInstance();
+            if (died && hostLevel != null && hostLevel.getLevelId().equals(guest.levelId)) {
+                game.showDeathAnimation(state.x, state.y);
+            }
         }
 
         // Relay to everyone else; they decide whether it's in their level

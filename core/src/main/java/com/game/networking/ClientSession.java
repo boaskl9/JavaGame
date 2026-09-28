@@ -221,7 +221,9 @@ public class ClientSession implements NetSession {
         }
 
         long localTime = clocks.computeIfAbsent(state.playerId, id -> new ClockSync()).toLocalTime(state.time);
-        PlayerDataCodec.applyState(puppet, state, localTime);
+        if (PlayerDataCodec.applyState(puppet, state, localTime)) {
+            game.showDeathAnimation(state.x, state.y);
+        }
     }
 
     private void removeRemotePlayer(int remoteId) {

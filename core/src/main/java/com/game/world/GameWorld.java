@@ -49,6 +49,10 @@ import static com.game.systems.audio.SoundRegistry.COIN_PICKUP;
  * Anything visual or UI-related is delegated to a {@link Presenter}.
  */
 public class GameWorld implements NetGameContext {
+    /** Where new games start and where knocked-out players wake up (until players have a home). */
+    public static final String START_LEVEL = "Maps/prototype.tmx";
+    /** How long a knocked-out player stays down before respawning. */
+    public static final float RESPAWN_DELAY = 2f;
     private static final float PICKUP_RADIUS = 16f;
 
     /**
@@ -80,6 +84,12 @@ public class GameWorld implements NetGameContext {
 
         void onConnectionLost(String reason);
 
+        /** The local player was knocked out; they respawn after {@link #RESPAWN_DELAY} seconds. */
+        void onLocalPlayerDied();
+
+        /** The local player woke up at the start level with full health. */
+        void onLocalPlayerRespawned();
+
         /**
          * Joining a host: show its characters. The player answers with {@link #playCharacter}
          * or {@link #createCharacter}. Called again when the list changes or a choice was refused.
@@ -100,6 +110,7 @@ public class GameWorld implements NetGameContext {
     private PlayerEntity localPlayer;
     private NetSession session; // Null in single-player
     private GatewayEntity pendingGateway;
+    private float respawnTimer = -1f; // Counts down while the local player is knocked out
 
     public GameWorld(boolean clientMode, WorldItemManager worldItemManager, PlayerManager playerManager, Presenter presenter) {
         this.clientMode = clientMode;
@@ -124,6 +135,13 @@ public class GameWorld implements NetGameContext {
      */
     public void update(float delta) {
         if (currentInstance == null) return;
+
+        if (isLocalPlayerDead()) {
+            respawnTimer -= delta;
+            if (respawnTimer <= 0f) {
+                respawnLocalPlayer();
+            }
+        }
 
         if (pendingGateway != null) {
             GatewayEntity gateway = pendingGateway;
@@ -172,7 +190,7 @@ public class GameWorld implements NetGameContext {
      * Guests ask the host for the item; the host and single-player pick it up directly.
      */
     private void checkItemPickups() {
-        if (localPlayer == null) return;
+        if (localPlayer == null || isLocalPlayerDead()) return;
 
         boolean inventoryChanged = false;
         Vector2 playerPos = localPlayer.getTransform().getPosition();
@@ -210,7 +228,7 @@ public class GameWorld implements NetGameContext {
     }
 
     private void checkGatewayCollisions() {
-        if (localPlayer == null) return;
+        if (localPlayer == null || isLocalPlayerDead()) return;
 
         ColliderComponent playerCollider = localPlayer.getComponent(ColliderComponent.class);
         if (playerCollider == null) return;
@@ -225,6 +243,55 @@ public class GameWorld implements NetGameContext {
                 }
             }
         }
+    }
+
+    // ========== Death and respawn ==========
+
+    /**
+     * The local player's health reached zero. No penalty: they stay down for a moment,
+     * then wake up at the start level with full health. Each player respawns on their own machine.
+     */
+    private void onLocalPlayerDied() {
+        if (isLocalPlayerDead()) return;
+        respawnTimer = RESPAWN_DELAY;
+        pendingGateway = null;
+
+        Vector2 at = localPlayer.getTransform().getPosition();
+        presenter.showDeathAnimation(at.x, at.y);
+        SoundSystem.getInstance().playSound(com.game.systems.audio.SoundRegistry.ENEMY_DEATH, 0.9f);
+        presenter.onLocalPlayerDied();
+        System.out.println("GameWorld: Local player was knocked out");
+    }
+
+    /** Whether the local player is knocked out and waiting to respawn. */
+    public boolean isLocalPlayerDead() {
+        return respawnTimer >= 0f;
+    }
+
+    /**
+     * Respawn right away if the local player is knocked out (e.g. before saving or leaving),
+     * so a save never holds a dead player.
+     */
+    public void respawnIfDead() {
+        if (isLocalPlayerDead()) {
+            respawnLocalPlayer();
+        }
+    }
+
+    private void respawnLocalPlayer() {
+        respawnTimer = -1f;
+        localPlayer.heal(localPlayer.getMaxHealth());
+
+        if (currentInstance.getLevelId().equals(START_LEVEL)) {
+            // Same level: just move (re-entering would make a client ask the host for the level again)
+            Vector2 spawn = currentInstance.getSpawnPosition(null);
+            localPlayer.getTransform().setPosition(spawn.x, spawn.y);
+        } else {
+            changeLevel(START_LEVEL, null);
+        }
+
+        presenter.onLocalPlayerRespawned();
+        System.out.println("GameWorld: Local player respawned at " + START_LEVEL);
     }
 
     // ========== Level management ==========
@@ -350,6 +417,7 @@ public class GameWorld implements NetGameContext {
         player.setInputSource(presenter.createLocalInput(player));
 
         player.setDamageNumberCallback((dx, dy, damage) -> emitDamageNumber(levelIdOf(player.getWorld()), dx, dy, damage));
+        player.setDeathListener(this::onLocalPlayerDied);
         player.setAttackListener((angle, weaponId) -> {
             if (session != null) {
                 session.onLocalAttack(angle, weaponId);

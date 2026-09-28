@@ -25,6 +25,8 @@ public class TestPresenter implements GameWorld.Presenter {
     public Packets.CharacterInfo[] characters = null; // Latest character list from the host
     public String characterMessage = null;
     public int characterLists = 0;
+    public int deaths = 0;
+    public int respawns = 0;
 
     @Override
     public InputSource createLocalInput(PlayerEntity player) {
@@ -72,6 +74,16 @@ public class TestPresenter implements GameWorld.Presenter {
     @Override
     public void onConnectionLost(String reason) {
         connectionLost = reason;
+    }
+
+    @Override
+    public void onLocalPlayerDied() {
+        deaths++;
+    }
+
+    @Override
+    public void onLocalPlayerRespawned() {
+        respawns++;
     }
 
     @Override
