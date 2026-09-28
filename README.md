@@ -1,33 +1,23 @@
-# MyJavaGame
+# JavaGame
 
-A [libGDX](https://libgdx.com/) project generated with [gdx-liftoff](https://github.com/libgdx/gdx-liftoff).
+A top-down action RPG built with [libGDX](https://libgdx.com/) and [Tiled](https://www.mapeditor.org/): explore, clear dungeons and collect gear. Supports co-op LAN multiplayer.
 
-This project was generated with a template including simple application launchers and an `ApplicationAdapter` extension that draws libGDX logo.
+## Modules
 
-## Platforms
+- `core`: all game code and the tests.
+- `lwjgl3`: the desktop launcher (`com.game.main.lwjgl3.Lwjgl3Launcher`).
 
-- `core`: Main module with the application logic shared by all platforms.
-- `lwjgl3`: Primary desktop platform using LWJGL3; was called 'desktop' in older docs.
+## Running
 
-## Gradle
+Run the launcher with the working directory at the repo root. Asset paths are `assets/...`, and saves are written to `saves/`.
 
-This project uses [Gradle](https://gradle.org/) to manage dependencies.
-The Gradle wrapper was included, so you can run Gradle tasks using `gradlew.bat` or `./gradlew` commands.
-Useful Gradle tasks and flags:
+- `./gradlew core:test`: run the test suite (headless, no window needed).
+- `./gradlew lwjgl3:jar`: build a runnable jar into `lwjgl3/build/libs`.
 
-- `--continue`: when using this flag, errors will not stop the tasks from running.
-- `--daemon`: thanks to this flag, Gradle daemon will be used to run chosen tasks.
-- `--offline`: when using this flag, cached dependency archives will be used.
-- `--refresh-dependencies`: this flag forces validation of all dependencies. Useful for snapshot versions.
-- `build`: builds sources and archives of every project.
-- `cleanEclipse`: removes Eclipse project data.
-- `cleanIdea`: removes IntelliJ project data.
-- `clean`: removes `build` folders, which store compiled classes and built archives.
-- `eclipse`: generates Eclipse project data.
-- `idea`: generates IntelliJ project data.
-- `lwjgl3:jar`: builds application's runnable jar, which can be found at `lwjgl3/build/libs`.
-- `lwjgl3:run`: starts the application.
-- `test`: runs unit tests (if any).
+To play multiplayer on one PC, start two instances. In the first: New Game → Esc → **Open to LAN**. In the second: **Multiplayer** → `localhost`, then pick or create a character. Pass `-Dgame.profile=NAME` to the second instance so it gets its own identity.
 
-Note that most tasks that are not specific to a single project can be run with `name:` prefix, where the `name` should be replaced with the ID of a specific project.
-For example, `core:clean` removes `build` folder only from the `core` project.
+## Documentation
+
+- `CLAUDE.md`: project overview and conventions (written for AI agents, but a good starting point for anyone).
+- `docs/`: one guide per system (multiplayer, items/inventory/loot, saves, Tiled maps, pathfinding).
+- `Notes/JavaGame/`: the owner's design notes (an Obsidian vault).
