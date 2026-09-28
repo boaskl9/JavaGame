@@ -34,7 +34,6 @@ public class GameClient {
             public void connected(Connection connection) {
                 System.out.println("GameClient: Connected to server");
                 Packets.Hello hello = new Packets.Hello();
-                hello.playerName = identity.getDisplayName();
                 hello.identityProvider = identity.getProvider();
                 hello.identityId = identity.getId();
                 connection.sendTCP(hello);

@@ -11,7 +11,7 @@ Co-op LAN multiplayer: one player hosts ("Open to LAN" in the pause menu) and ow
 | What an attack hits | **Host** | A guest sends `AttackRequest`; the host resolves it with the guest's copy |
 | Hits on a guest | **Host** detects, **guest** applies | `PlayerHit` (damage + knockback) → the guest's own player |
 | Picking up items | **Host** | `PickupRequest` → despawn for all + `ItemGrant` to the picker |
-| Guest inventory | **Guest**, saved by the host | `InventorySync` every 5s and on leave → `SaveData.guestPlayers[name]` |
+| Guest inventory | **Guest**, saved by the host | `InventorySync` every 5s and on leave → `SaveData.guestPlayers[characterId]` |
 
 Players never get position corrections, so there is no rubber-banding. Other players and enemies render ~100ms in the past (`Entity.INTERPOLATION_DELAY_MS`) using the existing snapshot buffer. Sender timestamps are mapped to local time by `ClockSync`, so packets that arrive in bursts still animate smoothly.
 
@@ -65,6 +65,18 @@ Each phase ends with passing tests (`./gradlew test`) plus a two-window check.
 - Legacy characters saved under a plain display name are moved to the new key the first time someone joins with that name.
 - Guest data only reaches disk when the host saves (the menu autosave, or F6).
 - Tests: `GuestCharacterTest`, `LocalIdentityProviderTest`.
+
+### Phase 1b: characters belong to the world (Stardew-style) ✅
+- Characters are no longer tied to a machine. On joining, a guest sees every guest character saved in the host's world and either continues as one that nobody is playing, or creates a new one.
+- **Handshake:** `Hello` (identity only) → `CharacterList` → `ChooseCharacter` (an existing `characterId`, or `newName`) → `Welcome`.
+  - A refused choice gets the `CharacterList` again with a `message`: the character is in use, the name is taken (case-insensitive), or the name is empty.
+  - Guests who are still choosing get a fresh list whenever someone joins or leaves.
+- New characters are saved under `character:<uuid>` and listed as soon as they join, so their name is taken right away.
+- Older saves need no migration: `local:<id>`, `name:<name>` and plain-name keys simply show up as characters. A missing `displayName` falls back to the part of the key after the last `:`.
+- The identity is only used for `PlayerData.lastPlayedBy`, which sorts "your" characters to the top of the list.
+- Client UI: `ui/CharacterSelectDialog`, shown by `GameScreen` through `GameWorld.Presenter.chooseCharacter` until the local player exists. The name field was removed from the Connect dialog.
+- Tests: `GuestCharacterTest`. `MultiplayerRig.join(name)` plays the character with that name, or creates it; `rig.connect(identity)` stops at the list.
+- The Phase 1 notes about `key#2` for duplicate connections and moving legacy saves no longer apply.
 
 ### Phase 2: shared furniture ✅
 - Furniture replicates like breakables (`ReplicatedEntities`, type `furniture:<itemId>`), so guests see it and collide with it.

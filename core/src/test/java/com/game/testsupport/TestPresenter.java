@@ -1,5 +1,6 @@
 package com.game.testsupport;
 
+import com.game.networking.Packets;
 import com.game.systems.entity.entities.PlayerEntity;
 import com.game.systems.input.InputSource;
 import com.game.world.GameWorld;
@@ -21,6 +22,9 @@ public class TestPresenter implements GameWorld.Presenter {
     public int inventoryChanges = 0;
     public int dataRestored = 0;
     public String connectionLost = null;
+    public Packets.CharacterInfo[] characters = null; // Latest character list from the host
+    public String characterMessage = null;
+    public int characterLists = 0;
 
     @Override
     public InputSource createLocalInput(PlayerEntity player) {
@@ -68,5 +72,21 @@ public class TestPresenter implements GameWorld.Presenter {
     @Override
     public void onConnectionLost(String reason) {
         connectionLost = reason;
+    }
+
+    @Override
+    public void chooseCharacter(Packets.CharacterInfo[] characters, String message) {
+        this.characters = characters;
+        this.characterMessage = message;
+        characterLists++;
+    }
+
+    /** The listed character with this name, or null. */
+    public Packets.CharacterInfo character(String name) {
+        if (characters == null) return null;
+        for (Packets.CharacterInfo character : characters) {
+            if (character.name.equals(name)) return character;
+        }
+        return null;
     }
 }

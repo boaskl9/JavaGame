@@ -13,7 +13,7 @@ public class SaveData {
     public int playtimeSeconds; // Total playtime in seconds
     public PlayerData player;
     public WorldData world;
-    public java.util.Map<String, PlayerData> guestPlayers; // Multiplayer guests' characters, by player name
+    public java.util.Map<String, PlayerData> guestPlayers; // Multiplayer guests' characters, by character ID
 
     // Required for JSON deserialization
     public SaveData() {

@@ -25,8 +25,7 @@ class PacketTransportTest {
 
         assertSame(PacketQueue.CONNECTED, awaitEvent(server.getQueue()).packet);
         Packets.Hello hello = await(server.getQueue(), Packets.Hello.class);
-        assertEquals("Alice", hello.playerName, "client introduces itself on connect");
-        assertEquals("local", hello.identityProvider);
+        assertEquals("local", hello.identityProvider, "client introduces itself on connect");
         assertEquals("abc-123", hello.identityId);
         connectionId = lastConnectionId;
     }

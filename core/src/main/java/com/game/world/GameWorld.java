@@ -79,6 +79,13 @@ public class GameWorld implements NetGameContext {
         void showParticles(float x, float y, String particleType);
 
         void onConnectionLost(String reason);
+
+        /**
+         * Joining a host: show its characters. The player answers with {@link #playCharacter}
+         * or {@link #createCharacter}. Called again when the list changes or a choice was refused.
+         * @param message why the previous choice was refused, or null
+         */
+        void chooseCharacter(Packets.CharacterInfo[] characters, String message);
     }
 
     // Levels loaded on this machine, by level ID. The host keeps every level that has a player
@@ -558,6 +565,20 @@ public class GameWorld implements NetGameContext {
         session = new ClientSession(client, this);
     }
 
+    /** Joining: play this existing character of the host's world. */
+    public void playCharacter(String characterId) {
+        if (session instanceof ClientSession client) {
+            client.playCharacter(characterId);
+        }
+    }
+
+    /** Joining: create a new character in the host's world. */
+    public void createCharacter(String name) {
+        if (session instanceof ClientSession client) {
+            client.createCharacter(name);
+        }
+    }
+
     /**
      * Stop hosting or disconnect from the host.
      */
@@ -634,6 +655,11 @@ public class GameWorld implements NetGameContext {
     @Override
     public void removeRemotePlayer(PlayerEntity player) {
         playerManager.removePlayer(player);
+    }
+
+    @Override
+    public void chooseCharacter(Packets.CharacterInfo[] characters, String message) {
+        presenter.chooseCharacter(characters, message);
     }
 
     @Override

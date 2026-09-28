@@ -205,12 +205,12 @@ public class MainMenuScreen implements Screen {
         com.game.ui.MultiplayerDialog dialog = new com.game.ui.MultiplayerDialog(skin);
         dialog.setCallback(new com.game.ui.MultiplayerDialog.MultiplayerCallback() {
             @Override
-            public void onConnect(String serverIp, String playerName) {
-                System.out.println("MainMenu: Attempting to connect to server: " + serverIp + " as " + playerName);
+            public void onConnect(String serverIp) {
+                System.out.println("MainMenu: Attempting to connect to server: " + serverIp);
 
                 // Test connection FIRST before creating GameScreen
                 com.game.networking.identity.PlayerIdentity identity =
-                    new com.game.networking.identity.LocalIdentityProvider().getIdentity(playerName);
+                    new com.game.networking.identity.LocalIdentityProvider().getIdentity(null);
                 com.game.networking.GameClient testClient = new com.game.networking.GameClient(identity);
                 boolean connected = testClient.connect(serverIp);
 

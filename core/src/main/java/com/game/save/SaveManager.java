@@ -294,24 +294,24 @@ public class SaveManager implements GameSingleton {
 
     /**
      * Store a multiplayer guest's character so it is saved with this world.
-     * @param guestKey the guest's identity key (see PlayerIdentity.key())
+     * @param characterId the character's ID (older saves used the guest's identity key or name)
      */
-    public void putGuestData(String guestKey, PlayerData data) {
-        guestPlayers.put(guestKey, data);
+    public void putGuestData(String characterId, PlayerData data) {
+        guestPlayers.put(characterId, data);
     }
 
     /**
      * A multiplayer guest's character from an earlier session, or null.
      */
-    public PlayerData getGuestData(String guestKey) {
-        return guestPlayers.get(guestKey);
+    public PlayerData getGuestData(String characterId) {
+        return guestPlayers.get(characterId);
     }
 
     /**
-     * Remove and return a guest's character (used to move saves stored under an old key).
+     * Every guest character in this world, by character ID.
      */
-    public PlayerData removeGuestData(String guestKey) {
-        return guestPlayers.remove(guestKey);
+    public Map<String, PlayerData> getGuestCharacters() {
+        return java.util.Collections.unmodifiableMap(guestPlayers);
     }
 
     public int getPlaytimeSeconds() {

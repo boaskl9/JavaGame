@@ -1,6 +1,9 @@
 package com.game.testsupport;
 
 import com.game.networking.GameClient;
+import com.game.networking.Packets;
+import com.game.save.PlayerData;
+import com.game.save.SaveManager;
 import com.game.networking.identity.PlayerIdentity;
 import com.game.systems.loot.LootSystem;
 
@@ -32,14 +35,32 @@ public class MultiplayerRig implements AutoCloseable {
 
     public static final String TEST_PROVIDER = "test";
 
-    /** Join with a test identity whose ID is the player name ("test:Bob"). */
-    public GameTestBase.TestWorld join(String playerName) {
-        return join(new PlayerIdentity(TEST_PROVIDER, playerName, playerName));
+    /**
+     * Join from a machine whose identity is the character name ("test:Bob"), playing the character
+     * with that name (created if the world has none).
+     */
+    public GameTestBase.TestWorld join(String characterName) {
+        return join(new PlayerIdentity(TEST_PROVIDER, characterName, characterName), characterName);
     }
 
-    /** Connect a client and step until it has joined (level built, local player created). */
-    public GameTestBase.TestWorld join(PlayerIdentity identity) {
-        String playerName = identity.getDisplayName();
+    /**
+     * Connect a client, then play the world's character with this name, or create it if there is none.
+     * Steps until the client has joined (level built, local player created).
+     */
+    public GameTestBase.TestWorld join(PlayerIdentity identity, String characterName) {
+        GameTestBase.TestWorld client = connect(identity);
+        Packets.CharacterInfo existing = client.presenter.character(characterName);
+        if (existing != null) {
+            client.world.playCharacter(existing.id);
+        } else {
+            client.world.createCharacter(characterName);
+        }
+        runUntil(() -> client.world.getLocalPlayer() != null, characterName + " joins");
+        return client;
+    }
+
+    /** Connect a client and step until the host's character list arrives (not joined yet). */
+    public GameTestBase.TestWorld connect(PlayerIdentity identity) {
         GameClient connection = new GameClient(identity);
         if (!connection.connect("localhost", port)) {
             fail("Client could not connect to port " + port);
@@ -47,8 +68,16 @@ public class MultiplayerRig implements AutoCloseable {
         GameTestBase.TestWorld client = new GameTestBase.TestWorld(true);
         client.world.join(connection);
         clients.add(client);
-        runUntil(() -> client.world.getLocalPlayer() != null, playerName + " joins");
+        runUntil(() -> client.presenter.characters != null, identity + " gets the character list");
         return client;
+    }
+
+    /** The saved guest character with this name, or null. */
+    public static PlayerData savedCharacter(String name) {
+        for (PlayerData data : SaveManager.getInstance().getGuestCharacters().values()) {
+            if (name.equals(data.displayName)) return data;
+        }
+        return null;
     }
 
     private long nextStepAt = 0;

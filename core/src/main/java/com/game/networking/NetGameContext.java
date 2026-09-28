@@ -34,6 +34,13 @@ public interface NetGameContext {
     /** Remove a remote player's copy from the game entirely. */
     void removeRemotePlayer(PlayerEntity player);
 
+    /**
+     * Client: the host's characters. Let the player pick one or create one
+     * (then call ClientSession.playCharacter / createCharacter).
+     * @param message why the previous choice was refused, or null
+     */
+    void chooseCharacter(Packets.CharacterInfo[] characters, String message);
+
     /** Client: the host told us where to start. Build that level and create the local player. */
     void startAsClient(int playerId, String levelId, float x, float y, String savedPlayerJson);
 

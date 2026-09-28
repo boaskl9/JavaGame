@@ -9,11 +9,10 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
  */
 public class MultiplayerDialog extends Dialog {
     private TextField ipField;
-    private TextField nameField;
     private MultiplayerCallback callback;
 
     public interface MultiplayerCallback {
-        void onConnect(String serverIp, String playerName);
+        void onConnect(String serverIp);
         void onCancel();
     }
 
@@ -27,15 +26,6 @@ public class MultiplayerDialog extends Dialog {
         content.pad(20);
         content.defaults().padBottom(15);
 
-        // Player name (the host saves your character under this name)
-        Label nameLabel = new Label("Your name:", skin);
-        content.add(nameLabel).left().row();
-
-        nameField = new TextField("Player", skin);
-        nameField.setMessageText("Player");
-        nameField.setMaxLength(16);
-        content.add(nameField).width(300).row();
-
         // IP input field
         Label ipLabel = new Label("Server IP:", skin);
         content.add(ipLabel).left().row();
@@ -45,7 +35,7 @@ public class MultiplayerDialog extends Dialog {
         content.add(ipField).width(300).row();
 
         // Info label
-        Label infoLabel = new Label("Enter the IP address of the server to connect to.\nFor local testing, use 'localhost'", skin);
+        Label infoLabel = new Label("Enter the IP address of the server to connect to.\nFor local testing, use 'localhost'.\nYou pick or create your character after connecting.", skin);
         infoLabel.setFontScale(0.7f);
         content.add(infoLabel).padTop(10).padBottom(20).row();
 
@@ -86,13 +76,8 @@ public class MultiplayerDialog extends Dialog {
             serverIp = "localhost";
         }
 
-        String playerName = nameField.getText().trim();
-        if (playerName.isEmpty()) {
-            playerName = "Player";
-        }
-
         if (callback != null) {
-            callback.onConnect(serverIp, playerName);
+            callback.onConnect(serverIp);
         }
 
         this.hide();

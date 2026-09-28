@@ -207,7 +207,7 @@ class MultiplayerTest extends GameTestBase {
         rig.disconnect(client);
         rig.runUntil(() -> remotePlayers(host).isEmpty(), "host removed the client's copy");
 
-        PlayerData saved = SaveManager.getInstance().getGuestData("test:Bob");
+        PlayerData saved = com.game.testsupport.MultiplayerRig.savedCharacter("Bob");
         assertNotNull(saved, "host stored Bob's character");
         assertTrue(saved.inventory.defaultSlots.stream()
             .anyMatch(s -> s != null && s.itemId.equals("wood") && s.quantity == 7), "saved inventory has the wood");

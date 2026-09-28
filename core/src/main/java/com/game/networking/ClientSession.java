@@ -132,6 +132,10 @@ public class ClientSession implements NetSession {
             if (!disposed) {
                 game.onConnectionLost("Lost connection to the host.");
             }
+        } else if (packet instanceof Packets.CharacterList list) {
+            if (!isJoined()) {
+                game.chooseCharacter(list.characters, list.message);
+            }
         } else if (packet instanceof Packets.Welcome welcome) {
             onWelcome(welcome);
         } else if (packet instanceof Packets.PlayerState state) {
@@ -161,6 +165,20 @@ public class ClientSession implements NetSession {
         } else if (packet instanceof Packets.ChestOpenResult result) {
             onChestOpenResult(result);
         }
+    }
+
+    /** Play an existing character from the host's list. */
+    public void playCharacter(String characterId) {
+        Packets.ChooseCharacter choice = new Packets.ChooseCharacter();
+        choice.characterId = characterId;
+        client.send(choice);
+    }
+
+    /** Create a new character in the host's world. */
+    public void createCharacter(String name) {
+        Packets.ChooseCharacter choice = new Packets.ChooseCharacter();
+        choice.newName = name;
+        client.send(choice);
     }
 
     private void onWelcome(Packets.Welcome welcome) {

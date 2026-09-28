@@ -29,6 +29,10 @@ public final class Packets {
         kryo.register(String[].class);
 
         kryo.register(Hello.class);
+        kryo.register(CharacterInfo.class);
+        kryo.register(CharacterInfo[].class);
+        kryo.register(CharacterList.class);
+        kryo.register(ChooseCharacter.class);
         kryo.register(Welcome.class);
         kryo.register(PlayerLeft.class);
         kryo.register(PlayerState.class);
@@ -56,17 +60,43 @@ public final class Packets {
 
     // ========== Join / leave ==========
 
-    /** Client → host, first message after connecting. */
+    /**
+     * Client → host, first message after connecting. The identity only marks which characters this
+     * player played last; any guest can play any character that isn't in use.
+     */
     public static class Hello {
-        public String playerName;       // Display name
         public String identityProvider; // e.g. "local", later "steam"
         public String identityId;       // Unique within the provider
     }
 
-    /** Host → client, reply to {@link Hello}. The client builds its level from this. */
+    /** One character saved in the host's world. */
+    public static class CharacterInfo {
+        public String id;
+        public String name;
+        public String levelId;          // Where they were last (nullable)
+        public boolean inUse;           // Someone is playing this character right now
+        public boolean lastPlayedByYou;
+    }
+
+    /**
+     * Host → client, reply to {@link Hello}: pick a character. Sent again whenever the list changes
+     * (someone joins or leaves) until the client has joined, and when a choice is refused.
+     */
+    public static class CharacterList {
+        public CharacterInfo[] characters;
+        public String message; // Why the last choice was refused (nullable)
+    }
+
+    /** Client → host: play an existing character (characterId), or create one (characterId null, newName). */
+    public static class ChooseCharacter {
+        public String characterId;
+        public String newName;
+    }
+
+    /** Host → client, once a character was chosen. The client builds its level from this. */
     public static class Welcome {
         public int playerId;
-        public String playerName;   // Possibly de-duplicated by the host
+        public String playerName;   // The character's name
         public String levelId;
         public float x, y;
         public String savedPlayerJson; // PlayerData from an earlier session (nullable)

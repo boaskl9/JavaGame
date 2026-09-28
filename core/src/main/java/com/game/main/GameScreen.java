@@ -138,6 +138,11 @@ public class GameScreen implements Screen, GameWorld.Presenter {
     private String currentSaveName = null;
 
     private boolean screenClosed = false;
+
+    // Joining a host: character selection, shown until the local player exists
+    private com.badlogic.gdx.scenes.scene2d.Stage joinStage;
+    private com.badlogic.gdx.scenes.scene2d.ui.Skin joinSkin;
+    private com.game.ui.CharacterSelectDialog characterSelect;
     /**
      * Create a new game with default starting level.
      */
@@ -399,15 +404,59 @@ public class GameScreen implements Screen, GameWorld.Presenter {
     }
 
     /**
-     * Shown on a client between connecting and the host's welcome.
+     * Shown on a client between connecting and the host's welcome: the character selection.
      */
     private void renderConnecting() {
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        if (joinStage != null) {
+            joinStage.act(Gdx.graphics.getDeltaTime());
+            joinStage.draw();
+            return;
+        }
         batch.setProjectionMatrix(uiCamera.combined);
         batch.begin();
         debugFont.draw(batch, "Joining game...", VIEWPORT_WIDTH / 2f - 30, VIEWPORT_HEIGHT / 2f);
         batch.end();
+    }
+
+    @Override
+    public void chooseCharacter(com.game.networking.Packets.CharacterInfo[] characters, String message) {
+        if (characterSelect == null) {
+            joinStage = new com.badlogic.gdx.scenes.scene2d.Stage(new com.badlogic.gdx.utils.viewport.ScreenViewport());
+            joinSkin = new com.badlogic.gdx.scenes.scene2d.ui.Skin(Gdx.files.internal("assets/ui/wood-theme.json"));
+            Gdx.input.setInputProcessor(joinStage);
+            characterSelect = new com.game.ui.CharacterSelectDialog(joinSkin, new com.game.ui.CharacterSelectDialog.CharacterSelectCallback() {
+                @Override
+                public void onPlay(String characterId) {
+                    gameWorld.playCharacter(characterId);
+                }
+
+                @Override
+                public void onCreate(String name) {
+                    gameWorld.createCharacter(name);
+                }
+
+                @Override
+                public void onLeave() {
+                    stopMultiplayer();
+                    returnToMainMenu(null);
+                }
+            });
+            characterSelect.setCharacters(characters, message);
+            characterSelect.show(joinStage);
+        } else {
+            characterSelect.setCharacters(characters, message);
+        }
+    }
+
+    private void disposeJoinUi() {
+        if (joinStage == null) return;
+        joinStage.dispose();
+        joinSkin.dispose();
+        joinStage = null;
+        joinSkin = null;
+        characterSelect = null;
     }
 
     /**
@@ -665,6 +714,7 @@ public class GameScreen implements Screen, GameWorld.Presenter {
     @Override
     public void onLocalPlayerCreated(PlayerEntity player) {
         localPlayer = player;
+        disposeJoinUi();
         if (uiManager == null) {
             initLocalPlayerUI(player);
         }
@@ -1087,6 +1137,13 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         if (uiManager != null) {
             uiManager.resize(width, height);
         }
+        if (joinStage != null) {
+            joinStage.getViewport().update(width, height, true);
+            characterSelect.setPosition(
+                (joinStage.getWidth() - characterSelect.getWidth()) / 2,
+                (joinStage.getHeight() - characterSelect.getHeight()) / 2
+            );
+        }
     }
 
     @Override
@@ -1113,6 +1170,7 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         if (mapRenderer != null) mapRenderer.dispose();
         gameWorld.dispose();
         if (uiManager != null) uiManager.dispose();
+        disposeJoinUi();
 
         // Dispose audio resources
         SoundSystem.getInstance().dispose();

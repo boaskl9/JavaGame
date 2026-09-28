@@ -4,7 +4,6 @@ import com.badlogic.gdx.math.Vector2;
 import com.game.networking.identity.PlayerIdentity;
 import com.game.save.PlayerData;
 import com.game.save.SaveManager;
-import com.game.systems.entity.GameObject;
 import com.game.systems.entity.entities.PlayerEntity;
 import com.game.systems.item.ItemFactory;
 import com.game.testsupport.GameTestBase;
@@ -18,10 +17,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Guests keep their character (inventory, level, position) across sessions, keyed by identity.
+ * Guest characters belong to the host's world (like Stardew Valley farmhands): a joining player
+ * picks any character nobody is playing, or creates a new one. Characters keep their inventory,
+ * level and position across sessions.
  */
 class GuestCharacterTest extends GameTestBase {
-    private static final PlayerIdentity ALICE = new PlayerIdentity("test", "alice-id", "Alice");
+    private static final PlayerIdentity MACHINE_A = new PlayerIdentity("test", "machine-a", null);
+    private static final PlayerIdentity MACHINE_B = new PlayerIdentity("test", "machine-b", null);
 
     private MultiplayerRig rig;
 
@@ -35,18 +37,134 @@ class GuestCharacterTest extends GameTestBase {
         rig.close();
     }
 
+    // ========== Picking and creating ==========
+
     @Test
-    void aReturningGuestContinuesInTheirLevelAtTheirPosition() {
-        TestWorld alice = rig.join(ALICE);
+    void anEmptyWorldListsNoCharacters() {
+        TestWorld guest = rig.connect(MACHINE_A);
+        assertEquals(0, guest.presenter.characters.length);
+        assertNull(guest.world.getLocalPlayer(), "nobody joins before choosing");
+    }
+
+    @Test
+    void aNewCharacterIsSavedInTheWorldUnderItsName() {
+        rig.join(MACHINE_A, "Alice");
+
+        PlayerData saved = MultiplayerRig.savedCharacter("Alice");
+        assertNotNull(saved, "listed right away, before any save");
+        assertEquals("test:machine-a", saved.lastPlayedBy);
+    }
+
+    @Test
+    void anyMachineCanPlayACharacterNobodyIsUsing() {
+        TestWorld alice = rig.join(MACHINE_A, "Alice");
+        alice.world.getLocalPlayer().getInventory().addItem(ItemFactory.create("wood", 3));
+        leave(alice);
+
+        TestWorld fromOtherMachine = rig.join(MACHINE_B, "Alice");
+        assertEquals(3, fromOtherMachine.world.getLocalPlayer().getInventory().countItem("wood"));
+    }
+
+    @Test
+    void oneMachineCanKeepSeveralCharacters() {
+        TestWorld alice = rig.join(MACHINE_A, "Alice");
+        alice.world.getLocalPlayer().getInventory().addItem(ItemFactory.create("wood", 3));
+        leave(alice);
+
+        TestWorld bob = rig.join(MACHINE_A, "Bob");
+        assertEquals(0, bob.world.getLocalPlayer().getInventory().countItem("wood"), "Bob is a new character");
+        leave(bob);
+
+        TestWorld aliceAgain = rig.join(MACHINE_A, "Alice");
+        assertEquals(3, aliceAgain.world.getLocalPlayer().getInventory().countItem("wood"));
+    }
+
+    @Test
+    void theListShowsWhichCharactersAreInUseAndWhichAreYours() {
+        rig.join(MACHINE_A, "Alice");
+        leave(rig.join(MACHINE_B, "Bob"));
+
+        TestWorld chooser = rig.connect(MACHINE_B);
+        Packets.CharacterInfo alice = chooser.presenter.character("Alice");
+        Packets.CharacterInfo bob = chooser.presenter.character("Bob");
+        assertTrue(alice.inUse);
+        assertFalse(alice.lastPlayedByYou);
+        assertFalse(bob.inUse);
+        assertTrue(bob.lastPlayedByYou);
+        assertEquals("Bob", chooser.presenter.characters[0].name, "your characters come first");
+    }
+
+    @Test
+    void aCharacterInUseCannotBePicked() {
+        rig.join(MACHINE_A, "Alice");
+        TestWorld chooser = rig.connect(MACHINE_B);
+        int lists = chooser.presenter.characterLists;
+
+        chooser.world.playCharacter(chooser.presenter.character("Alice").id);
+        rig.runUntil(() -> chooser.presenter.characterLists > lists, "refusal");
+
+        assertEquals("Alice is already being played.", chooser.presenter.characterMessage);
+        assertNull(chooser.world.getLocalPlayer());
+    }
+
+    @Test
+    void newCharacterNamesMustBeUnique() {
+        leave(rig.join(MACHINE_A, "Alice"));
+        TestWorld chooser = rig.connect(MACHINE_B);
+        int lists = chooser.presenter.characterLists;
+
+        chooser.world.createCharacter(" alice ");
+        rig.runUntil(() -> chooser.presenter.characterLists > lists, "refusal");
+
+        assertEquals("There is already a character named alice.", chooser.presenter.characterMessage);
+        assertNull(chooser.world.getLocalPlayer());
+        assertEquals(1, SaveManager.getInstance().getGuestCharacters().size());
+    }
+
+    @Test
+    void guestsStillChoosingSeeCharactersBecomeFreeAndTaken() {
+        TestWorld alice = rig.join(MACHINE_A, "Alice");
+        TestWorld chooser = rig.connect(MACHINE_B);
+        assertTrue(chooser.presenter.character("Alice").inUse);
+
+        leave(alice);
+        rig.runUntil(() -> !chooser.presenter.character("Alice").inUse, "Alice shown as free");
+
+        rig.join(MACHINE_A, "Carol");
+        rig.runUntil(() -> chooser.presenter.character("Carol") != null
+            && chooser.presenter.character("Carol").inUse, "Carol shown as taken");
+    }
+
+    @Test
+    void charactersFromOlderSavesAreListed() {
+        PlayerData byName = savedAt(null, 0, 0); // Saved before names were stored: keyed by name
+        byName.inventory = inventoryWith("stone", 5);
+        SaveManager.getInstance().putGuestData("Alice", byName);
+        PlayerData byIdentity = savedAt(null, 0, 0); // Saved per machine
+        byIdentity.displayName = "Zed";
+        SaveManager.getInstance().putGuestData("local:3f2a", byIdentity);
+
+        TestWorld chooser = rig.connect(MACHINE_A);
+        assertNotNull(chooser.presenter.character("Zed"));
+        chooser.world.playCharacter(chooser.presenter.character("Alice").id);
+        rig.runUntil(() -> chooser.world.getLocalPlayer() != null, "joined as Alice");
+
+        assertEquals(5, chooser.world.getLocalPlayer().getInventory().countItem("stone"));
+    }
+
+    // ========== Where a returning character starts ==========
+
+    @Test
+    void aReturningCharacterContinuesInTheirLevelAtTheirPosition() {
+        TestWorld alice = rig.join(MACHINE_A, "Alice");
         alice.world.changeLevel(OTHER_LEVEL, null);
         walkRight(alice, 0.4f);
         Vector2 leftAt = alice.world.getLocalPlayer().getTransform().getPosition().cpy();
         rig.runUntil(() -> hostCopyPosition() != null && hostCopyPosition().dst(leftAt) < 0.5f, "host copy caught up");
 
-        rig.disconnect(alice);
-        rig.runUntil(() -> hostCopyPosition() == null, "Alice left");
+        leave(alice);
 
-        TestWorld again = rig.join(ALICE);
+        TestWorld again = rig.join(MACHINE_B, "Alice");
         assertEquals(OTHER_LEVEL, again.world.getCurrentInstance().getLevelId());
         assertEquals(0, again.world.getLocalPlayer().getTransform().getPosition().dst(leftAt), 0.5f);
     }
@@ -54,9 +172,9 @@ class GuestCharacterTest extends GameTestBase {
     @Test
     void aBlockedSavedPositionFallsBackToTheLevelsSpawnPoint() {
         Vector2 wall = findBlockedSpot(OTHER_LEVEL);
-        SaveManager.getInstance().putGuestData(ALICE.key(), savedAt(OTHER_LEVEL, wall.x, wall.y));
+        SaveManager.getInstance().putGuestData("character:alice", named("Alice", savedAt(OTHER_LEVEL, wall.x, wall.y)));
 
-        TestWorld alice = rig.join(ALICE);
+        TestWorld alice = rig.join(MACHINE_A, "Alice");
 
         LevelInstance level = alice.world.getCurrentInstance();
         assertEquals(OTHER_LEVEL, level.getLevelId());
@@ -65,9 +183,9 @@ class GuestCharacterTest extends GameTestBase {
 
     @Test
     void anUnknownSavedLevelFallsBackToJoiningTheHost() {
-        SaveManager.getInstance().putGuestData(ALICE.key(), savedAt("Maps/no_such_level.tmx", 10, 10));
+        SaveManager.getInstance().putGuestData("character:alice", named("Alice", savedAt("Maps/no_such_level.tmx", 10, 10)));
 
-        TestWorld alice = rig.join(ALICE);
+        TestWorld alice = rig.join(MACHINE_A, "Alice");
 
         assertEquals(START_LEVEL, alice.world.getCurrentInstance().getLevelId());
         assertEquals(rig.host.world.getLocalPlayer().getTransform().getPosition(),
@@ -75,63 +193,30 @@ class GuestCharacterTest extends GameTestBase {
     }
 
     @Test
-    void theIdentityNotTheNameDecidesWhichCharacterYouGet() {
-        TestWorld alice = rig.join(ALICE);
-        alice.world.getLocalPlayer().getInventory().addItem(ItemFactory.create("wood", 3));
-        rig.disconnect(alice);
-        rig.runUntil(() -> hostCopyPosition() == null, "Alice left");
-
-        TestWorld renamed = rig.join(new PlayerIdentity("test", "alice-id", "Ally"));
-        assertEquals(3, renamed.world.getLocalPlayer().getInventory().countItem("wood"), "same ID, new name: same character");
-        rig.disconnect(renamed);
-        rig.runUntil(() -> hostCopyPosition() == null, "Ally left");
-
-        TestWorld impostor = rig.join(new PlayerIdentity("test", "someone-else", "Alice"));
-        assertEquals(0, impostor.world.getLocalPlayer().getInventory().countItem("wood"), "same name, other ID: new character");
-    }
-
-    @Test
-    void charactersSavedByNameBeforeIdentitiesExistedAreAdopted() {
-        PlayerData legacy = savedAt(null, 0, 0);
-        SaveManager.getInstance().putGuestData("Alice", legacy);
-        TestWorld temp = new TestWorld(false);
-        legacy.inventory = inventoryWith(temp, "stone", 5);
-
-        TestWorld alice = rig.join(ALICE);
-
-        assertEquals(5, alice.world.getLocalPlayer().getInventory().countItem("stone"));
-        assertNull(SaveManager.getInstance().getGuestData("Alice"), "legacy entry is moved, not copied");
-        assertNotNull(SaveManager.getInstance().getGuestData(ALICE.key()));
-    }
-
-    @Test
-    void twoCopiesWithTheSameIdentityGetSeparateCharacters() {
-        TestWorld first = rig.join(ALICE);
-        TestWorld second = rig.join(ALICE);
-        assertNotEquals(first.world.getLocalPlayer().getPlayerId(), second.world.getLocalPlayer().getPlayerId());
-
-        rig.disconnect(first);
-        rig.disconnect(second);
-        rig.runUntil(() -> SaveManager.getInstance().getGuestData(ALICE.key() + "#2") != null, "second copy saved separately");
-        assertNotNull(SaveManager.getInstance().getGuestData(ALICE.key()));
-    }
-
-    @Test
     void theHostStoppingRecordsWhereConnectedGuestsWere() {
-        TestWorld alice = rig.join(ALICE);
+        TestWorld alice = rig.join(MACHINE_A, "Alice");
         walkRight(alice, 0.3f);
         Vector2 at = alice.world.getLocalPlayer().getTransform().getPosition().cpy();
         rig.runUntil(() -> hostCopyPosition() != null && hostCopyPosition().dst(at) < 0.5f, "host copy caught up");
 
         rig.host.world.stopMultiplayer();
 
-        PlayerData saved = SaveManager.getInstance().getGuestData(ALICE.key());
+        PlayerData saved = MultiplayerRig.savedCharacter("Alice");
         assertEquals(START_LEVEL, saved.levelId);
         assertEquals(at.x, saved.x, 0.5f);
-        assertEquals("Alice", saved.displayName);
     }
 
     // ========== Helpers ==========
+
+    private void leave(TestWorld guest) {
+        int before = guestCopies();
+        rig.disconnect(guest);
+        rig.runUntil(() -> guestCopies() < before, "guest left");
+    }
+
+    private int guestCopies() {
+        return (int) rig.host.players.getAllPlayers().stream().filter(PlayerEntity::isNetworkControlled).count();
+    }
 
     private void walkRight(TestWorld guest, float seconds) {
         guest.presenter.input.move(1, 0);
@@ -154,7 +239,12 @@ class GuestCharacterTest extends GameTestBase {
         return data;
     }
 
-    private static com.game.save.InventoryData inventoryWith(TestWorld scratch, String itemId, int quantity) {
+    private static PlayerData named(String name, PlayerData data) {
+        data.displayName = name;
+        return data;
+    }
+
+    private static com.game.save.InventoryData inventoryWith(String itemId, int quantity) {
         com.game.systems.inventory.PlayerInventory inventory = new com.game.systems.inventory.PlayerInventory();
         inventory.addItem(ItemFactory.create(itemId, quantity));
         return inventory.exportSaveData();
@@ -173,10 +263,5 @@ class GuestCharacterTest extends GameTestBase {
             }
         }
         throw new AssertionError(levelId + " has no walls?");
-    }
-
-    @SuppressWarnings("unused")
-    private static int count(LevelInstance level, Class<? extends GameObject> type) {
-        return (int) level.getWorld().getGameObjects().stream().filter(type::isInstance).count();
     }
 }

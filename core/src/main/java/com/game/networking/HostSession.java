@@ -35,7 +35,8 @@ import java.util.Map;
 public class HostSession implements NetSession {
     public static final int HOST_PLAYER_ID = 0;
     private static final String FALLBACK_LEVEL = "Maps/prototype.tmx";
-    private static final String LEGACY_PROVIDER = "name"; // Clients that send no identity
+    private static final String CHARACTER_ID_PREFIX = "character:";
+    private static final int MAX_NAME_LENGTH = 16;
     private static final float PLAYER_STATE_INTERVAL = 1f / 30f;
     private static final float ENTITY_STATE_INTERVAL = 1f / 20f;
     private static final float MAX_PICKUP_DISTANCE = 64f; // Generous: magnet range + the guest's copy lagging behind the guest
@@ -59,8 +60,9 @@ public class HostSession implements NetSession {
     private static final class Guest {
         final int connectionId;
         int playerId = -1;
-        String name;     // Display name (de-duplicated among connected guests)
-        String saveKey;  // Where this guest's character is stored (identity key)
+        String identityKey; // Set by Hello; the guest is then picking a character
+        String name;        // The character's name
+        String characterId; // Where the character is saved
         String levelId;
         int epoch;
         PlayerEntity player; // Network-controlled copy on the host
@@ -72,6 +74,10 @@ public class HostSession implements NetSession {
 
         boolean isJoined() {
             return player != null;
+        }
+
+        boolean isChoosingCharacter() {
+            return identityKey != null && !isJoined();
         }
     }
 
@@ -218,6 +224,8 @@ public class HostSession implements NetSession {
             onGuestLeft(guest);
         } else if (packet instanceof Packets.Hello hello) {
             onHello(guest, hello);
+        } else if (packet instanceof Packets.ChooseCharacter choice) {
+            onChooseCharacter(guest, choice);
         } else if (!guest.isJoined()) {
             return; // Ignore anything else until the guest has joined
         } else if (packet instanceof Packets.PlayerState state) {
@@ -248,18 +256,102 @@ public class HostSession implements NetSession {
             if (data != null) {
                 data.levelId = guest.levelId; // The host knows for sure which level they're in
                 data.displayName = guest.name;
-                SaveManager.getInstance().putGuestData(guest.saveKey, data);
+                data.lastPlayedBy = guest.identityKey;
+                SaveManager.getInstance().putGuestData(guest.characterId, data);
             }
         }
     }
 
-    private void onHello(Guest guest, Packets.Hello hello) {
-        if (guest.isJoined()) return;
+    // ========== Joining: pick or create a character ==========
 
+    private void onHello(Guest guest, Packets.Hello hello) {
+        if (guest.identityKey != null) return;
+
+        boolean hasIdentity = hello.identityProvider != null && !hello.identityProvider.isBlank()
+            && hello.identityId != null && !hello.identityId.isBlank();
+        guest.identityKey = hasIdentity
+            ? PlayerIdentity.key(hello.identityProvider, hello.identityId)
+            : "anonymous:" + guest.connectionId;
+        sendCharacterList(guest, null);
+    }
+
+    /**
+     * Every character saved in this world, for a guest to pick from (theirs first, then by name).
+     */
+    private void sendCharacterList(Guest guest, String message) {
+        List<Packets.CharacterInfo> characters = new ArrayList<>();
+        for (Map.Entry<String, PlayerData> entry : SaveManager.getInstance().getGuestCharacters().entrySet()) {
+            Packets.CharacterInfo info = new Packets.CharacterInfo();
+            info.id = entry.getKey();
+            info.name = characterName(entry.getKey(), entry.getValue());
+            info.levelId = entry.getValue().levelId;
+            info.inUse = isCharacterInUse(entry.getKey());
+            info.lastPlayedByYou = guest.identityKey.equals(entry.getValue().lastPlayedBy);
+            characters.add(info);
+        }
+        characters.sort(java.util.Comparator
+            .comparing((Packets.CharacterInfo info) -> !info.lastPlayedByYou)
+            .thenComparing(info -> info.name, String.CASE_INSENSITIVE_ORDER));
+
+        Packets.CharacterList list = new Packets.CharacterList();
+        list.characters = characters.toArray(new Packets.CharacterInfo[0]);
+        list.message = message;
+        server.send(guest.connectionId, list);
+    }
+
+    /** Characters became free or taken: refresh the lists of guests who are still choosing. */
+    private void sendCharacterListsToChoosingGuests() {
+        for (Guest guest : guests.values()) {
+            if (guest.isChoosingCharacter()) {
+                sendCharacterList(guest, null);
+            }
+        }
+    }
+
+    private void onChooseCharacter(Guest guest, Packets.ChooseCharacter choice) {
+        if (!guest.isChoosingCharacter()) return;
+
+        SaveManager saves = SaveManager.getInstance();
+        String characterId;
+        String name;
+        PlayerData saved;
+        if (choice.characterId != null) {
+            saved = saves.getGuestData(choice.characterId);
+            if (saved == null) {
+                sendCharacterList(guest, "That character no longer exists.");
+                return;
+            }
+            characterId = choice.characterId;
+            name = characterName(characterId, saved);
+            if (isCharacterInUse(characterId)) {
+                sendCharacterList(guest, name + " is already being played.");
+                return;
+            }
+        } else {
+            name = choice.newName == null ? "" : choice.newName.trim();
+            if (name.length() > MAX_NAME_LENGTH) {
+                name = name.substring(0, MAX_NAME_LENGTH).trim();
+            }
+            if (name.isEmpty()) {
+                sendCharacterList(guest, "Enter a name for your character.");
+                return;
+            }
+            if (isCharacterNameTaken(name)) {
+                sendCharacterList(guest, "There is already a character named " + name + ".");
+                return;
+            }
+            characterId = CHARACTER_ID_PREFIX + java.util.UUID.randomUUID();
+            saved = null;
+        }
+
+        joinAsCharacter(guest, characterId, name, saved);
+        sendCharacterListsToChoosingGuests(); // This character is now in use
+    }
+
+    private void joinAsCharacter(Guest guest, String characterId, String name, PlayerData saved) {
         guest.playerId = nextPlayerId++;
-        guest.name = uniqueName(hello.playerName);
-        guest.saveKey = saveKeyFor(hello);
-        PlayerData saved = loadGuestData(guest.saveKey, hello.playerName);
+        guest.characterId = characterId;
+        guest.name = name;
 
         // Continue where they left off if possible; otherwise join the host
         LevelInstance level = null;
@@ -298,48 +390,35 @@ public class HostSession implements NetSession {
         server.send(guest.connectionId, welcome);
         sendLevelSnapshot(guest);
 
-        System.out.println("HostSession: " + guest.name + " [" + guest.saveKey + "] joined as player "
-            + guest.playerId + " in " + guest.levelId + (saved != null ? " (returning)" : ""));
+        recordCharacter(guest); // A new character is listed (and its name taken) right away
+
+        System.out.println("HostSession: " + guest.name + " [" + guest.characterId + "] joined as player "
+            + guest.playerId + " in " + guest.levelId + (saved != null ? " (returning)" : " (new character)"));
     }
 
     /**
-     * Where a guest's character is saved. Normally their identity key; if that identity is already
-     * connected (e.g. two copies of the game on one computer), the extra connection gets its own key.
+     * A character's name. Characters saved before names were stored are keyed by the name itself
+     * (or "name:Bob").
      */
-    private String saveKeyFor(Packets.Hello hello) {
-        String base = (hello.identityProvider == null || hello.identityProvider.isBlank()
-                || hello.identityId == null || hello.identityId.isBlank())
-            ? PlayerIdentity.key(LEGACY_PROVIDER, String.valueOf(hello.playerName))
-            : PlayerIdentity.key(hello.identityProvider, hello.identityId);
-
-        String key = base;
-        int copy = 2;
-        while (isSaveKeyInUse(key)) {
-            key = base + "#" + copy++;
+    private static String characterName(String characterId, PlayerData data) {
+        if (data.displayName != null && !data.displayName.isBlank()) {
+            return data.displayName;
         }
-        return key;
+        return characterId.substring(characterId.lastIndexOf(':') + 1);
     }
 
-    private boolean isSaveKeyInUse(String key) {
+    private boolean isCharacterInUse(String characterId) {
         for (Guest other : guests.values()) {
-            if (other.isJoined() && key.equals(other.saveKey)) return true;
+            if (other.isJoined() && characterId.equals(other.characterId)) return true;
         }
         return false;
     }
 
-    /**
-     * The guest's saved character. Characters saved before identities existed were stored under the
-     * plain display name; the first identity to join with that name takes them over.
-     */
-    private PlayerData loadGuestData(String saveKey, String displayName) {
-        SaveManager saves = SaveManager.getInstance();
-        PlayerData data = saves.getGuestData(saveKey);
-        if (data == null && displayName != null && saves.getGuestData(displayName) != null) {
-            data = saves.removeGuestData(displayName);
-            saves.putGuestData(saveKey, data);
-            System.out.println("HostSession: Moved legacy character '" + displayName + "' to " + saveKey);
+    private boolean isCharacterNameTaken(String name) {
+        for (Map.Entry<String, PlayerData> entry : SaveManager.getInstance().getGuestCharacters().entrySet()) {
+            if (characterName(entry.getKey(), entry.getValue()).equalsIgnoreCase(name)) return true;
         }
-        return data;
+        return false;
     }
 
     private LevelInstance tryGetShareableLevel(String levelId) {
@@ -355,23 +434,6 @@ public class HostSession implements NetSession {
     /** Whether a player's feet fit at this position (matches PlayerEntity's environment collider). */
     private static boolean isStandable(LevelInstance level, float x, float y) {
         return level.getWorld().isPositionWalkable(x + 4, y, 8, 4);
-    }
-
-    private String uniqueName(String requested) {
-        String base = (requested == null || requested.isBlank()) ? "Player" : requested.trim();
-        String name = base;
-        int suffix = 2;
-        while (isNameTaken(name)) {
-            name = base + " " + suffix++;
-        }
-        return name;
-    }
-
-    private boolean isNameTaken(String name) {
-        for (Guest other : guests.values()) {
-            if (other.isJoined() && name.equals(other.name)) return true;
-        }
-        return false;
     }
 
     private PlayerEntity createGuestPlayer(Guest guest, WorldManager world, float x, float y) {
@@ -393,7 +455,7 @@ public class HostSession implements NetSession {
         if (!guest.isJoined()) return;
 
         System.out.println("HostSession: " + guest.name + " (player " + guest.playerId + ") left");
-        rememberWhereGuestLeft(guest);
+        recordCharacter(guest);
         releaseChestsHeldBy(guest.playerId);
         guest.player.getWorld().removeGameObject(guest.player);
         game.removeRemotePlayer(guest.player);
@@ -405,14 +467,16 @@ public class HostSession implements NetSession {
                 server.send(other.connectionId, left);
             }
         }
+        sendCharacterListsToChoosingGuests(); // Their character is free again
     }
 
     /**
-     * Record the guest's latest level and position (inventory comes from their last sync).
+     * Record the guest's character: name, who played it, latest level and position
+     * (inventory comes from their last sync).
      */
-    private void rememberWhereGuestLeft(Guest guest) {
+    private void recordCharacter(Guest guest) {
         SaveManager saves = SaveManager.getInstance();
-        PlayerData data = saves.getGuestData(guest.saveKey);
+        PlayerData data = saves.getGuestData(guest.characterId);
         if (data == null) {
             data = new PlayerData();
             data.maxHealth = guest.player.getMaxHealth();
@@ -422,7 +486,8 @@ public class HostSession implements NetSession {
         data.x = guest.player.getTransform().getX();
         data.y = guest.player.getTransform().getY();
         data.displayName = guest.name;
-        saves.putGuestData(guest.saveKey, data);
+        data.lastPlayedBy = guest.identityKey;
+        saves.putGuestData(guest.characterId, data);
     }
 
     private void onGuestState(Guest guest, Packets.PlayerState state) {
@@ -790,7 +855,7 @@ public class HostSession implements NetSession {
         game.getWorldItemManager().removeListener(itemListener);
         for (Guest guest : guests.values()) {
             if (guest.isJoined()) {
-                rememberWhereGuestLeft(guest); // So the host's save has everyone's latest location
+                recordCharacter(guest); // So the host's save has everyone's latest location
                 guest.player.getWorld().removeGameObject(guest.player);
                 game.removeRemotePlayer(guest.player);
             }
