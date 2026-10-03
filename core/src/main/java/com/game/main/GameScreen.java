@@ -932,8 +932,32 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         float cameraHalfWidth = camera.viewportWidth * camera.zoom / 2f;
         float cameraHalfHeight = camera.viewportHeight * camera.zoom / 2f;
 
-        float camX = Math.max(cameraHalfWidth, Math.min(playerCenterX, worldWidth - cameraHalfWidth));
-        float camY = Math.max(cameraHalfHeight - 12, Math.min(playerCenterY, worldHeight - cameraHalfHeight));
+        // The bottom HUD covers a strip of the screen, so the usable view is the part above it
+        float hudWorldHeight = 0f;
+        if (uiManager != null && viewport.getScreenHeight() > 0) {
+            hudWorldHeight = uiManager.getBottomHudHeight()
+                * (cameraHalfHeight * 2f) / viewport.getScreenHeight();
+        }
+        float visibleHeight = cameraHalfHeight * 2f - hudWorldHeight;
+
+        // Maps smaller than the view are centered; larger ones are clamped to their edges
+        float camX;
+        if (worldWidth <= cameraHalfWidth * 2f) {
+            camX = worldWidth / 2f;
+        } else {
+            camX = Math.max(cameraHalfWidth, Math.min(playerCenterX, worldWidth - cameraHalfWidth));
+        }
+
+        float camY;
+        if (worldHeight <= visibleHeight) {
+            // Center of the visible area (camY + hud/2) sits on the map center
+            camY = worldHeight / 2f - hudWorldHeight / 2f;
+        } else {
+            // Lowest: map bottom just above the HUD. Highest: map top at the screen top.
+            float minY = cameraHalfHeight - hudWorldHeight;
+            float maxY = worldHeight - cameraHalfHeight;
+            camY = Math.max(minY, Math.min(playerCenterY, maxY));
+        }
 
         camera.position.set(camX, camY, 0);
         camera.update();

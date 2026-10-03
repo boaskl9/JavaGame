@@ -1040,6 +1040,13 @@ public class UIManagerNew {
         stage.draw();
     }
 
+    /**
+     * Height of the bottom HUD bar in screen pixels. The game camera keeps the world above it.
+     */
+    public float getBottomHudHeight() {
+        return bottomHUD != null && bottomHUD.isVisible() ? bottomHUD.getHeight() : 0f;
+    }
+
     public void resize(int width, int height) {
         // ScreenViewport maintains 1:1 pixel mapping for pixel-perfect UI
         ScreenViewport viewport = (ScreenViewport) stage.getViewport();
