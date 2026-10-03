@@ -6,7 +6,7 @@ Top-down action RPG (Stardew Valley-style view, but no farming): explore, fight 
 
 ## Build, run, test
 
-- **Tests:** `./gradlew core:test` (JUnit 5, headless libGDX, ~40s, 79 tests). Run them after any gameplay or networking change.
+- **Tests:** `./gradlew core:test` (JUnit 5, headless libGDX, ~50s, 118 tests). Run them after any gameplay or networking change.
 - **Run:** main class `com.game.main.lwjgl3.Lwjgl3Launcher`. Asset paths in code are `assets/...` and saves go to `saves/`, so the working directory must be the **repo root**. (`lwjgl3:run` sets it to `assets/`, which doesn't match those paths.)
 - **Two instances on one PC:** instance A: New Game → Esc → Open to LAN. Instance B: Multiplayer → `localhost`. JVM flags: `-Dgame.profile=NAME` gives a separate local identity, and `-Dgame.port=NNNN` changes the port (default 25565, UDP 25566).
 - Windows machine. The Bash tool is Git Bash; `gradlew` works from it.
@@ -24,7 +24,7 @@ Main → MainMenuScreen → GameScreen (render + UI only)
 ```
 
 - `GameWorld` owns levels, the local player, other players' copies, pickups and gateways. It talks to the screen through `GameWorld.Presenter`; tests use `TestPresenter`. **Put new game logic in `GameWorld` (or a system it calls), not in `GameScreen`**, so it can be tested.
-- Entities: `GameObject` (holds components) → `Entity` (adds health) → `PlayerEntity`, `EnemyEntity`, `BreakableEntity`, `ItemPickupEntity`, `GatewayEntity`, `NPC` (stub). Components live in `components/` plus `systems/entity/Transform`.
+- Entities: `GameObject` (holds components) → `Entity` (adds health) → `PlayerEntity`, `EnemyEntity`, `BreakableEntity`, `ItemPickupEntity`, `GatewayEntity`, `NPC` (stub). `ProjectileEntity` is a plain `GameObject` (no health); new kinds go in its `Kind` enum. Components live in `components/` plus `systems/entity/Transform`.
 - Singletons: `SaveManager`, `SoundSystem`, `LootSystem`, `FurnitureManager`, `GameSettings`, `DungeonThemeRegistry`. They're registered with `util/SingletonManager` for resets between sessions. In tests the host and clients share them.
 
 | Package | What's there |
@@ -69,7 +69,7 @@ Working: days (`world/DayCycle`: 3 real minutes from 06:00 to 02:00, clock top r
 
 Not done or partial:
 - Equipment gives no stat bonuses. It can supply loot modifiers (`ItemDefinition.getLootModifier`).
-- There's no enemy spawn system: enemies only come from debug spawns (number keys, `/spawn`). Maps place breakables and gateways, not enemies. NPCs are a stub. No shops or projectiles; days have a clock but no lighting changes.
+- There's no enemy spawn system: enemies only come from debug spawns (number keys, `/spawn`). Maps place breakables and gateways, not enemies. NPCs are a stub. No shops; the only projectile is the axolotl's water spit (`ProjectileEntity`, enemy-only, no player bows yet); days have a clock but no lighting changes.
 - Dungeons: the daily dungeon has no visible exit marker yet (an invisible gateway on the entrance), and many rooms' doors fail to get a "closer" room, so some doors lead nowhere. Dungeons from `/dungeon` (debug) can't be shared in multiplayer; the daily ones can.
 - No map has a `bed` object yet, so the only ways to end a day are waiting 3 minutes or `/sleep`.
 - Furniture can't be picked up from the UI (only `GameWorld.pickUpFurniture` exists).

@@ -2,6 +2,7 @@ package com.game.systems.dungeon.assembly;
 
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
+import com.game.systems.level.BackgroundFill;
 import com.badlogic.gdx.math.Rectangle;
 import com.game.systems.dungeon.generation.DungeonGenerationResult;
 import com.game.systems.level.LevelData;
@@ -60,6 +61,14 @@ public class DungeonAssembler {
                 tilesetCount++;
             }
             System.out.println("DungeonAssembler: Copied " + tilesetCount + " tilesets from source theme");
+
+            // The ground past the dungeon's edges comes from the theme map (see BackgroundFill)
+            for (String key : new String[]{BackgroundFill.MAP_PROPERTY, BackgroundFill.COLOR_PROPERTY}) {
+                Object value = theme.getSourceMap().getProperties().get(key);
+                if (value != null) {
+                    tiledMap.getProperties().put(key, value);
+                }
+            }
         }
 
         // DEBUG: Check tilesets

@@ -142,6 +142,7 @@ public final class Packets {
         public int netId;
         public String type;
         public float x, y;
+        public float vx, vy; // Projectiles only
         public int hp, maxHp;
         public String itemId;
         public int quantity;

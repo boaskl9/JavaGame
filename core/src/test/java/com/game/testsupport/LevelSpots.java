@@ -42,4 +42,35 @@ public final class LevelSpots {
         }
         throw new AssertionError("Level has no walls?");
     }
+
+    /**
+     * A 16x16 spot about `distance` from (x, y) with a clear straight line between their centers
+     * (no walls, breakables or furniture), so a ranged enemy standing there can hit (x, y).
+     * Tries 16 directions, and distances a little closer or further if none works.
+     */
+    public static Vector2 clearShotSpot(WorldManager world, float x, float y, float distance) {
+        for (float d : new float[]{distance, distance - 8, distance + 8, distance - 16, distance + 16}) {
+            for (float angle = 0; angle < 360; angle += 22.5f) {
+                float sx = x + (float) Math.cos(Math.toRadians(angle)) * d;
+                float sy = y + (float) Math.sin(Math.toRadians(angle)) * d;
+                if (!world.isPositionWalkable(sx, sy, 16, 16)) continue;
+                if (clearLine(world, x + 8, y + 8, sx + 8, sy + 8)) {
+                    return new Vector2(sx, sy);
+                }
+            }
+        }
+        throw new AssertionError("No clear shot " + distance + "px from " + x + "," + y);
+    }
+
+    private static boolean clearLine(WorldManager world, float x1, float y1, float x2, float y2) {
+        int steps = (int) (Vector2.dst(x1, y1, x2, y2) / 2f);
+        for (int i = 0; i <= steps; i++) {
+            float t = i / (float) steps;
+            // Generous width so the spit (and its slight random spread) has room
+            if (!world.isPositionWalkable(x1 + (x2 - x1) * t - 4, y1 + (y2 - y1) * t - 4, 8, 8)) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

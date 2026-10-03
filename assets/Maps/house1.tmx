@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="20" height="15" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="7">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="20" height="15" tilewidth="16" tileheight="16" infinite="0" nextlayerid="7" nextobjectid="7">
+ <properties>
+  <property name="background" value="cave"/>
+ </properties>
  <tileset firstgid="1" source="../../Tiled/Projects/TilesetFloor.tsx"/>
  <tileset firstgid="573" source="../../Tiled/Projects/TilesetElement.tsx"/>
  <tileset firstgid="813" source="../../Tiled/Projects/TilesetDesert.tsx"/>
+ <tileset firstgid="1053" source="../Tiled/Projects/TilesetFloor.tsx"/>
  <layer id="1" name="ground" width="20" height="15">
   <data encoding="csv">
 430,320,321,321,321,321,321,321,321,321,321,321,321,321,321,321,321,321,322,430,

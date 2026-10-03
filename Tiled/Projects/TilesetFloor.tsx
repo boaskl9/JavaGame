@@ -2870,6 +2870,7 @@
  </tile>
  <tile id="429">
   <properties>
+   <property name="background" value="cave"/>
    <property name="walkable" type="bool" value="false"/>
   </properties>
   <objectgroup draworder="index" id="2">

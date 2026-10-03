@@ -252,7 +252,7 @@ public abstract class EnemyEntity extends Entity {
         }
 
         // Close enough to attack
-        if (distanceToTarget <= ai.getAttackRange()) {
+        if (canStartAttack(distanceToTarget)) {
             ai.setState(AIComponent.AIState.ATTACK);
             velocity.setVelocity(0, 0);
             currentPath = null;
@@ -420,6 +420,31 @@ public abstract class EnemyEntity extends Entity {
         }
 
         return separationForce;
+    }
+
+    /**
+     * Whether the enemy can switch from chasing to attacking. Ranged enemies also need a clear shot.
+     */
+    protected boolean canStartAttack(float distanceToTarget) {
+        return distanceToTarget <= ai.getAttackRange();
+    }
+
+    /**
+     * Whether a straight line between two points is free of walls, breakables and furniture.
+     * Sampled every few pixels with a small box, which is enough for shots and sight lines.
+     */
+    protected boolean hasClearLine(Vector2 from, Vector2 to) {
+        float distance = from.dst(to);
+        int steps = Math.max(1, (int) (distance / 4f));
+        for (int i = 1; i < steps; i++) {
+            float t = i / (float) steps;
+            float x = from.x + (to.x - from.x) * t;
+            float y = from.y + (to.y - from.y) * t;
+            if (!world.isPositionWalkable(x - 1f, y - 1f, 2f, 2f)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

@@ -16,6 +16,21 @@ Y-sorted items are sorted by their bottom edge in **descending Y**. The world is
 
 On load the renderer prints how many layers it found of each kind (`YSortRenderer configured: ...`). If there are 0 Y-sorted layers, the property is missing. `ySortRenderer.setLayerConfiguration(background[], ySorted[], top[])` overrides the automatic detection by layer index.
 
+## Background past the map's edges (`systems/level/BackgroundFill`)
+
+When a map is smaller than the screen, or the camera reaches its edge, the area outside is filled with ground instead of black. It's all set up in Tiled:
+
+1. **Mark the fill tiles in the tileset.** Give each ground tile a custom **string** property `background` with a name, e.g. `grass`. Mark the plain tile and its variants (a small rock, a flower) with the same name.
+2. **Set how often each one appears** with Tiled's built-in tile **Probability** (in the tile's properties; default 1). E.g. plain grass 30, rock 1, flower 1.
+3. **Pick the fill per map:** a custom **string** map property `background` = `grass` (Map → Map Properties).
+4. Optional: the map's built-in **Background Color** (Map Properties) is the screen clear color, for anything not covered.
+
+- The fill is drawn under the whole visible area, inside the map too, so gaps in the ground layer show it.
+- Which variant goes on a tile depends only on its coordinates: no flicker, and everyone in multiplayer sees the same ground.
+- A map without the `background` property keeps the old look (black, or its Background Color). If no tile carries the name, a warning is printed on load.
+- Generated dungeons take `background` and the Background Color from their theme map (`DungeonAssembler`).
+- For variation **inside** a map, paint with Tiled's Random Mode (dice button) or a terrain brush: they use the same tile Probability.
+
 ## Collision
 
 Collision shapes come from the **tile collision editor** in the tilesets (objects on tiles), loaded by `systems/collision/TiledMapCollisionLoader` into `SpatialQuery`. Rectangles and polygons both work. Toggle `/debug colliders` (F4 console) or F3 to see them.

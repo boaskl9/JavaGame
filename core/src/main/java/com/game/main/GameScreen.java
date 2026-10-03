@@ -25,6 +25,7 @@ import com.game.systems.entity.entities.EnemyEntity;
 import com.game.systems.entity.entities.GatewayEntity;
 import com.game.systems.entity.entities.ItemPickupEntity;
 import com.game.systems.entity.entities.PlayerEntity;
+import com.game.systems.entity.entities.ProjectileEntity;
 import com.game.systems.entity.PlayerManager;
 import com.game.systems.entity.entities.DamageNumberEntity;
 import com.game.systems.input.LocalKeyboardInput;
@@ -101,6 +102,7 @@ public class GameScreen implements Screen, GameWorld.Presenter {
     public PlayerManager playerManager;
     private PlayerEntity localPlayer; // The player controlled on this machine (owned by gameWorld)
     private OrthogonalTiledMapRenderer mapRenderer;
+    private com.game.rendering.BackgroundRenderer backgroundRenderer; // Ground past the map's edges
     private YSortRenderer ySortRenderer;
     private UIManagerNew uiManager;
     private InputManager inputManager;
@@ -306,8 +308,10 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         // Apply time scale to delta (only affects game simulation, not rendering)
         float scaledDelta = Math.min(delta, MAX_FRAME_DELTA) * timeScale;
 
-        // Clear screen
-        Gdx.gl.glClearColor(0, 0, 0, 1);
+        // Clear screen (to the map's Background Color, if it has one)
+        com.badlogic.gdx.graphics.Color clearColor = backgroundRenderer != null
+            ? backgroundRenderer.getClearColor() : com.badlogic.gdx.graphics.Color.BLACK;
+        Gdx.gl.glClearColor(clearColor.r, clearColor.g, clearColor.b, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         // Simulate: levels (incl. world items), item pickups, gateways
@@ -346,6 +350,12 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         viewport.apply();
         mapRenderer.setView(camera);
         batch.setProjectionMatrix(camera.combined);
+
+        if (backgroundRenderer != null) {
+            batch.begin();
+            backgroundRenderer.render(batch, camera);
+            batch.end();
+        }
 
         if (ySortRenderer != null) {
             ySortRenderer.render(batch, world.getGameObjects(), this::renderEntity);
@@ -834,6 +844,7 @@ public class GameScreen implements Screen, GameWorld.Presenter {
             mapRenderer.dispose();
         }
         mapRenderer = new OrthogonalTiledMapRenderer(instance.getTiledMap());
+        backgroundRenderer = new com.game.rendering.BackgroundRenderer(instance.getTiledMap());
         ySortRenderer = new YSortRenderer(mapRenderer, instance.getTiledMap());
         ySortRenderer.setDebugMode(debugMode);
     }
@@ -1197,6 +1208,11 @@ public class GameScreen implements Screen, GameWorld.Presenter {
     private void renderEntity(SpriteBatch batch, GameObject gameObject) {
         // Knocked-out players (ours or others', whose health comes with their state) vanish until they respawn
         if (gameObject instanceof PlayerEntity player && !player.isAlive()) {
+            return;
+        }
+
+        if (gameObject instanceof ProjectileEntity projectile) {
+            projectile.render(batch);
             return;
         }
 

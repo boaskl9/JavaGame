@@ -72,8 +72,8 @@
         "D:/JavaGame/assets/Maps/dungeons/forest_rooms.tmx": {
             "expandedObjectLayers": [
                 5,
-                4,
-                6
+                6,
+                4
             ],
             "scale": 1,
             "selectedLayer": 4,
@@ -183,7 +183,7 @@
         "TilesetNature.tsx"
     ],
     "project": "JavaGame.tiled-project",
-    "property.type": "bool",
+    "property.type": "string",
     "recentFiles": [
         "TilesetElement.tsx",
         "TilesetDesert.tsx",

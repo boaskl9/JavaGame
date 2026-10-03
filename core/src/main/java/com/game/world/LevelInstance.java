@@ -7,6 +7,7 @@ import com.game.integration.WorldManager;
 import com.game.systems.entity.GameObject;
 import com.game.systems.entity.entities.BreakableEntity;
 import com.game.systems.entity.entities.EnemyEntity;
+import com.game.systems.entity.entities.ProjectileEntity;
 import com.game.systems.level.LevelData;
 import com.game.systems.level.LevelSource;
 
@@ -44,13 +45,13 @@ public class LevelInstance {
     }
 
     /**
-     * Remove dead enemies and fully broken breakables from the world.
+     * Remove dead enemies, fully broken breakables and spent projectiles from the world.
      * Removal notifies world listeners, which despawns them on clients.
      */
     private void removeFinishedEntities() {
         for (GameObject obj : world.getGameObjects()) {
             if (obj.isActive()) continue;
-            if (obj instanceof EnemyEntity || obj instanceof BreakableEntity) {
+            if (obj instanceof EnemyEntity || obj instanceof BreakableEntity || obj instanceof ProjectileEntity) {
                 world.removeGameObject(obj);
             }
         }

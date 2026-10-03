@@ -36,7 +36,7 @@ public class AttackSystem {
         strategies.put(WeaponType.HAMMER, new HammerSlamStrategy());
         strategies.put(WeaponType.STAFF, new SpearThrustStrategy()); // Staff uses thrust-like attacks
 
-        // BOW will need projectile strategy in the future
+        // BOW has no strategy yet; enemy projectiles are ProjectileEntity and hit via applyHit
     }
 
     /**
@@ -91,20 +91,21 @@ public class AttackSystem {
 
         // Apply damage and knockback to hit entities
         for (GameObject target : hitEntities) {
-            applyDamage(attacker, target, weapon, damageCallback);
+            applyHit(attacker, target, weapon, damageCallback);
         }
     }
 
     /**
      * Applies damage and knockback to a target entity.
+     * Also used by things that hit without an attack swing, such as projectiles.
      *
      * @param attacker The attacking entity
      * @param target The target entity
      * @param weapon The weapon used
      * @param damageCallback Optional callback for spawning damage numbers
      */
-    private static void applyDamage(GameObject attacker, GameObject target,
-                                   WeaponStats weapon, DamageCallback damageCallback) {
+    public static void applyHit(GameObject attacker, GameObject target,
+                                WeaponStats weapon, DamageCallback damageCallback) {
         // Already dead (e.g. a knocked-out player waiting to respawn): nothing to hit
         if (target instanceof Entity entity && !entity.isAlive()) {
             return;

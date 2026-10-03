@@ -10,6 +10,7 @@ Co-op LAN multiplayer over KryoNet. One player hosts (Esc → **Open to LAN**) a
 | Enemies, AI, damage, breakables, loot, world items | **Host** | `EntitySpawn` / `EntityStateBatch` (20 Hz) / `EntityDespawn` / `Effect` |
 | What an attack hits | **Host** | The guest sends `AttackRequest`; the host resolves it with its copy of the guest |
 | Hits on a guest | **Host** detects, **guest** applies | `PlayerHit` (damage + knockback) → the guest's own player |
+| Enemy projectiles | **Host** (flight and hits) | `EntitySpawn` with `vx`/`vy`; the guest flies its own copy (no hits) until `EntityDespawn` |
 | Picking up items | **Host** | `PickupRequest` → despawn for everyone + `ItemGrant` to the picker |
 | Furniture placement and pickup | **Host** | `PlaceFurnitureRequest` → `PlaceFurnitureResult`; `PickUpFurnitureRequest` → `ItemGrant` |
 | Chest contents | **Whoever holds the chest's lock** | `ChestOpenRequest` → `ChestOpenResult`; `ChestContents` on change; `ChestClose` |
@@ -70,7 +71,7 @@ Each player dies and respawns on their own machine; nothing about it is decided 
 
 - **The owner's `GameWorld`:** at 0 HP, `PlayerEntity.onDeath` calls it instead of deactivating the player. The player is frozen and hidden for `RESPAWN_DELAY`, then healed to full and moved to `START_LEVEL`'s spawn. Respawning in the level you're already in is a teleport, not a level change: re-entering the same level on a client would make the host resend it.
 - **Others:** they learn about it from the HP in `PlayerState`. `PlayerDataCodec.applyState` reports the moment a copy dies, so the others show a death puff. On revive it clears the copy's snapshot buffer, so the copy jumps to the spawn instead of sliding across the map.
-- **Dead targets can't be hit** (`AttackSystem.applyDamage`), and enemies drop them as targets.
+- **Dead targets can't be hit** (`AttackSystem.applyHit`), and enemies drop them as targets.
 - **Nobody is saved knocked out:** `GameWorld.respawnIfDead()` runs before the host saves, before F7 loads, and before anyone returns to the main menu. If a guest disconnects while knocked out, `HostSession.recordCharacter` saves them at the start level's spawn with full health.
 - Tests: `PlayerDeathTest` (single-player), `PlayerDeathMultiplayerTest`. Days and dungeons: `DayCycleTest`, `DaysAndDungeonsTest`, `DaysMultiplayerTest`.
 
@@ -106,4 +107,4 @@ Each player dies and respawns on their own machine; nothing about it is decided 
   - `runUntil(condition, description)` steps until the condition holds.
   - `savedCharacter(name)` finds a guest character in the save.
 - Host and clients in one test JVM share singletons (`SaveManager`, `FurnitureManager`, `LootSystem`); only the host should initialise `LootSystem`.
-- Main suites: `MultiplayerTest`, `GuestCharacterTest`, `SharedFurnitureTest`, `PacketTransportTest`, `ClockSyncTest`, `PlayerDataCodecTest`.
+- Main suites: `MultiplayerTest`, `ProjectileMultiplayerTest`, `GuestCharacterTest`, `SharedFurnitureTest`, `PacketTransportTest`, `ClockSyncTest`, `PlayerDataCodecTest`.

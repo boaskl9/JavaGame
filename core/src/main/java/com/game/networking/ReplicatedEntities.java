@@ -10,6 +10,7 @@ import com.game.systems.entity.Transform;
 import com.game.systems.entity.entities.BreakableEntity;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.systems.entity.entities.ItemPickupEntity;
+import com.game.systems.entity.entities.ProjectileEntity;
 import com.game.systems.entity.entities.enemies.EnemyFactory;
 import com.game.systems.furniture.FurnitureEntity;
 import com.game.systems.furniture.FurnitureFactory;
@@ -28,11 +29,12 @@ public final class ReplicatedEntities {
      * Players are handled separately (owner-authoritative); gateways are part of the map.
      */
     public static boolean isReplicated(GameObject obj) {
-        return obj instanceof EnemyEntity || obj instanceof BreakableEntity || obj instanceof FurnitureEntity;
+        return obj instanceof EnemyEntity || obj instanceof BreakableEntity || obj instanceof FurnitureEntity
+            || obj instanceof ProjectileEntity;
     }
 
     /**
-     * Describe a world object (enemy, breakable or furniture) as a spawn packet.
+     * Describe a world object (enemy, breakable, furniture or projectile) as a spawn packet.
      * Chest contents are not included; they are sent when a player opens the chest.
      */
     public static Packets.EntitySpawn describe(GameObject obj) {
@@ -44,6 +46,11 @@ public final class ReplicatedEntities {
         if (transform != null) {
             spawn.x = transform.getX();
             spawn.y = transform.getY();
+        }
+        if (obj instanceof ProjectileEntity projectile) {
+            // Clients fly their copy from here; the host's despawn ends it
+            spawn.vx = projectile.getVelocity().x;
+            spawn.vy = projectile.getVelocity().y;
         }
         if (obj instanceof Entity entity) {
             spawn.hp = entity.getHealth();
@@ -68,11 +75,12 @@ public final class ReplicatedEntities {
         if (obj instanceof EnemyEntity enemy && EnemyFactory.typeOf(enemy) != null) return EnemyFactory.typeOf(enemy);
         if (obj instanceof BreakableEntity breakable) return "breakable:" + breakable.getObjectType();
         if (obj instanceof FurnitureEntity furniture) return "furniture:" + furniture.getItemId();
+        if (obj instanceof ProjectileEntity projectile) return projectile.getType();
         throw new IllegalArgumentException("Not a replicated type: " + obj.getClass().getSimpleName());
     }
 
     /**
-     * Create a client-side copy of a spawned enemy, breakable or furniture (not items).
+     * Create a client-side copy of a spawned enemy, breakable, furniture or projectile (not items).
      * @return the puppet, or null for unknown types
      */
     public static GameObject createPuppet(Packets.EntitySpawn spawn, WorldManager world) {
@@ -95,6 +103,17 @@ public final class ReplicatedEntities {
             if (obj == null) {
                 return null;
             }
+        } else if (spawn.type.startsWith(ProjectileEntity.TYPE_PREFIX)) {
+            ProjectileEntity.Kind kind = ProjectileEntity.Kind.byId(spawn.type.substring(ProjectileEntity.TYPE_PREFIX.length()));
+            if (kind == null) {
+                System.err.println("ReplicatedEntities: Unknown projectile type " + spawn.type);
+                return null;
+            }
+            float half = ProjectileEntity.SIZE / 2f;
+            ProjectileEntity projectile = new ProjectileEntity(world, kind, null,
+                spawn.x + half, spawn.y + half, spawn.vx, spawn.vy);
+            projectile.setNetworkControlled(true);
+            obj = projectile;
         } else {
             System.err.println("ReplicatedEntities: Unknown entity type " + spawn.type);
             return null;

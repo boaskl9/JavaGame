@@ -22,6 +22,7 @@ import com.game.systems.entity.entities.EnemyEntity;
 import com.game.systems.entity.entities.GatewayEntity;
 import com.game.systems.entity.entities.ItemPickupEntity;
 import com.game.systems.entity.entities.PlayerEntity;
+import com.game.systems.entity.entities.ProjectileEntity;
 import com.game.systems.furniture.ChestEntity;
 import com.game.systems.furniture.FurnitureEntity;
 import com.game.systems.furniture.FurnitureFactory;
@@ -806,6 +807,8 @@ public class GameWorld implements NetGameContext {
             if (obj instanceof EnemyEntity enemy && !enemy.isNetworkControlled()) {
                 enemy.setDamageNumberCallback((x, y, damage) -> emitDamageNumber(levelId, x, y, damage));
                 enemy.setDeathCallback((deadEnemy, x, y) -> emitDeath(levelId, x, y));
+            } else if (obj instanceof ProjectileEntity projectile && !projectile.isNetworkControlled()) {
+                projectile.setDamageCallback((x, y, damage) -> emitDamageNumber(levelId, x, y, damage));
             } else if (obj instanceof BreakableEntity breakable) {
                 breakable.setParticleCallback((x, y, particleType) -> {
                     if (isCurrentLevel(levelId)) {
