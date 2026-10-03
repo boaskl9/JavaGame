@@ -44,6 +44,24 @@ public interface NetGameContext {
     /** Client: the host told us where to start. Build that level and create the local player. */
     void startAsClient(int playerId, String levelId, float x, float y, String savedPlayerJson);
 
+    // ========== Days ==========
+
+    com.game.world.DayCycle getDayCycle();
+
+    boolean isLocalPlayerSleeping();
+
+    /** Host: everyone is asleep; start the next day. */
+    void endDay(boolean passedOut);
+
+    /** Client: the host started a new day. */
+    void onNewDay(int day, boolean passedOut);
+
+    /** How many players are asleep (shown while sleeping). */
+    void onSleepStatus(int asleep, int total);
+
+    /** Host: a guest left this level; unload it if nobody needs it any more (e.g. a dungeon). */
+    void releaseLevelIfUnused(String levelId);
+
     /** Place furniture in a level (authoritative). @return the furniture, or null if it can't go there */
     com.game.systems.furniture.FurnitureEntity placeFurniture(String levelId, String itemId, float x, float y);
 

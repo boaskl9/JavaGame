@@ -3,7 +3,10 @@ package com.game.world;
 import com.game.integration.WorldManager;
 import com.game.systems.breakable.BreakableObjectFactory;
 import com.game.systems.collision.SpatialQuery;
+import com.game.systems.dungeon.assembly.DungeonPopulator;
 import com.game.systems.entity.entities.BreakableEntity;
+import com.game.systems.entity.entities.EnemyEntity;
+import com.game.systems.entity.entities.enemies.EnemyFactory;
 import com.game.systems.entity.entities.GatewayEntity;
 import com.game.systems.furniture.FurnitureManager;
 import com.game.systems.level.LevelData;
@@ -59,6 +62,7 @@ public final class LevelInstanceFactory {
         addGateways(world, levelData);
         if (mode == Mode.AUTHORITATIVE) {
             addBreakables(world, levelData);
+            addEnemies(world, levelData);
             FurnitureManager.getInstance().loadFurnitureIntoWorld(levelId, world);
         }
 
@@ -76,6 +80,22 @@ public final class LevelInstanceFactory {
                     obj.getWidth(), obj.getHeight(),
                     targetLevel, targetSpawn
                 ));
+            }
+        }
+    }
+
+    /**
+     * Enemies placed in the level: objects of type "enemy" with an "enemyType" property
+     * (e.g. "enemy:lizard"). Seeded dungeons get these from DungeonPopulator; Tiled maps can use them too.
+     */
+    private static void addEnemies(WorldManager world, LevelData levelData) {
+        for (LevelData.LevelObject obj : levelData.getObjectsByType(DungeonPopulator.ENEMY_OBJECT)) {
+            String type = obj.getPropertyString(DungeonPopulator.ENEMY_TYPE_PROPERTY, null);
+            EnemyEntity enemy = type != null ? EnemyFactory.create(type, world, obj.getX(), obj.getY()) : null;
+            if (enemy != null) {
+                world.addGameObject(enemy);
+            } else {
+                System.err.println("LevelInstanceFactory: Unknown enemy type " + type);
             }
         }
     }

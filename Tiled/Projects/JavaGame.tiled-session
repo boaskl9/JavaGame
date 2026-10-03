@@ -95,21 +95,21 @@
         },
         "D:/JavaGame/assets/Maps/house1.tmx": {
             "scale": 3,
-            "selectedLayer": 2,
+            "selectedLayer": 4,
             "viewCenter": {
-                "x": 308.8333333333333,
-                "y": 209.16666666666663
+                "x": 155.83333333333331,
+                "y": 148.83333333333334
             }
         },
         "D:/JavaGame/assets/Maps/prototype.tmx": {
             "expandedObjectLayers": [
                 6
             ],
-            "scale": 0.5,
-            "selectedLayer": 0,
+            "scale": 2,
+            "selectedLayer": 5,
             "viewCenter": {
-                "x": 1525,
-                "y": 1069
+                "x": 56.75,
+                "y": 158.25
             }
         },
         "D:/JavaGame/assets/Tiled/Projects/TilesetFloor.tsx": {

@@ -298,7 +298,7 @@ public class RoomPlacer {
 
         for (WorldDoor openDoor : doorsToClose) {
             // Get a compatible closer room for this door direction
-            RoomTemplate closer = theme.getCompatibleCloser(openDoor.getDoor().getDirection());
+            RoomTemplate closer = theme.getCompatibleCloser(openDoor.getDoor().getDirection(), random); // Seeded: the same seed must give the same dungeon on every machine
 
             if (closer == null) {
                 System.out.println("  Door " + openDoor.getDoor().getDirection() + " at (" + openDoor.getWorldX() + "," + openDoor.getWorldY() + "): no compatible closer found");

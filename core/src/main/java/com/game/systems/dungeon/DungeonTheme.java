@@ -186,7 +186,7 @@ public class DungeonTheme {
      * @param direction The direction of the open door that needs closing
      * @return Compatible closer room, or null if none found
      */
-    public RoomTemplate getCompatibleCloser(Direction direction) {
+    public RoomTemplate getCompatibleCloser(Direction direction, Random random) {
         // Find closers with doors in the opposite direction
         Direction oppositeDir = direction.opposite();
         List<RoomTemplate> compatibleClosers = new ArrayList<>();

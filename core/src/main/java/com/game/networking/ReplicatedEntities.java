@@ -10,9 +10,7 @@ import com.game.systems.entity.Transform;
 import com.game.systems.entity.entities.BreakableEntity;
 import com.game.systems.entity.entities.EnemyEntity;
 import com.game.systems.entity.entities.ItemPickupEntity;
-import com.game.systems.entity.entities.enemies.Axolot;
-import com.game.systems.entity.entities.enemies.CatEnemy;
-import com.game.systems.entity.entities.enemies.LizardEnemy;
+import com.game.systems.entity.entities.enemies.EnemyFactory;
 import com.game.systems.furniture.FurnitureEntity;
 import com.game.systems.furniture.FurnitureFactory;
 
@@ -67,9 +65,7 @@ public final class ReplicatedEntities {
     }
 
     private static String typeOf(GameObject obj) {
-        if (obj instanceof LizardEnemy) return "enemy:lizard";
-        if (obj instanceof Axolot) return "enemy:axolot";
-        if (obj instanceof CatEnemy) return "enemy:cat";
+        if (obj instanceof EnemyEntity enemy && EnemyFactory.typeOf(enemy) != null) return EnemyFactory.typeOf(enemy);
         if (obj instanceof BreakableEntity breakable) return "breakable:" + breakable.getObjectType();
         if (obj instanceof FurnitureEntity furniture) return "furniture:" + furniture.getItemId();
         throw new IllegalArgumentException("Not a replicated type: " + obj.getClass().getSimpleName());
@@ -82,12 +78,7 @@ public final class ReplicatedEntities {
     public static GameObject createPuppet(Packets.EntitySpawn spawn, WorldManager world) {
         GameObject obj;
         if (spawn.type.startsWith("enemy:")) {
-            EnemyEntity enemy = switch (spawn.type) {
-                case "enemy:lizard" -> new LizardEnemy(world, spawn.x, spawn.y);
-                case "enemy:axolot" -> new Axolot(world, spawn.x, spawn.y);
-                case "enemy:cat" -> new CatEnemy(world, spawn.x, spawn.y);
-                default -> null;
-            };
+            EnemyEntity enemy = EnemyFactory.create(spawn.type, world, spawn.x, spawn.y);
             if (enemy == null) {
                 System.err.println("ReplicatedEntities: Unknown enemy type " + spawn.type);
                 return null;

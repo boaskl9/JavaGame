@@ -44,4 +44,12 @@ public abstract class LevelSource {
      * @return true if this is a dungeon, false for regular levels
      */
     public abstract boolean isDungeon();
+
+    /**
+     * Whether another machine can rebuild this exact level from its ID alone
+     * (Tiled maps, and dungeons generated from a known seed).
+     */
+    public boolean isShareable() {
+        return !isDungeon();
+    }
 }

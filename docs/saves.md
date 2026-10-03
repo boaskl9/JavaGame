@@ -23,12 +23,13 @@ Nothing saves on a timer or when the window closes. `SaveManager.quickSave()` (a
 SaveData      version, saveName, timestamp, playtimeSeconds
 ├─ player     PlayerData: x, y, health, max health, InventoryData (default slots, bags, equipment)
 ├─ world      WorldData: currentLevelId, levelType,
-│             furnitureByLevel (incl. chest contents), droppedItemsByLevel
+│             furnitureByLevel (incl. chest contents), droppedItemsByLevel,
+│             day, dayElapsed, worldSeed (see world/DayCycle; 0 in older saves)
 └─ guestPlayers  Map<characterId, PlayerData>: multiplayer guest characters
                  (also displayName, levelId, lastPlayedBy; see docs/multiplayer.md)
 ```
 
-Not saved, by design: generated dungeons (regenerated on entry), enemies, and breakables (reset when a level is built).
+Not saved, by design: dungeons (rebuilt from the world seed and the day, so after a reload today's dungeon has all its monsters back; saving inside one loads you at the start level), enemies, breakables (reset when a level is built), and today's dungeon lockouts.
 
 ## Loading order
 

@@ -24,6 +24,21 @@ class DungeonGenerationTest extends GameTestBase {
     }
 
     @Test
+    void theSameSeedBuildsTheSameDungeonNoMatterWhatWasGeneratedBefore() {
+        // Every machine must build the same daily dungeon, whatever it generated earlier.
+        // The cave theme has "closer" rooms, which used to be picked with an unseeded random.
+        List<List<String>> firstRun = new java.util.ArrayList<>();
+        for (long seed = 1; seed <= 20; seed++) {
+            firstRun.add(layout(DungeonGenerator.generate("cave", 50, seed)));
+        }
+
+        com.game.util.SingletonManager.resetAllGameSingletons(); // Fresh theme, as on another machine
+        for (long seed = 20; seed >= 1; seed--) { // And in a different order
+            assertEquals(firstRun.get((int) seed - 1), layout(DungeonGenerator.generate("cave", 50, seed)), "seed " + seed);
+        }
+    }
+
+    @Test
     void generatedRoomsDoNotOverlap() {
         for (long seed = 1; seed <= 5; seed++) {
             DungeonGenerationResult result = DungeonGenerator.generate(THEME, 20, seed);

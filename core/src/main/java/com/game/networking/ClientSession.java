@@ -136,6 +136,12 @@ public class ClientSession implements NetSession {
             if (!isJoined()) {
                 game.chooseCharacter(list.characters, list.message);
             }
+        } else if (packet instanceof Packets.DayState state) {
+            game.getDayCycle().set(state.day, state.elapsed, state.dayLength, state.worldSeed);
+        } else if (packet instanceof Packets.NewDay newDay) {
+            if (isJoined()) game.onNewDay(newDay.day, newDay.passedOut);
+        } else if (packet instanceof Packets.SleepStatus status) {
+            game.onSleepStatus(status.asleep, status.total);
         } else if (packet instanceof Packets.Welcome welcome) {
             onWelcome(welcome);
         } else if (packet instanceof Packets.PlayerState state) {
@@ -497,6 +503,18 @@ public class ClientSession implements NetSession {
     @Override
     public void broadcastEffect(String levelId, Packets.Effect effect) {
         // Only the host produces effects
+    }
+
+    @Override
+    public void onLocalSleepChanged(boolean asleep) {
+        Packets.Sleep sleep = new Packets.Sleep();
+        sleep.asleep = asleep;
+        client.send(sleep);
+    }
+
+    @Override
+    public void onDayEnded(boolean passedOut) {
+        // Only the host ends days
     }
 
     @Override

@@ -75,6 +75,7 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
     private RemoteHitHandler remoteHitHandler;
     private AttackListener attackListener;
     private Runnable deathListener;
+    private boolean frozen = false; // Asleep: stays put until the day ends or they get up
     private String remoteWeaponId; // Weapon shown on a remote player's copy
 
     // Debug: Store last attack hitbox for visualization
@@ -189,8 +190,8 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
             inputSource.update(delta);
         }
 
-        // Knocked out: no moving or attacking until GameWorld respawns us
-        if (!isAlive()) {
+        // Knocked out or asleep: no moving or attacking
+        if (!isAlive() || frozen) {
             velocity.setVelocity(0, 0);
             super.update(delta);
             return;
@@ -464,6 +465,15 @@ public class PlayerEntity extends com.game.systems.entity.Entity {
 
     public void setRemoteHitHandler(RemoteHitHandler remoteHitHandler) {
         this.remoteHitHandler = remoteHitHandler;
+    }
+
+    /** Keep the player from moving or attacking (e.g. while asleep). */
+    public void setFrozen(boolean frozen) {
+        this.frozen = frozen;
+    }
+
+    public boolean isFrozen() {
+        return frozen;
     }
 
     /** Called when this (locally simulated) player's health reaches zero. */

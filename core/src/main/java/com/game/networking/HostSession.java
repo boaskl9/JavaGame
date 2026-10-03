@@ -38,6 +38,7 @@ public class HostSession implements NetSession {
     private static final int MAX_NAME_LENGTH = 16;
     private static final float PLAYER_STATE_INTERVAL = 1f / 30f;
     private static final float ENTITY_STATE_INTERVAL = 1f / 20f;
+    private static final float DAY_STATE_INTERVAL = 1f;
     private static final float MAX_PICKUP_DISTANCE = 64f; // Generous: magnet range + the guest's copy lagging behind the guest
     private static final float DROPPED_ITEM_GRACE = 1.5f;
     private static final float MAX_FURNITURE_REACH = 48f; // Generous: the guest's copy lags behind the guest
@@ -54,6 +55,7 @@ public class HostSession implements NetSession {
 
     private float playerStateTimer = 0f;
     private float entityStateTimer = 0f;
+    private float dayStateTimer = 0f;
     private boolean disposed = false;
 
     private static final class Guest {
@@ -64,6 +66,7 @@ public class HostSession implements NetSession {
         String characterId; // Where the character is saved
         String levelId;
         int epoch;
+        boolean asleep;
         PlayerEntity player; // Network-controlled copy on the host
         final ClockSync clock = new ClockSync();
 
@@ -146,6 +149,16 @@ public class HostSession implements NetSession {
         if (entityStateTimer >= ENTITY_STATE_INTERVAL) {
             entityStateTimer = 0f;
             sendEntityStates();
+        }
+
+        dayStateTimer += delta;
+        if (dayStateTimer >= DAY_STATE_INTERVAL) {
+            dayStateTimer = 0f;
+            for (Guest guest : guests.values()) {
+                if (guest.isJoined()) {
+                    server.send(guest.connectionId, dayState());
+                }
+            }
         }
     }
 
@@ -250,6 +263,9 @@ public class HostSession implements NetSession {
             }
         } else if (packet instanceof Packets.ChestClose close) {
             chestLocks.remove(close.netId, guest.playerId);
+        } else if (packet instanceof Packets.Sleep sleep) {
+            guest.asleep = sleep.asleep;
+            updateSleep();
         } else if (packet instanceof Packets.InventorySync sync) {
             PlayerData data = PlayerDataCodec.fromJson(sync.playerJson);
             if (data != null) {
@@ -386,6 +402,7 @@ public class HostSession implements NetSession {
         welcome.x = position.x;
         welcome.y = position.y;
         welcome.savedPlayerJson = PlayerDataCodec.toJson(saved);
+        server.send(guest.connectionId, dayState());
         server.send(guest.connectionId, welcome);
         sendLevelSnapshot(guest);
 
@@ -467,6 +484,8 @@ public class HostSession implements NetSession {
             }
         }
         sendCharacterListsToChoosingGuests(); // Their character is free again
+        updateSleep(); // Maybe everyone left is asleep now
+        game.releaseLevelIfUnused(guest.levelId);
     }
 
     /**
@@ -543,9 +562,13 @@ public class HostSession implements NetSession {
         guest.player.setWorld(target.getWorld());
         target.getWorld().addGameObject(guest.player);
 
+        String previousLevel = guest.levelId;
         guest.levelId = target.getLevelId();
         guest.epoch = change.epoch;
         sendLevelSnapshot(guest);
+        if (!previousLevel.equals(guest.levelId)) {
+            game.releaseLevelIfUnused(previousLevel); // e.g. a dungeon nobody is in any more
+        }
 
         System.out.println("HostSession: " + guest.name + " moved to " + guest.levelId);
     }
@@ -842,6 +865,64 @@ public class HostSession implements NetSession {
     @Override
     public void broadcastEffect(String levelId, Packets.Effect effect) {
         sendEffect(levelId, effect, null);
+    }
+
+    // ========== Days ==========
+
+    private Packets.DayState dayState() {
+        com.game.world.DayCycle day = game.getDayCycle();
+        Packets.DayState state = new Packets.DayState();
+        state.day = day.getDay();
+        state.elapsed = day.getElapsed();
+        state.dayLength = day.getDayLength();
+        state.worldSeed = day.getWorldSeed();
+        return state;
+    }
+
+    @Override
+    public void onLocalSleepChanged(boolean asleep) {
+        updateSleep();
+    }
+
+    /**
+     * Tell everyone how many players are asleep; once all of them are, the day ends.
+     */
+    private void updateSleep() {
+        int total = 1;
+        int asleep = game.isLocalPlayerSleeping() ? 1 : 0;
+        for (Guest guest : guests.values()) {
+            if (!guest.isJoined()) continue;
+            total++;
+            if (guest.asleep) asleep++;
+        }
+
+        Packets.SleepStatus status = new Packets.SleepStatus();
+        status.asleep = asleep;
+        status.total = total;
+        for (Guest guest : guests.values()) {
+            if (guest.isJoined()) {
+                server.send(guest.connectionId, status);
+            }
+        }
+        game.onSleepStatus(asleep, total);
+
+        if (asleep > 0 && asleep == total) {
+            game.endDay(false);
+        }
+    }
+
+    @Override
+    public void onDayEnded(boolean passedOut) {
+        Packets.NewDay newDay = new Packets.NewDay();
+        newDay.day = game.getDayCycle().getDay();
+        newDay.passedOut = passedOut;
+        for (Guest guest : guests.values()) {
+            guest.asleep = false;
+            if (guest.isJoined()) {
+                server.send(guest.connectionId, dayState());
+                server.send(guest.connectionId, newDay);
+            }
+        }
     }
 
     private void sendEffect(String levelId, Packets.Effect effect, Guest except) {

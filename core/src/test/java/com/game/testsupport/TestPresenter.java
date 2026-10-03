@@ -27,6 +27,7 @@ public class TestPresenter implements GameWorld.Presenter {
     public int characterLists = 0;
     public int deaths = 0;
     public int respawns = 0;
+    public final List<String> messages = new ArrayList<>();
 
     @Override
     public InputSource createLocalInput(PlayerEntity player) {
@@ -84,6 +85,15 @@ public class TestPresenter implements GameWorld.Presenter {
     @Override
     public void onLocalPlayerRespawned() {
         respawns++;
+    }
+
+    @Override
+    public void showMessage(String text) {
+        messages.add(text);
+    }
+
+    public String lastMessage() {
+        return messages.isEmpty() ? null : messages.get(messages.size() - 1);
     }
 
     @Override

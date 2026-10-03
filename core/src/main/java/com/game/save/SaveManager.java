@@ -31,6 +31,7 @@ public class SaveManager implements GameSingleton {
     private String currentLevelId;
     private String currentLevelType; // "tiled_map" or "dungeon"
     private int playtimeSeconds = 0;
+    private com.game.world.DayCycle dayCycle;
     private final Map<String, PlayerData> guestPlayers = new HashMap<>();
 
     private SaveManager() {
@@ -72,6 +73,7 @@ public class SaveManager implements GameSingleton {
         this.currentLevelType = null;
         this.playtimeSeconds = 0;
         this.guestPlayers.clear();
+        this.dayCycle = null;
         instance = null;
     }
 
@@ -91,6 +93,11 @@ public class SaveManager implements GameSingleton {
      * Update current level information.
      * Call this whenever the player changes levels.
      */
+    /** The authoritative calendar to save and restore (host / single-player only). */
+    public void setDayCycle(com.game.world.DayCycle dayCycle) {
+        this.dayCycle = dayCycle;
+    }
+
     public void setCurrentLevel(String levelId, String levelType) {
         this.currentLevelId = levelId;
         this.currentLevelType = levelType;
@@ -289,7 +296,13 @@ public class SaveManager implements GameSingleton {
         // Capture dropped items from WorldItemManager
         Map<String, List<DroppedItemData>> droppedItemsByLevel = worldItemManager.exportSaveData();
 
-        return new WorldData(currentLevelId, currentLevelType, furnitureByLevel, droppedItemsByLevel);
+        WorldData world = new WorldData(currentLevelId, currentLevelType, furnitureByLevel, droppedItemsByLevel);
+        if (dayCycle != null) {
+            world.day = dayCycle.getDay();
+            world.dayElapsed = dayCycle.getElapsed();
+            world.worldSeed = dayCycle.getWorldSeed();
+        }
+        return world;
     }
 
     /**
@@ -359,6 +372,12 @@ public class SaveManager implements GameSingleton {
         guestPlayers.clear();
         if (saveData.guestPlayers != null) {
             guestPlayers.putAll(saveData.guestPlayers);
+        }
+
+        // Restore the calendar (older saves have no day: keep the fresh one, including its new seed)
+        if (dayCycle != null && saveData.world != null && saveData.world.day > 0) {
+            long seed = saveData.world.worldSeed != 0 ? saveData.world.worldSeed : dayCycle.getWorldSeed();
+            dayCycle.set(saveData.world.day, saveData.world.dayElapsed, dayCycle.getDayLength(), seed);
         }
 
         // Update current level info

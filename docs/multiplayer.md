@@ -13,6 +13,8 @@ Co-op LAN multiplayer over KryoNet. One player hosts (Esc → **Open to LAN**) a
 | Picking up items | **Host** | `PickupRequest` → despawn for everyone + `ItemGrant` to the picker |
 | Furniture placement and pickup | **Host** | `PlaceFurnitureRequest` → `PlaceFurnitureResult`; `PickUpFurnitureRequest` → `ItemGrant` |
 | Chest contents | **Whoever holds the chest's lock** | `ChestOpenRequest` → `ChestOpenResult`; `ChestContents` on change; `ChestClose` |
+| The day and clock | **Host** | `DayState` (before `Welcome`, then every second); `NewDay` when it ends |
+| Sleeping | **Each player**; the host ends the day when all are asleep | `Sleep` → host; `SleepStatus` → everyone |
 | Guest inventory | **Guest**, saved by the host | `InventorySync` every 5 s and on leave → `SaveData.guestPlayers[characterId]` |
 
 Players never get position corrections, so there is no rubber-banding. Other players and enemies render ~100 ms in the past (`Entity.INTERPOLATION_DELAY_MS`) from a snapshot buffer. `ClockSync` maps sender timestamps to local time, so packets that arrive in bursts still animate smoothly.
@@ -70,12 +72,24 @@ Each player dies and respawns on their own machine; nothing about it is decided 
 - **Others:** they learn about it from the HP in `PlayerState`. `PlayerDataCodec.applyState` reports the moment a copy dies, so the others show a death puff. On revive it clears the copy's snapshot buffer, so the copy jumps to the spawn instead of sliding across the map.
 - **Dead targets can't be hit** (`AttackSystem.applyDamage`), and enemies drop them as targets.
 - **Nobody is saved knocked out:** `GameWorld.respawnIfDead()` runs before the host saves, before F7 loads, and before anyone returns to the main menu. If a guest disconnects while knocked out, `HostSession.recordCharacter` saves them at the start level's spawn with full health.
-- Tests: `PlayerDeathTest` (single-player), `PlayerDeathMultiplayerTest`.
+- Tests: `PlayerDeathTest` (single-player), `PlayerDeathMultiplayerTest`. Days and dungeons: `DayCycleTest`, `DaysAndDungeonsTest`, `DaysMultiplayerTest`.
+
+## Days and shared dungeons
+
+- `world/DayCycle` holds the day, the time into it and the world seed. Only the host's (or single-player's) cycle ends days and is saved. Guests copy it from `DayState` and let their copy tick between packets so the clock runs smoothly.
+- **End of the day:** the host calls `GameWorld.endDay`. `HostSession.onDayEnded` sends every guest `DayState` + `NewDay`. Each machine then wakes its own player at home with full health and clears its dungeon lockouts (`startNewDayLocally`).
+- **Sleeping:** `GameWorld.sleep()` freezes the player and reports it. The host counts the host plus joined guests and ends the day when all are asleep; a guest leaving re-checks the count. `wakeUp()` (E again) cancels.
+- **Daily dungeons:** any machine can build `dungeon:<theme>:<day>` from its ID (`GameWorld.levelSourceFor` + `DungeonLevelSource.generate`), so a guest walks in on their own and the host builds the same level when the `LevelChange` arrives. Monsters come from the host as usual.
+  - The host (or single-player) **keeps today's dungeon loaded all day**, frozen while it's empty, so killed monsters stay dead and loot stays put when players come back. In the morning it unloads the previous days' dungeons (`GameWorld.releaseOldDungeons`). If a guest is still inside one, it's unloaded once they leave (`NetGameContext.releaseLevelIfUnused`, called on guest level changes and disconnects).
+  - Requesting another day's dungeon throws, so stale IDs from saves fall back to the start level.
+- **Determinism matters:** generation must only use the seeded `Random` passed through `RoomPlacer`. `DungeonGenerationTest` checks the same seed gives the same layout after a fresh theme load and in a different order.
 
 ## Known limitations
 
 - Everything goes over TCP. Moving `PlayerState` and `EntityStateBatch` to UDP (`sendUDP`; the UDP port is already bound) would help on lossy Wi-Fi.
-- Generated dungeons can't be shared (a guest can't rebuild them from a level ID).
+- Dungeons made with the debug console (`/dungeon load`) can't be shared; the daily ones can.
+- A guest who changes into a dungeon from a day that just ended (a race at the stroke of 02:00) is kicked, because the host won't build a stale day's dungeon.
+- Dungeon lockouts live in each player's `GameWorld` and aren't saved, so reconnecting clears them.
 - No dedicated start spot for new characters (they appear next to the host).
 - No way to delete a guest character. No key or menu to pick furniture up (only `GameWorld.pickUpFurniture`).
 - A partial item pickup on the host doesn't update the quantity on clients.

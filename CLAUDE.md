@@ -61,16 +61,17 @@ Game: WASD move, left click attack, E interact, B inventory, C equipment + inven
 
 Debug: F3 overlay, which enables number keys 1–9 to spawn items, bags, enemies and pots at the mouse (C also spawns a chest while F3 is on, the same key as the equipment window). F4 console. F5 item browser. F6/F7 save/load `debug_save`. `+`/`-`/`0` change the time scale.
 
-Console commands (F4): `help`, `clear`, `spawn`, `damage`, `heal`, `setmaxhealth`, `debug <colliders|navmesh|fps|all|none>`, `items`, `timescale`, and `dungeon <info|generate|load|load_generated|test>`. See `DebugConsole.java` for arguments.
+Console commands (F4): `help`, `clear`, `spawn`, `damage`, `heal`, `setmaxhealth`, `debug <colliders|navmesh|fps|all|none>`, `items`, `timescale`, and `dungeon <info|generate|load|load_generated|test>`, `sleep`, `daylength [seconds]`. See `DebugConsole.java` for arguments.
 
 ## State of things
 
-Working: movement, combat (8 weapon types), player death (knocked out for `GameWorld.RESPAWN_DELAY`, then respawn at `GameWorld.START_LEVEL` with full health, no penalty), enemy AI with pathfinding, health, inventory with bags, equipment slots, loot tables, breakables, furniture and chests, audio, saves with a main menu, co-op multiplayer (shared world, furniture, guest characters picked Stardew-style).
+Working: days (`world/DayCycle`: 3 real minutes from 06:00 to 02:00, clock top right; sleeping in a `bed` or passing out starts the next day at home), the daily cave dungeon behind house1 (same layout for everyone all day, dying there locks you out until tomorrow), movement, combat (8 weapon types), player death (knocked out for `GameWorld.RESPAWN_DELAY`, then respawn at `GameWorld.START_LEVEL` with full health, no penalty), enemy AI with pathfinding, health, inventory with bags, equipment slots, loot tables, breakables, furniture and chests, audio, saves with a main menu, co-op multiplayer (shared world, furniture, guest characters picked Stardew-style).
 
 Not done or partial:
 - Equipment gives no stat bonuses. It can supply loot modifiers (`ItemDefinition.getLootModifier`).
-- There's no enemy spawn system: enemies only come from debug spawns (number keys, `/spawn`). Maps place breakables and gateways, not enemies. NPCs are a stub. No shops, projectiles or day/night cycle.
-- Dungeons: generation works (`/dungeon test` opens `DungeonTestScreen`), but loading generated dungeons into play is rough, and they can't be shared in multiplayer.
+- There's no enemy spawn system: enemies only come from debug spawns (number keys, `/spawn`). Maps place breakables and gateways, not enemies. NPCs are a stub. No shops or projectiles; days have a clock but no lighting changes.
+- Dungeons: the daily dungeon has no visible exit marker yet (an invisible gateway on the entrance), and many rooms' doors fail to get a "closer" room, so some doors lead nowhere. Dungeons from `/dungeon` (debug) can't be shared in multiplayer; the daily ones can.
+- No map has a `bed` object yet, so the only ways to end a day are waiting 3 minutes or `/sleep`.
 - Furniture can't be picked up from the UI (only `GameWorld.pickUpFurniture` exists).
 - A new multiplayer character starts where the host stands (a dedicated starting spot is planned).
 

@@ -29,6 +29,8 @@ import com.game.systems.furniture.FurnitureManager;
 import com.game.systems.input.InputSource;
 import com.game.systems.item.ItemFactory;
 import com.game.systems.item.ItemStack;
+import com.game.systems.dungeon.DungeonLevelSource;
+import com.game.systems.dungeon.assembly.DungeonPopulator;
 import com.game.systems.level.LevelSource;
 import com.game.systems.level.TiledMapLevelSource;
 
@@ -90,6 +92,9 @@ public class GameWorld implements NetGameContext {
         /** The local player woke up at the start level with full health. */
         void onLocalPlayerRespawned();
 
+        /** Tell the local player something (e.g. "Day 2", or why a door won't open). */
+        void showMessage(String text);
+
         /**
          * Joining a host: show its characters. The player answers with {@link #playCharacter}
          * or {@link #createCharacter}. Called again when the list changes or a choice was refused.
@@ -111,12 +116,27 @@ public class GameWorld implements NetGameContext {
     private NetSession session; // Null in single-player
     private GatewayEntity pendingGateway;
     private float respawnTimer = -1f; // Counts down while the local player is knocked out
+    private GatewayEntity ignoredGateway; // The gateway we arrived on (or were refused at): ignored until we step off it
+
+    // Days
+    private final DayCycle dayCycle = new DayCycle(new java.util.Random().nextLong());
+    private boolean sleeping = false;
+    private int playersAsleep = 0;
+    private int playersTotal = 1;
+
+    // Dungeons
+    private final java.util.Set<String> exhaustedDungeons = new java.util.HashSet<>(); // "dungeon:cave": died there today
+    private String dungeonReturnLevel; // Where the dungeon's exit leads
+    private String dungeonReturnSpawn;
 
     public GameWorld(boolean clientMode, WorldItemManager worldItemManager, PlayerManager playerManager, Presenter presenter) {
         this.clientMode = clientMode;
         this.worldItemManager = worldItemManager;
         this.playerManager = playerManager;
         this.presenter = presenter;
+        if (!clientMode) {
+            com.game.save.SaveManager.getInstance().setDayCycle(dayCycle); // The host's clock is the one saved
+        }
     }
 
     // ========== Per-frame ==========
@@ -136,6 +156,11 @@ public class GameWorld implements NetGameContext {
     public void update(float delta) {
         if (currentInstance == null) return;
 
+        // Guests' clocks run too (for display), but only the host ends the day
+        if (dayCycle.advance(delta) && !clientMode) {
+            endDay(true);
+        }
+
         if (isLocalPlayerDead()) {
             respawnTimer -= delta;
             if (respawnTimer <= 0f) {
@@ -146,7 +171,7 @@ public class GameWorld implements NetGameContext {
         if (pendingGateway != null) {
             GatewayEntity gateway = pendingGateway;
             pendingGateway = null;
-            changeLevel(gateway.getTargetLevel(), gateway.getTargetSpawn());
+            useGateway(gateway);
         }
 
         updateLevels(delta);
@@ -228,20 +253,47 @@ public class GameWorld implements NetGameContext {
     }
 
     private void checkGatewayCollisions() {
-        if (localPlayer == null || isLocalPlayerDead()) return;
+        if (localPlayer == null || isLocalPlayerDead() || sleeping) return;
 
+        GatewayEntity touching = gatewayUnderPlayer();
+        if (touching == null) {
+            ignoredGateway = null; // Stepped off: it works again
+        } else if (touching != ignoredGateway) {
+            pendingGateway = touching;
+        }
+    }
+
+    /** The gateway the local player is standing on, or null. */
+    private GatewayEntity gatewayUnderPlayer() {
         ColliderComponent playerCollider = localPlayer.getComponent(ColliderComponent.class);
-        if (playerCollider == null) return;
+        if (playerCollider == null) return null;
         Rectangle playerBounds = playerCollider.getBounds(localPlayer);
 
         for (GameObject obj : currentInstance.getWorld().getGameObjects()) {
             if (obj instanceof GatewayEntity gateway) {
                 ColliderComponent gatewayCollider = gateway.getComponent(ColliderComponent.class);
                 if (gatewayCollider != null && playerBounds.overlaps(gatewayCollider.getBounds(gateway))) {
-                    pendingGateway = gateway;
-                    return;
+                    return gateway;
                 }
             }
+        }
+        return null;
+    }
+
+    /**
+     * Gateway targets: a level ID, "dungeon:<theme>" (today's dungeon of that theme; the gateway's
+     * targetSpawn is where its exit brings you back to), or "dungeon:exit".
+     */
+    private void useGateway(GatewayEntity gateway) {
+        String target = gateway.getTargetLevel();
+        if (DungeonPopulator.EXIT_TARGET.equals(target)) {
+            leaveDungeon();
+        } else if (target.startsWith(DungeonLevelSource.ID_PREFIX)) {
+            if (!enterDungeon(target, gateway.getTargetSpawn())) {
+                ignoredGateway = gateway; // Don't ask again until they step off
+            }
+        } else {
+            changeLevel(target, gateway.getTargetSpawn());
         }
     }
 
@@ -255,6 +307,12 @@ public class GameWorld implements NetGameContext {
         if (isLocalPlayerDead()) return;
         respawnTimer = RESPAWN_DELAY;
         pendingGateway = null;
+
+        // Dying in a dungeon kicks you out for the rest of the day
+        String dungeon = dungeonKeyOf(currentInstance.getLevelId());
+        if (dungeon != null) {
+            exhaustedDungeons.add(dungeon);
+        }
 
         Vector2 at = localPlayer.getTransform().getPosition();
         presenter.showDeathAnimation(at.x, at.y);
@@ -280,18 +338,215 @@ public class GameWorld implements NetGameContext {
 
     private void respawnLocalPlayer() {
         respawnTimer = -1f;
+        boolean leftDungeon = dungeonKeyOf(currentInstance.getLevelId()) != null;
         localPlayer.heal(localPlayer.getMaxHealth());
+        goHome();
 
+        presenter.onLocalPlayerRespawned();
+        if (leftDungeon) {
+            presenter.showMessage("You were carried out of the dungeon.\nYou can't go back in today.");
+        }
+        System.out.println("GameWorld: Local player respawned at " + START_LEVEL);
+    }
+
+    /** Put the local player at the start level's spawn point. */
+    private void goHome() {
+        dungeonReturnLevel = null;
+        dungeonReturnSpawn = null;
         if (currentInstance.getLevelId().equals(START_LEVEL)) {
             // Same level: just move (re-entering would make a client ask the host for the level again)
             Vector2 spawn = currentInstance.getSpawnPosition(null);
             localPlayer.getTransform().setPosition(spawn.x, spawn.y);
+            ignoredGateway = gatewayUnderPlayer();
         } else {
             changeLevel(START_LEVEL, null);
         }
+    }
 
-        presenter.onLocalPlayerRespawned();
-        System.out.println("GameWorld: Local player respawned at " + START_LEVEL);
+    // ========== Days ==========
+
+    @Override
+    public DayCycle getDayCycle() {
+        return dayCycle;
+    }
+
+    /**
+     * Go to bed. Single-player: the next day starts right away. Multiplayer: it starts once every
+     * player is asleep; until then the player can't move ({@link #wakeUp} to get up again).
+     */
+    public void sleep() {
+        if (localPlayer == null || sleeping || isLocalPlayerDead()) return;
+        setSleeping(true);
+        pendingGateway = null;
+        if (session == null) {
+            endDay(false);
+        } else {
+            session.onLocalSleepChanged(true);
+        }
+    }
+
+    /** Get out of bed before the day ends. */
+    public void wakeUp() {
+        if (!sleeping) return;
+        setSleeping(false);
+        if (session != null) {
+            session.onLocalSleepChanged(false);
+        }
+    }
+
+    private void setSleeping(boolean asleep) {
+        sleeping = asleep;
+        if (localPlayer != null) {
+            localPlayer.setFrozen(asleep);
+        }
+    }
+
+    @Override
+    public boolean isLocalPlayerSleeping() {
+        return sleeping;
+    }
+
+    public int getPlayersAsleep() {
+        return playersAsleep;
+    }
+
+    public int getPlayersTotal() {
+        return playersTotal;
+    }
+
+    @Override
+    public void onSleepStatus(int asleep, int total) {
+        playersAsleep = asleep;
+        playersTotal = total;
+    }
+
+    /**
+     * Interact with the level itself (not furniture): lie down in a bed ("bed" objects in the
+     * level's Entities layer), or get up again.
+     * @return true if something was used
+     */
+    public boolean interactWithLevel() {
+        if (localPlayer == null || currentInstance == null || isLocalPlayerDead()) return false;
+        if (sleeping) {
+            wakeUp();
+            return true;
+        }
+        ColliderComponent playerCollider = localPlayer.getComponent(ColliderComponent.class);
+        if (playerCollider == null) return false;
+        Rectangle playerBounds = playerCollider.getBounds(localPlayer);
+        for (com.game.systems.level.LevelData.LevelObject bed : currentInstance.getLevelData().getObjectsByType("bed")) {
+            Rectangle bedBounds = new Rectangle(bed.getX(), bed.getY(), Math.max(bed.getWidth(), 16), Math.max(bed.getHeight(), 16));
+            if (playerBounds.overlaps(bedBounds)) {
+                sleep();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The day is over (everyone slept, or time ran out): start the next one. Host / single-player.
+     */
+    @Override
+    public void endDay(boolean passedOut) {
+        if (clientMode) return;
+        dayCycle.startNextDay();
+        if (session != null) {
+            session.onDayEnded(passedOut);
+        }
+        startNewDayLocally(passedOut);
+    }
+
+    @Override
+    public void onNewDay(int day, boolean passedOut) {
+        dayCycle.set(day, 0f, dayCycle.getDayLength(), dayCycle.getWorldSeed());
+        startNewDayLocally(passedOut);
+    }
+
+    /**
+     * Morning: wake up at home with full health; yesterday's dungeon lockouts are gone.
+     */
+    private void startNewDayLocally(boolean passedOut) {
+        System.out.println("GameWorld: Day " + dayCycle.getDay() + (passedOut ? " (passed out)" : ""));
+        respawnTimer = -1f;
+        setSleeping(false);
+        playersAsleep = 0;
+        exhaustedDungeons.clear();
+        pendingGateway = null;
+        if (localPlayer == null || currentInstance == null) return;
+
+        localPlayer.heal(localPlayer.getMaxHealth());
+        goHome();
+        releaseOldDungeons();
+        presenter.showMessage(passedOut
+            ? "You passed out from exhaustion...\nDay " + dayCycle.getDay()
+            : "Day " + dayCycle.getDay());
+    }
+
+    // ========== Dungeons ==========
+
+    /**
+     * Enter today's dungeon of a theme. Its layout and enemies are the same for everyone all day.
+     * @param dungeonKey "dungeon:<theme>"
+     * @param returnSpawn spawn point in the current level that the dungeon's exit leads back to
+     * @return false if the player can't go in (they died there today)
+     */
+    public boolean enterDungeon(String dungeonKey, String returnSpawn) {
+        if (exhaustedDungeons.contains(dungeonKey)) {
+            presenter.showMessage("You're too worn out to go back in there today.");
+            return false;
+        }
+        String returnLevel = currentInstance.getLevelId();
+        changeLevel(dungeonKey + ":" + dayCycle.getDay(), null);
+        dungeonReturnLevel = returnLevel;
+        dungeonReturnSpawn = returnSpawn;
+        return true;
+    }
+
+    /** Take the dungeon's exit: back to where the player came in (the start level if unknown). */
+    public void leaveDungeon() {
+        String level = dungeonReturnLevel != null ? dungeonReturnLevel : START_LEVEL;
+        String spawn = dungeonReturnLevel != null ? dungeonReturnSpawn : null;
+        dungeonReturnLevel = null;
+        dungeonReturnSpawn = null;
+        changeLevel(level, spawn);
+    }
+
+    /** Whether the local player died in this dungeon today ("dungeon:<theme>"). */
+    public boolean isExhausted(String dungeonKey) {
+        return exhaustedDungeons.contains(dungeonKey);
+    }
+
+    /** "dungeon:cave" for a daily dungeon's level ID ("dungeon:cave:3"), else null. */
+    public static String dungeonKeyOf(String levelId) {
+        if (levelId == null || !levelId.startsWith(DungeonLevelSource.ID_PREFIX)) return null;
+        int lastColon = levelId.lastIndexOf(':');
+        return lastColon > DungeonLevelSource.ID_PREFIX.length() ? levelId.substring(0, lastColon) : null;
+    }
+
+    /**
+     * Build the source for a level ID: a Tiled map path, or a daily dungeon "dungeon:<theme>:<day>",
+     * generated from the world seed so every machine builds the same one.
+     */
+    private LevelSource levelSourceFor(String levelId) {
+        String dungeonKey = dungeonKeyOf(levelId);
+        if (dungeonKey != null) {
+            String theme = dungeonKey.substring(DungeonLevelSource.ID_PREFIX.length());
+            int day = Integer.parseInt(levelId.substring(levelId.lastIndexOf(':') + 1));
+            if (day != dayCycle.getDay()) {
+                throw new IllegalArgumentException(levelId + " is from another day (today is day " + dayCycle.getDay() + ")");
+            }
+            return DungeonLevelSource.generate(levelId, theme, dayCycle.seedFor(theme, day));
+        }
+        return new TiledMapLevelSource(levelId);
+    }
+
+    @Override
+    public void releaseLevelIfUnused(String levelId) {
+        LevelInstance instance = instances.get(levelId);
+        if (instance != null && instance != currentInstance) {
+            releaseInstanceIfUnused(instance);
+        }
     }
 
     // ========== Level management ==========
@@ -302,7 +557,7 @@ public class GameWorld implements NetGameContext {
     public void changeLevel(String levelPath, String spawnPointName) {
         LevelInstance target = instances.get(levelPath);
         if (target == null) {
-            target = createInstance(new TiledMapLevelSource(levelPath));
+            target = createInstance(levelSourceFor(levelPath));
         }
         enterLevel(target, target.getSpawnPosition(spawnPointName));
     }
@@ -368,6 +623,8 @@ public class GameWorld implements NetGameContext {
             releaseInstanceIfUnused(previous);
         }
 
+        ignoredGateway = gatewayUnderPlayer();
+
         if (session != null) {
             session.onLocalLevelChanged(target);
         }
@@ -381,6 +638,7 @@ public class GameWorld implements NetGameContext {
     private void releaseInstanceIfUnused(LevelInstance instance) {
         String levelId = instance.getLevelId();
         boolean keep = !clientMode && (!instance.getSource().isDungeon()
+            || isTodaysDungeon(levelId) // Monsters stay dead (and loot stays put) until tomorrow
             || (session != null && session.isLevelOccupied(levelId)));
         if (keep) return;
 
@@ -392,6 +650,22 @@ public class GameWorld implements NetGameContext {
             session.onInstanceDisposed(instance);
         }
         instance.dispose();
+    }
+
+    private boolean isTodaysDungeon(String levelId) {
+        return dungeonKeyOf(levelId) != null && levelId.equals(dungeonKeyOf(levelId) + ":" + dayCycle.getDay());
+    }
+
+    /**
+     * A new day: unload the previous days' dungeons (unless a guest is still in one; they leave soon
+     * and releaseLevelIfUnused unloads it then).
+     */
+    private void releaseOldDungeons() {
+        for (LevelInstance instance : new ArrayList<>(instances.values())) {
+            if (instance != currentInstance && dungeonKeyOf(instance.getLevelId()) != null) {
+                releaseInstanceIfUnused(instance);
+            }
+        }
     }
 
     /**
@@ -705,7 +979,7 @@ public class GameWorld implements NetGameContext {
     public LevelInstance getOrCreateInstance(String levelId) {
         LevelInstance instance = instances.get(levelId);
         if (instance == null) {
-            instance = createInstance(new TiledMapLevelSource(levelId));
+            instance = createInstance(levelSourceFor(levelId));
         }
         return instance;
     }
@@ -732,7 +1006,7 @@ public class GameWorld implements NetGameContext {
 
     @Override
     public void startAsClient(int playerId, String levelId, float x, float y, String savedPlayerJson) {
-        LevelInstance instance = createInstance(new TiledMapLevelSource(levelId));
+        LevelInstance instance = createInstance(levelSourceFor(levelId));
         enterLevel(instance, new Vector2(x, y));
 
         com.game.save.PlayerData saved = PlayerDataCodec.fromJson(savedPlayerJson);

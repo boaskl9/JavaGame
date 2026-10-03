@@ -11,6 +11,9 @@ public class WorldData {
     public String levelType; // "tiled_map" or "dungeon" (dungeons not saved)
     public Map<String, List<FurnitureData>> furnitureByLevel; // Level ID -> furniture list
     public Map<String, List<DroppedItemData>> droppedItemsByLevel; // Level ID -> dropped items
+    public int day;            // 0 in saves from before days existed
+    public float dayElapsed;   // Real seconds into the day
+    public long worldSeed;     // Makes per-day content (dungeon layouts) the same for everyone; 0 in older saves
 
     // Required for JSON deserialization
     public WorldData() {

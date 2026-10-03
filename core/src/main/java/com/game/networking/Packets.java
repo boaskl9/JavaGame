@@ -56,6 +56,10 @@ public final class Packets {
         kryo.register(ChestOpenResult.class);
         kryo.register(ChestContents.class);
         kryo.register(ChestClose.class);
+        kryo.register(DayState.class);
+        kryo.register(NewDay.class);
+        kryo.register(Sleep.class);
+        kryo.register(SleepStatus.class);
     }
 
     // ========== Join / leave ==========
@@ -264,5 +268,32 @@ public final class Packets {
     /** Client → host: I closed the chest. */
     public static class ChestClose {
         public int netId;
+    }
+
+    // ========== Days ==========
+
+    /** Host → clients: the world's clock (before Welcome, then every second). */
+    public static class DayState {
+        public int day;
+        public float elapsed;   // Real seconds into the day
+        public float dayLength; // Real seconds per day
+        public long worldSeed;  // Seeds per-day content such as dungeon layouts
+    }
+
+    /** Host → clients: the day ended (everyone slept, or time ran out); wake up at home. */
+    public static class NewDay {
+        public int day;
+        public boolean passedOut;
+    }
+
+    /** Client → host: I went to bed (or got up again). The day ends when everyone is asleep. */
+    public static class Sleep {
+        public boolean asleep;
+    }
+
+    /** Host → clients: how many players are asleep. */
+    public static class SleepStatus {
+        public int asleep;
+        public int total;
     }
 }

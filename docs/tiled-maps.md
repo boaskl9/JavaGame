@@ -28,10 +28,24 @@ Collision shapes come from the **tile collision editor** in the tilesets (object
 |---|---|
 | name `player_spawn` | Default spawn point |
 | name `spawn_<something>` | Named spawn point, the target of gateways |
-| type `gateway` (rectangle) | Level transition; properties `targetLevel` (level ID, e.g. `Maps/house1.tmx`) and `targetSpawn` (spawn name in that level) |
+| type `gateway` (rectangle) | Level transition; properties `targetLevel` (level ID, e.g. `Maps/house1.tmx`) and `targetSpawn` (spawn name in that level). See below for dungeon entrances |
+| type `bed` (rectangle) | Pressing E while standing on it goes to sleep (ends the day once every player is asleep) |
+| type `enemy` | An enemy, spawned by the host; property `enemyType` = `enemy:lizard`, `enemy:axolot` or `enemy:cat` (`EnemyFactory`) |
 | type `pot`, `clay_pot` | Breakable object (types in `LevelInstanceFactory.BREAKABLE_TYPES`, configured in `assets/data/BreakableObjectConfig.json`) |
 
-Other custom properties on objects are kept in `LevelData.LevelObject` (`getPropertyString`) for new object types. Enemies aren't placed from maps yet.
+Other custom properties on objects are kept in `LevelData.LevelObject` (`getPropertyString`) for new object types.
+
+In Tiled these are objects in the `Entities` layer whose **name** is the type (e.g. an object named `gateway`).
+
+Arriving on a gateway doesn't trigger it: you have to step off and back on. That lets a spawn point sit on a gateway.
+
+## Dungeon entrances
+
+A gateway with `targetLevel = dungeon:<theme>` (e.g. `dungeon:cave`) enters **today's** dungeon of that theme. Its `targetSpawn` is the spawn point *in the current map* where the dungeon's exit brings you back (house1 uses `spawn_point2`, just inside the door).
+
+- The dungeon's level ID is `dungeon:<theme>:<day>`. It's generated from the world seed and the day (`DayCycle.seedFor`), so everyone gets the same rooms and monsters all day, and a new layout the next day. The dungeon stays loaded for the rest of the day, so killed monsters stay dead when you come back (but not across a save and reload).
+- The entrance is the standable tile nearest the center of the first room, and the exit is an (invisible) gateway on it with `targetLevel = dungeon:exit` (`DungeonPopulator`). Other rooms get 0-2 enemies of the theme's types (`DungeonLevelSource.enemyTypesFor`).
+- Dying in a dungeon locks that player out of that theme until the next day.
 
 ## Dungeon rooms
 

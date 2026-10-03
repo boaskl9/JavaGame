@@ -66,6 +66,12 @@ public interface NetSession {
     /** The local player closed a chest. */
     void closeChest(com.game.systems.furniture.ChestEntity chest);
 
+    /** The local player went to bed or got up. Host: ends the day once everyone is asleep; client: tells the host. */
+    void onLocalSleepChanged(boolean asleep);
+
+    /** Host: the day just ended; wake every guest up at home. */
+    void onDayEnded(boolean passedOut);
+
     /** One-shot visual that happened in a level on the host, to be shown to players there. */
     void broadcastEffect(String levelId, Packets.Effect effect);
 

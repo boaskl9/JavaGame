@@ -139,6 +139,11 @@ public class GameScreen implements Screen, GameWorld.Presenter {
 
     private boolean screenClosed = false;
 
+    // Short message in the middle of the screen (new day, a door that won't open, ...)
+    private String messageText = null;
+    private float messageTimer = 0f;
+    private static final float MESSAGE_DURATION = 4f;
+
     // Joining a host: character selection, shown until the local player exists
     private com.badlogic.gdx.scenes.scene2d.Stage joinStage;
     private com.badlogic.gdx.scenes.scene2d.ui.Skin joinSkin;
@@ -391,9 +396,16 @@ public class GameScreen implements Screen, GameWorld.Presenter {
             uiManager.render();
         }
 
+        renderClock();
         if (gameWorld.isLocalPlayerDead()) {
-            renderKnockedOut();
+            renderDimmed("You were knocked out...");
+        } else if (gameWorld.isLocalPlayerSleeping()) {
+            int total = gameWorld.getPlayersTotal();
+            renderDimmed(total > 1
+                ? "Sleeping... (" + gameWorld.getPlayersAsleep() + "/" + total + " players asleep)\nPress E to get up"
+                : "Sleeping...");
         }
+        renderMessage(delta);
 
         // Render debug
         if (debugMode || debugManager.isEnabled("colliders")) {
@@ -408,9 +420,9 @@ public class GameScreen implements Screen, GameWorld.Presenter {
     }
 
     /**
-     * Dim the screen while the local player is down, until they respawn.
+     * Dim the screen with a line of text in the middle (knocked out, asleep).
      */
-    private void renderKnockedOut() {
+    private void renderDimmed(String text) {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         shapeRenderer.setProjectionMatrix(uiCamera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -419,12 +431,45 @@ public class GameScreen implements Screen, GameWorld.Presenter {
         shapeRenderer.end();
         Gdx.gl.glDisable(GL20.GL_BLEND);
 
-        String text = "You were knocked out...";
+        drawCentered(text, VIEWPORT_HEIGHT / 2f);
+    }
+
+    /**
+     * The in-game clock, top right: "Day 3  14:40".
+     */
+    private void renderClock() {
+        String text = "Day " + gameWorld.getDayCycle().getDay() + "   " + gameWorld.getDayCycle().getClockText();
         com.badlogic.gdx.graphics.g2d.GlyphLayout layout = new com.badlogic.gdx.graphics.g2d.GlyphLayout(debugFont, text);
         batch.setProjectionMatrix(uiCamera.combined);
         batch.begin();
-        debugFont.draw(batch, text, (VIEWPORT_WIDTH - layout.width) / 2f, (VIEWPORT_HEIGHT + layout.height) / 2f);
+        debugFont.draw(batch, text, VIEWPORT_WIDTH - layout.width - 8, VIEWPORT_HEIGHT - 8);
         batch.end();
+    }
+
+    private void renderMessage(float delta) {
+        if (messageText == null) return;
+        messageTimer -= delta;
+        if (messageTimer <= 0f) {
+            messageText = null;
+            return;
+        }
+        drawCentered(messageText, VIEWPORT_HEIGHT * 0.7f);
+    }
+
+    /** Draw (possibly multi-line) text centered horizontally, centered on centerY. */
+    private void drawCentered(String text, float centerY) {
+        com.badlogic.gdx.graphics.g2d.GlyphLayout layout = new com.badlogic.gdx.graphics.g2d.GlyphLayout(
+            debugFont, text, com.badlogic.gdx.graphics.Color.WHITE, VIEWPORT_WIDTH, com.badlogic.gdx.utils.Align.center, true);
+        batch.setProjectionMatrix(uiCamera.combined);
+        batch.begin();
+        debugFont.draw(batch, layout, 0, centerY + layout.height / 2f);
+        batch.end();
+    }
+
+    @Override
+    public void showMessage(String text) {
+        messageText = text;
+        messageTimer = MESSAGE_DURATION;
     }
 
     @Override
@@ -525,9 +570,11 @@ public class GameScreen implements Screen, GameWorld.Presenter {
             }
         }
 
-        // Interact with nearby furniture (E key)
+        // Interact (E key): the level first (a bed, or getting up), then nearby furniture
         if (inputManager.isJustPressed(InputAction.INTERACT)) {
-            handleFurnitureInteraction();
+            if (!gameWorld.interactWithLevel()) {
+                handleFurnitureInteraction();
+            }
         }
 
         // Debug: Spawn wood item

@@ -181,6 +181,21 @@ public class DebugConsole extends Window {
     /**
      * Execute a command string.
      */
+    /** /daylength <seconds>: how long a day lasts (host / single-player; default 180). */
+    private void executeDayLength(String[] parts) {
+        if (gameScreen.isGuest()) {
+            error("Only the host controls the clock");
+            return;
+        }
+        if (parts.length < 2) {
+            log("Day length: " + gameScreen.getGameWorld().getDayCycle().getDayLength() + "s");
+            return;
+        }
+        float seconds = Float.parseFloat(parts[1]);
+        gameScreen.getGameWorld().getDayCycle().setDayLength(seconds);
+        log("Day length set to " + seconds + "s");
+    }
+
     private void executeCommand(String commandStr) {
         String[] parts = commandStr.trim().split("\\s+");
 
@@ -224,6 +239,13 @@ public class DebugConsole extends Window {
                 case "dungeon":
                     executeDungeon(parts);
                     break;
+                case "sleep":
+                    gameScreen.getGameWorld().sleep();
+                    log("Going to sleep (the day ends once every player is asleep)");
+                    break;
+                case "daylength":
+                    executeDayLength(parts);
+                    break;
                 default:
                     error("Unknown command: " + command);
                     log("Type /help for a list of commands");
@@ -261,6 +283,8 @@ public class DebugConsole extends Window {
         log("      Commands: load, info, generate, test");
         log("      Example: /dungeon generate forest 50");
         log("      Example: /dungeon test (opens test screen)");
+        log("  /sleep - Go to sleep (ends the day once everyone is asleep)");
+        log("  /daylength [seconds] - Show or set how long a day lasts");
         log("  /items - Open item browser window");
         log("      Drag items to inventory or world to spawn");
         log("  /clear - Clear console output");

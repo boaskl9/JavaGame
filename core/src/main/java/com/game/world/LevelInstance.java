@@ -100,11 +100,11 @@ public class LevelInstance {
     }
 
     /**
-     * Whether another machine can rebuild this level from its ID alone.
-     * Generated dungeons can't be, so guests can't follow the host into them yet.
+     * Whether another machine can rebuild this level from its ID alone
+     * (Tiled maps and the seeded daily dungeons; not dungeons made with the debug console).
      */
     public boolean isShareable() {
-        return !source.isDungeon();
+        return source.isShareable();
     }
 
     public void dispose() {
